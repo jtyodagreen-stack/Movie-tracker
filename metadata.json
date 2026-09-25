@@ -1,5 +1,5 @@
 {
-  "name": "BingeBox Tracker",
+  "name": "ShowFlix Tracker",
   "description": "The ultimate media and show tracker powered by Google Sheets.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
