@@ -118,6 +118,22 @@ export default function AddShowModal({
   }, [sheetViewers, who]);
   const [posterUrl, setPosterUrl] = useState('');
   const [showImageUpload, setShowImageUpload] = useState(false);
+  const [tilt, setTilt] = useState({ x: 0, y: 0, isHovered: false });
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (window.innerWidth < 640) return;
+    const card = e.currentTarget;
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left - rect.width / 2;
+    const y = e.clientY - rect.top - rect.height / 2;
+    const rotateX = -(y / rect.height) * 8;
+    const rotateY = (x / rect.width) * 8;
+    setTilt({ x: rotateX, y: rotateY, isHovered: true });
+  };
+
+  const handleMouseLeave = () => {
+    setTilt({ x: 0, y: 0, isHovered: false });
+  };
 
   const allPlatforms = PRESET_PLATFORMS;
 
@@ -191,10 +207,23 @@ export default function AddShowModal({
     <div
       id="add-show-modal-backdrop"
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md overflow-y-auto"
+      style={{ perspective: '1200px' }}
       onClick={onClose}
     >
       <div
         id="add-show-modal-dialog"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        style={{
+          transform: `perspective(1200px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) translate3d(0, 0, ${tilt.isHovered ? '15px' : '0px'})`,
+          transformStyle: 'preserve-3d',
+          boxShadow: tilt.isHovered 
+            ? '0 35px 70px -15px rgba(0, 0, 0, 0.95), 0 0 35px rgba(229, 9, 20, 0.12)' 
+            : '0 25px 50px -12px rgba(0, 0, 0, 0.75)',
+          transition: tilt.isHovered 
+            ? 'transform 0.08s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.3s ease' 
+            : 'transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.6s ease',
+        }}
         className="relative w-full max-w-2xl max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-[#181818] border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >

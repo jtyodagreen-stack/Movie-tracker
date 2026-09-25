@@ -653,24 +653,16 @@ export default function DashboardStats({
 
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={ratingData} margin={{ top: 10, right: 10, left: -5, bottom: 35 }}>
+                <BarChart data={ratingData} margin={{ top: 10, right: 10, left: -5, bottom: 50 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                   <XAxis
                     dataKey="name"
                     stroke="#71717a"
                     fontSize={10}
                     interval={0}
-                    angle={-25}
+                    angle={-35}
                     textAnchor="end"
-                    height={45}
-                    tickFormatter={(val: string) => {
-                      if (val.includes('5 Stars')) return '5★ Ex.';
-                      if (val.includes('4 Stars')) return '4★ Great';
-                      if (val.includes('3 Stars')) return '3★ Good';
-                      if (val.includes('2 Stars')) return '2★ Fair';
-                      if (val.includes('1 Star')) return '1★ Poor';
-                      return val;
-                    }}
+                    height={55}
                   />
                   <YAxis stroke="#71717a" fontSize={10} allowDecimals={false} width={25} />
                   <Tooltip
