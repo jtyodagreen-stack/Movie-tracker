@@ -84,7 +84,7 @@ export default function ShowRow({
         {/* Scrollable Row */}
         <div
           ref={rowRef}
-          className="flex items-start gap-3 sm:gap-4 overflow-x-auto scrollbar-hide scroll-smooth pb-3 px-1"
+          className="flex items-start gap-3 sm:gap-4 overflow-x-auto scrollbar-hide scroll-smooth pt-12 pb-14 px-2 -my-10"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {shows.map((show) => (
