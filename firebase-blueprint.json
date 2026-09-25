@@ -1,0 +1,74 @@
+{
+  "entities": {
+    "user_settings": {
+      "title": "UserSettings",
+      "description": "User specific application and Google Sheet synchronization preferences",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user"
+        },
+        "spreadsheetId": {
+          "type": "string",
+          "description": "Google Spreadsheet ID for auto-sync"
+        },
+        "sheetName": {
+          "type": "string",
+          "description": "Tab name in the spreadsheet"
+        },
+        "sheetTitle": {
+          "type": "string",
+          "description": "User-friendly title of the spreadsheet"
+        },
+        "sheetTabId": {
+          "type": "number",
+          "description": "Numeric ID of the sheet tab"
+        },
+        "autoSyncEnabled": {
+          "type": "boolean",
+          "description": "Whether continuous background auto-sync is active"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last updated timestamp"
+        }
+      },
+      "required": ["userId", "spreadsheetId"]
+    },
+    "custom_filter": {
+      "title": "CustomFilter",
+      "description": "User-defined custom filter for shows",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the filter"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status to filter by"
+        },
+        "platform": {
+          "type": "string",
+          "description": "Platform to filter by"
+        }
+      },
+      "required": ["userId", "name"]
+    }
+  },
+  "firestore": {
+    "/user_settings/{userId}": {
+      "schema": "user_settings",
+      "description": "Stores user sync settings and default connected Google Sheet"
+    },
+    "/custom_filters/{filterId}": {
+      "schema": "custom_filter",
+      "description": "Stores user-defined custom filters"
+    }
+  }
+}

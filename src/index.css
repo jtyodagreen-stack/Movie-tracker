@@ -1,0 +1,231 @@
+@import "tailwindcss";
+
+/* Smooth Hover Animation Utilities */
+@layer utilities {
+  .hover-lift-card {
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .hover-lift-card:hover {
+    transform: translateY(-6px) scale(1.02);
+  }
+
+  .hover-glow-btn {
+    transition: all 0.25s ease-in-out;
+  }
+  .hover-glow-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.5);
+  }
+
+  .hover-scale-icon {
+    transition: transform 0.2s ease;
+  }
+  .hover-scale-icon:hover {
+    transform: scale(1.12);
+  }
+}
+
+/* Fix for WebKit and iOS tap highlight obscuring borders */
+button,
+a,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Fix for WebKit and iOS date inputs and select elements bursting outside container */
+input[type="date"],
+input[type="text"],
+input[type="url"],
+select,
+textarea {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Restrict webkit datepicker indicator from adding extra horizontal margin/padding on iOS */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(1);
+  margin-left: 0;
+  padding-left: 0;
+  max-width: 24px;
+}
+
+/* High Contrast Mode - Rigorous WCAG AAA Compliance */
+.high-contrast {
+  --background: #000000;
+  --foreground: #ffffff;
+  --border: #ffff00;
+  --accent: #ffff00;
+  --highlight-bg: #1a1a00;
+}
+
+.high-contrast {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+}
+
+.high-contrast * {
+  border-color: var(--border) !important;
+}
+
+.high-contrast .bg-zinc-950,
+.high-contrast .bg-zinc-900,
+.high-contrast .bg-zinc-800,
+.high-contrast .bg-zinc-700,
+.high-contrast .bg-zinc-600,
+.high-contrast .bg-[#141414],
+.high-contrast .bg-[#181818],
+.high-contrast .bg-black {
+  background-color: #000000 !important;
+  border: 2px solid var(--border) !important;
+  color: var(--foreground) !important;
+}
+
+.high-contrast button,
+.high-contrast input,
+.high-contrast select,
+.high-contrast textarea {
+  background-color: #000000 !important;
+  border: 3px solid var(--border) !important;
+  color: var(--foreground) !important;
+  font-weight: 800 !important;
+}
+
+.high-contrast button:hover,
+.high-contrast button:focus {
+  background-color: #ffff00 !important;
+  color: #000000 !important;
+  border-color: #ffffff !important;
+}
+
+.high-contrast .text-white,
+.high-contrast .text-zinc-200,
+.high-contrast .text-zinc-300,
+.high-contrast .text-zinc-400,
+.high-contrast .text-red-500,
+.high-contrast .text-red-400,
+.high-contrast .text-emerald-400,
+.high-contrast span,
+.high-contrast p,
+.high-contrast h1,
+.high-contrast h2,
+.high-contrast h3 {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  text-shadow: none !important;
+}
+
+.high-contrast .border-zinc-700,
+.high-contrast .border-zinc-800,
+.high-contrast .border-red-800\/60,
+.high-contrast .border-zinc-600 {
+  border-color: var(--border) !important;
+  border-width: 2px !important;
+}
+
+/* UK Gov Inclusive Communication: Clear Print & Large Print (16pt+ / 1.25x scale) */
+.accessible-large-text {
+  font-size: 1.15rem !important; /* ~18-20px base */
+  line-height: 1.6 !important;
+  letter-spacing: 0.015em !important;
+}
+
+.accessible-large-text h1 {
+  font-size: 2.25rem !important;
+  line-height: 1.25 !important;
+}
+
+.accessible-large-text h2 {
+  font-size: 1.75rem !important;
+  line-height: 1.3 !important;
+}
+
+.accessible-large-text h3 {
+  font-size: 1.4rem !important;
+  line-height: 1.35 !important;
+}
+
+.accessible-large-text p,
+.accessible-large-text span,
+.accessible-large-text button,
+.accessible-large-text input,
+.accessible-large-text select {
+  font-size: 1.05rem !important;
+}
+
+/* UK Gov Inclusive Communication: Dyslexia-friendly sans font & character spacing */
+.accessible-dyslexia-font {
+  font-family: Arial, "Helvetica Neue", "Segoe UI", sans-serif !important;
+  letter-spacing: 0.035em !important;
+  word-spacing: 0.08em !important;
+  line-height: 1.65 !important;
+}
+
+/* UK Gov / WCAG: Reduced Motion mode */
+.accessible-reduce-motion *,
+.accessible-reduce-motion *::before,
+.accessible-reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+
+
+
+/* Ensure no root-level horizontal overflow on iOS viewports & fix overscroll gaps */
+html, body, #root {
+  overflow-x: hidden;
+  max-width: 100vw;
+  background-color: #141414;
+  color: #ffffff;
+  min-height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Animated syncing progress on notification toast */
+@keyframes sync-progress-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes sync-progress-bar {
+  0% {
+    width: 0%;
+  }
+  40% {
+    width: 55%;
+  }
+  80% {
+    width: 88%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+#app-toast-notification.is-syncing {
+  background: linear-gradient(
+    90deg,
+    #18181b 0%,
+    #1e3a8a 25%,
+    #0284c7 50%,
+    #059669 75%,
+    #18181b 100%
+  ) !important;
+  background-size: 200% 200% !important;
+  animation: sync-progress-flow 2s ease infinite !important;
+  box-shadow: 0 0 25px -5px rgba(2, 132, 199, 0.45), 0 20px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
