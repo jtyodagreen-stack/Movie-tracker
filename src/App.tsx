@@ -66,6 +66,7 @@ import {
   RotateCcw,
   BarChart3,
   ArrowUp,
+  ArrowUpDown,
 } from 'lucide-react';
 
 export default function App() {
@@ -127,6 +128,7 @@ export default function App() {
   }, [accessibilitySettings]);
   const [selectedPlatform, setSelectedPlatform] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
+  const [sortOrder, setSortOrder] = useState('title-asc');
   const [selectedShow, setSelectedShow] = useState<ShowItem | null>(null);
 
   const [hoveredShowId, setHoveredShowId] = useState<string | null>(null);
@@ -1395,8 +1397,8 @@ export default function App() {
     }
   };
 
-  // Filter shows - broad search across all metadata combined with category, platform, and year
-  const filteredShows = useMemo(() => {
+  // Base list filtered by Search, Category, and Year (used for platform breakdown and final filtered list)
+  const baseFilteredList = useMemo(() => {
     const trimmedQuery = searchQuery.trim();
 
     // Helper to normalize strings (remove accents, punctuation, lower-case)
@@ -1409,38 +1411,35 @@ export default function App() {
         .replace(/['’".,\/#!$%\^&\*;:{}=\-_`~()]/g, ' ');
     };
 
-    let baseList = shows;
+    let list = shows;
 
     // 1. Search Query filter (if any)
     if (trimmedQuery) {
       const queryClean = cleanStr(trimmedQuery);
       const queryTokens = queryClean.split(/\s+/).filter(Boolean);
 
-      const strictMatches = baseList.filter((show) => {
-        const corpus = cleanStr(
-          `${show.title} ${show.genre} ${show.platform}`
-        );
+      const strictMatches = list.filter((show) => {
+        const corpus = cleanStr(`${show.title} ${show.genre} ${show.platform}`);
         return queryTokens.every((token) => corpus.includes(token));
       });
 
       if (strictMatches.length > 0) {
-        baseList = strictMatches;
+        list = strictMatches;
       } else {
-        const looseMatches = baseList.filter((show) => {
-          const corpus = cleanStr(
-            `${show.title} ${show.genre} ${show.platform}`
-          );
+        const looseMatches = list.filter((show) => {
+          const corpus = cleanStr(`${show.title} ${show.genre} ${show.platform}`);
           return queryTokens.some((token) => corpus.includes(token));
         });
         if (looseMatches.length > 0) {
-          baseList = looseMatches;
+          list = looseMatches;
         }
       }
     }
 
     // 2. Category / Status filter
     if (activeFilter !== 'all') {
-      baseList = baseList.filter((show) => {
+      list = list.filter((show) => {
+        if (activeFilter === 'All Titles') return true;
         if (activeFilter === '🎁 Wishlist' || activeFilter === 'Wishlist') return Boolean(show.isWishlist);
         if (activeFilter === 'Series') return show.type === 'Series';
         if (activeFilter === 'Movie') return show.type === 'Movie';
@@ -1453,9 +1452,24 @@ export default function App() {
       });
     }
 
-    // 3. Platform filter
+    // 3. Year filter
+    if (selectedYear !== 'all') {
+      list = list.filter((show) => {
+        if (show.year === undefined || show.year === null) return false;
+        return String(show.year).trim() === String(selectedYear).trim();
+      });
+    }
+
+    return list;
+  }, [shows, searchQuery, activeFilter, selectedYear]);
+
+  // Filter shows - broad search across all metadata combined with category, platform, and year
+  const filteredShows = useMemo(() => {
+    let list = baseFilteredList;
+
+    // 4. Platform filter
     if (selectedPlatform !== 'all') {
-      baseList = baseList.filter((show) => {
+      list = list.filter((show) => {
         if (!show.platform) return false;
         const normShow = normalizePlatform(show.platform);
         const normSelected = normalizePlatform(selectedPlatform);
@@ -1467,16 +1481,26 @@ export default function App() {
       });
     }
 
-    // 4. Year filter
-    if (selectedYear !== 'all') {
-      baseList = baseList.filter((show) => {
-        if (show.year === undefined || show.year === null) return false;
-        return String(show.year).trim() === String(selectedYear).trim();
-      });
-    }
-
-    return baseList;
-  }, [shows, searchQuery, activeFilter, selectedPlatform, selectedYear]);
+    // 5. Sorting
+    return [...list].sort((a, b) => {
+      if (sortOrder === 'title-asc') {
+        return a.title.localeCompare(b.title);
+      }
+      if (sortOrder === 'title-desc') {
+        return b.title.localeCompare(a.title);
+      }
+      if (sortOrder === 'year-newest') {
+        return (Number(b.year) || 0) - (Number(a.year) || 0);
+      }
+      if (sortOrder === 'year-oldest') {
+        return (Number(a.year) || 0) - (Number(b.year) || 0);
+      }
+      if (sortOrder === 'rating') {
+        return (b.ratingNum || 0) - (a.ratingNum || 0);
+      }
+      return 0;
+    });
+  }, [baseFilteredList, selectedPlatform, sortOrder]);
 
   // Unique sorted list of years
   const availableYears = useMemo(() => {
@@ -1494,14 +1518,14 @@ export default function App() {
   const availablePlatforms = useMemo(() => {
     return PRESET_PLATFORMS.map((preset) => {
       const clean = preset.replace(/^[^\w\s]+/, '').trim() || preset;
-      const count = shows.filter((s) => {
+      const count = baseFilteredList.filter((s) => {
         if (!s.platform) return false;
         const norm = normalizePlatform(s.platform);
         return norm === preset || s.platform.trim() === preset;
       }).length;
       return { raw: preset, name: clean, count };
     });
-  }, [shows]);
+  }, [baseFilteredList]);
 
   const availableViewers = useMemo(() => {
     // If the Google Sheet Lists tab (D3:D900) has provided custom viewers, strictly use only those
@@ -1571,11 +1595,23 @@ export default function App() {
 
   // Show category collections
   const continueWatching = useMemo(
-    () => shows.filter((s) => s.status === '⏳ Watching'),
+    () => shows
+      .filter((s) => s.status === '⏳ Watching')
+      .sort((a, b) => {
+        const curA = parseInt(String(a.episodes).replace(/[^0-9]/g, '')) || 1;
+        const maxA = parseInt(String(a.maxEp).replace(/[^0-9]/g, '')) || 8;
+        const progressA = (curA / maxA);
+        const curB = parseInt(String(b.episodes).replace(/[^0-9]/g, '')) || 1;
+        const maxB = parseInt(String(b.maxEp).replace(/[^0-9]/g, '')) || 8;
+        const progressB = (curB / maxB);
+        return progressB - progressA;
+      }),
     [shows]
   );
   const topRated = useMemo(
-    () => shows.filter((s) => s.ratingNum >= 4 || s.rating.includes('5')),
+    () => shows
+      .filter((s) => s.ratingNum >= 4 || s.rating.includes('5'))
+      .sort((a, b) => (b.ratingNum || 0) - (a.ratingNum || 0)),
     [shows]
   );
   const netflixShows = useMemo(
@@ -2108,104 +2144,154 @@ export default function App() {
                   </span>
                 </div>
 
-                {/* Active Filter Chips */}
-                <div className="flex items-center gap-2 flex-wrap pt-1 text-xs">
-                  {searchQuery && (
-                    <span className="inline-flex items-center gap-1 bg-red-950/80 text-red-300 border border-red-800/60 px-2.5 py-0.5 rounded-full">
-                      <span>Query: "{searchQuery}"</span>
-                      <button onClick={() => setSearchQuery('')} className="hover:text-white ml-0.5">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  )}
-                  {activeFilter !== 'all' && (
-                    <span className="inline-flex items-center gap-1 bg-zinc-800 text-zinc-200 border border-zinc-700 px-2.5 py-0.5 rounded-full">
-                      <span>Category: {activeFilter}</span>
-                      <button onClick={() => setActiveFilter('all')} className="hover:text-white ml-0.5">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  )}
+                {/* Active Filter Chips Breakdown */}
+                <div className="flex flex-col gap-3 pt-2 text-xs">
                   <div className="flex items-center gap-2 flex-wrap">
-                    {['all', ...PRESET_PLATFORMS, ...customPlatforms].map((platform) => (
+                    {searchQuery && (
+                      <span className="inline-flex items-center gap-1.5 bg-red-950/80 text-red-300 border border-red-800/60 px-2.5 py-1 rounded-full shadow-sm">
+                        <span className="opacity-70">Search:</span>
+                        <span className="font-bold">"{searchQuery}"</span>
+                        <button onClick={() => setSearchQuery('')} className="hover:text-white ml-0.5 p-0.5 rounded-full hover:bg-red-800/50 transition-colors">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    {activeFilter !== 'all' && (
+                      <span className="inline-flex items-center gap-1.5 bg-zinc-800 text-zinc-200 border border-zinc-700 px-2.5 py-1 rounded-full shadow-sm">
+                        <span className="opacity-70 uppercase text-[9px] font-bold">Category:</span>
+                        <span className="font-bold">{activeFilter}</span>
+                        <button onClick={() => setActiveFilter('all')} className="hover:text-white ml-0.5 p-0.5 rounded-full hover:bg-zinc-700/50 transition-colors">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    {selectedYear !== 'all' && (
+                      <span className="inline-flex items-center gap-1.5 bg-amber-950/70 text-amber-200 border border-amber-700/60 px-2.5 py-1 rounded-full shadow-sm">
+                        <Calendar className="w-3 h-3 text-amber-400" />
+                        <span className="opacity-70">Year:</span>
+                        <span className="font-bold">{selectedYear}</span>
+                        <button onClick={() => setSelectedYear('all')} className="hover:text-white ml-0.5 p-0.5 rounded-full hover:bg-amber-800/50 transition-colors">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+
+                    {(() => {
+                      const hasSubFilters = Boolean(searchQuery || selectedPlatform !== 'all' || selectedYear !== 'all');
+                      const isCategoryActive = activeFilter !== 'all' && activeFilter !== 'All Titles';
+                      const categoryName =
+                        activeFilter === 'Series'
+                          ? 'Series'
+                          : activeFilter === 'Movie'
+                          ? 'Movies'
+                          : activeFilter === '⏳ Watching'
+                          ? 'Watching'
+                          : activeFilter === '✅ Watched'
+                          ? 'Watched'
+                          : activeFilter === '🎁 Wishlist' || activeFilter === 'Wishlist'
+                          ? 'Wishlist'
+                          : activeFilter === '⏸️ Paused'
+                          ? 'Paused'
+                          : activeFilter === '❌ Dropped'
+                          ? 'Dropped'
+                          : activeFilter;
+
+                      const resetLabel = isCategoryActive
+                        ? hasSubFilters
+                          ? `Reset to all ${categoryName}`
+                          : 'View all titles'
+                        : 'Reset to all';
+
+                      return (
+                        <button
+                          onClick={() => {
+                            const hasSub = Boolean(searchQuery || selectedPlatform !== 'all' || selectedYear !== 'all');
+                            setSearchQuery('');
+                            setSelectedPlatform('all');
+                            setSelectedYear('all');
+                            setSortOrder('title-asc');
+                            if (!hasSub && isCategoryActive) {
+                              // Already viewing all of this category, broaden to all titles
+                              setActiveFilter('All Titles');
+                            } else if (activeFilter === 'all') {
+                              setActiveFilter('All Titles');
+                            }
+                            // Otherwise keeps activeFilter so Series + Netflix resets to Series (all)!
+                          }}
+                          className="text-xs text-zinc-200 hover:text-white bg-zinc-800/90 hover:bg-zinc-700 hover:border-zinc-500 px-3 py-1 rounded-full border border-zinc-700 transition-all duration-150 cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-[0.97] font-medium"
+                          title={
+                            isCategoryActive && hasSubFilters
+                              ? `Reset platform, year, and search while staying in all ${categoryName}`
+                              : 'Reset filters'
+                          }
+                        >
+                          <RotateCcw className="w-3 h-3 text-zinc-400" />
+                          <span>{resetLabel}</span>
+                        </button>
+                      );
+                    })()}
+
+                    {/* Sorting Dropdown relocated next to Reset */}
+                    <div className="relative group">
+                      <div className="absolute inset-y-0 left-2.5 flex items-center pointer-events-none text-zinc-500 group-focus-within:text-red-500 transition-colors">
+                        <ArrowUpDown className="w-3 h-3" />
+                      </div>
+                      <select
+                        value={sortOrder}
+                        onChange={(e) => setSortOrder(e.target.value)}
+                        className="bg-zinc-800/90 border border-zinc-700 text-zinc-300 text-[11px] font-bold rounded-full pl-7 pr-7 py-1 appearance-none focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50 transition-all cursor-pointer hover:bg-zinc-700 hover:text-white shadow-sm"
+                      >
+                        <option value="title-asc">Title (A-Z)</option>
+                        <option value="title-desc">Title (Z-A)</option>
+                        <option value="year-newest">Year (Newest)</option>
+                        <option value="year-oldest">Year (Oldest)</option>
+                        <option value="rating">Top Rated</option>
+                      </select>
+                      <div className="absolute inset-y-0 right-2.5 flex items-center pointer-events-none text-zinc-500">
+                        <svg className="w-2.5 h-2.5 fill-current" viewBox="0 0 20 20">
+                          <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Platform Breakdown Row */}
+                  <div className="flex flex-col gap-2 border-t border-zinc-800/50 pt-3">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <button
-                        key={platform}
-                        onClick={() => setSelectedPlatform(platform)}
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-xs transition-colors ${
-                          selectedPlatform === platform
-                            ? 'bg-red-900/60 text-red-200 border-red-700/60'
-                            : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:border-zinc-500'
+                        onClick={() => setSelectedPlatform('all')}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                          selectedPlatform === 'all'
+                            ? 'bg-white text-black border-white shadow-lg'
+                            : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-600 hover:text-zinc-200'
                         }`}
                       >
-                        {platform}
+                        📺 All Platforms
+                        <span className={`text-[10px] px-1.5 rounded-md ${selectedPlatform === 'all' ? 'bg-black/10' : 'bg-zinc-800'}`}>
+                          {baseFilteredList.length}
+                        </span>
                       </button>
-                    ))}
+                      {availablePlatforms.filter(p => p.count > 0 || PRESET_PLATFORMS.includes(p.raw)).map((platform) => (
+                        <button
+                          key={platform.raw}
+                          onClick={() => setSelectedPlatform(platform.raw)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                            selectedPlatform === platform.raw
+                              ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/20'
+                              : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-red-500/50 hover:text-zinc-200'
+                          }`}
+                        >
+                          {platform.raw}
+                          <span className={`text-[10px] px-1.5 rounded-md ${selectedPlatform === platform.raw ? 'bg-black/20 text-white' : 'bg-zinc-800 text-zinc-500'}`}>
+                            {platform.count}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  {selectedYear !== 'all' && (
-                    <span className="inline-flex items-center gap-1 bg-amber-950/70 text-amber-200 border border-amber-700/60 px-2.5 py-0.5 rounded-full">
-                      <Calendar className="w-3 h-3 text-amber-400" />
-                      <span>Year: {selectedYear}</span>
-                      <button onClick={() => setSelectedYear('all')} className="hover:text-white ml-0.5">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  )}
                 </div>
               </div>
 
-              {(() => {
-                const hasSubFilters = Boolean(searchQuery || selectedPlatform !== 'all' || selectedYear !== 'all');
-                const isCategoryActive = activeFilter !== 'all' && activeFilter !== 'All Titles';
-                const categoryName =
-                  activeFilter === 'Series'
-                    ? 'Series'
-                    : activeFilter === 'Movie'
-                    ? 'Movies'
-                    : activeFilter === '⏳ Watching'
-                    ? 'Watching'
-                    : activeFilter === '✅ Watched'
-                    ? 'Watched'
-                    : activeFilter === '🎁 Wishlist' || activeFilter === 'Wishlist'
-                    ? 'Wishlist'
-                    : activeFilter === '⏸️ Paused'
-                    ? 'Paused'
-                    : activeFilter === '❌ Dropped'
-                    ? 'Dropped'
-                    : activeFilter;
-
-                const resetLabel = isCategoryActive
-                  ? hasSubFilters
-                    ? `Reset to all ${categoryName}`
-                    : 'View all titles'
-                  : 'Reset to all';
-
-                return (
-                  <button
-                    onClick={() => {
-                      const hasSub = Boolean(searchQuery || selectedPlatform !== 'all' || selectedYear !== 'all');
-                      setSearchQuery('');
-                      setSelectedPlatform('all');
-                      setSelectedYear('all');
-                      if (!hasSub && isCategoryActive) {
-                        // Already viewing all of this category, broaden to all titles
-                        setActiveFilter('All Titles');
-                      } else if (activeFilter === 'all') {
-                        setActiveFilter('All Titles');
-                      }
-                      // Otherwise keeps activeFilter so Series + Netflix resets to Series (all)!
-                    }}
-                    className="text-xs text-zinc-200 hover:text-white bg-zinc-800/90 hover:bg-zinc-700 hover:border-zinc-500 px-3.5 py-1.5 rounded-lg border border-zinc-700 transition-all duration-150 cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-[0.97] font-medium"
-                    title={
-                      isCategoryActive && hasSubFilters
-                        ? `Reset platform, year, and search while staying in all ${categoryName}`
-                        : 'Reset filters'
-                    }
-                  >
-                    <RotateCcw className="w-3.5 h-3.5 text-zinc-400" />
-                    <span>{resetLabel}</span>
-                  </button>
-                );
-              })()}
             </div>
 
             {filteredShows.length === 0 ? (
@@ -2226,6 +2312,7 @@ export default function App() {
                       setSearchQuery('');
                       setSelectedPlatform('all');
                       setSelectedYear('all');
+                      setSortOrder('title-asc');
                       if (activeFilter === 'all') {
                         setActiveFilter('All Titles');
                       }
@@ -2256,6 +2343,7 @@ export default function App() {
                         setActiveFilter('All Titles');
                         setSelectedPlatform('all');
                         setSelectedYear('all');
+                        setSortOrder('title-asc');
                       }}
                       className="text-xs bg-zinc-800 hover:bg-zinc-700 hover:text-white text-zinc-300 font-semibold px-4 py-2 rounded-md transition-colors border border-zinc-700 cursor-pointer"
                     >

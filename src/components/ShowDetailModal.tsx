@@ -17,11 +17,14 @@ import {
   Sparkles,
   Upload,
   Image as ImageIcon,
+  Loader2,
 } from 'lucide-react';
 import { ShowItem, WatchStatus, ShowType, PRESET_PLATFORMS } from '../types';
 import ImageUploader from './ImageUploader';
 import { normalizeSeasonStr, normalizeEpisodeStr, normalizePlatform, parseGoogleSheetsDate } from '../services/sheetsService';
 import { getOptimizedBackdrop } from '../utils/imageOptimizer';
+import { fetchLiveMetadata } from '../services/metadataService';
+import toast from 'react-hot-toast';
 
 interface ShowDetailModalProps {
   show: ShowItem | null;
@@ -192,6 +195,40 @@ export default function ShowDetailModal({
   const [backdropUrl, setBackdropUrl] = useState<string>(initialUrl);
   const [showImageUploader, setShowImageUploader] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
+
+  const handleFetchMetadata = async () => {
+    if (!title.trim()) {
+      toast.error('Please enter a title first');
+      return;
+    }
+
+    setIsFetchingMetadata(true);
+    try {
+      const data = await fetchLiveMetadata(title, type);
+      setTitle(data.title);
+      setYear(String(data.year));
+      setGenre(data.genre);
+      setPosterUrl(data.posterUrl);
+      setBackdropUrl(data.backdropUrl);
+      if (data.type) setType(data.type);
+      if (data.maxEpisodes && type === 'Series') {
+        setMaxEp(`E${data.maxEpisodes}`);
+      }
+      if (data.synopsis) {
+        setNotes(prev => prev ? `${prev}\n\nSynopsis: ${data.synopsis}` : `Synopsis: ${data.synopsis}`);
+      }
+      if (data.ratingNum) {
+        setRatingNum(Math.round(data.ratingNum));
+      }
+      toast.success('✨ Professional metadata synced!');
+    } catch (err: any) {
+      console.error('Metadata fetch error:', err);
+      toast.error(`Could not fetch metadata: ${err.message}`);
+    } finally {
+      setIsFetchingMetadata(false);
+    }
+  };
 
   if (!isOpen || !show) return null;
 
@@ -580,7 +617,22 @@ export default function ShowDetailModal({
             {/* Title and Type */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <div className="sm:col-span-2 space-y-2">
-                <label htmlFor="detail-title-input" className="text-xs font-bold text-zinc-400 uppercase tracking-widest block ml-1">Title *</label>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="detail-title-input" className="text-xs font-bold text-zinc-400 uppercase tracking-widest block ml-1">Title *</label>
+                  <button
+                    type="button"
+                    onClick={handleFetchMetadata}
+                    disabled={isFetchingMetadata || !title.trim()}
+                    className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-tighter px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-black transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-amber-500/30"
+                  >
+                    {isFetchingMetadata ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3 h-3" />
+                    )}
+                    {isFetchingMetadata ? 'Fetching...' : 'AI Fetch Info'}
+                  </button>
+                </div>
                 <input
                   id="detail-title-input"
                   type="text"

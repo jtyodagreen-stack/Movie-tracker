@@ -295,10 +295,16 @@ export default function DashboardStats({
 
   // Top Rated titles
   const topRatedList = useMemo(() => {
-    return filteredShows
+    return [...filteredShows]
       .filter((s) => {
         const stars = s.ratingNum || (s.rating ? (s.rating.match(/⭐/g) || []).length : 0);
         return stars >= 4;
+      })
+      .sort((a, b) => {
+        const ratingA = a.ratingNum || (a.rating ? (a.rating.match(/⭐/g) || []).length : 0);
+        const ratingB = b.ratingNum || (b.rating ? (b.rating.match(/⭐/g) || []).length : 0);
+        if (ratingB !== ratingA) return ratingB - ratingA;
+        return a.title.localeCompare(b.title);
       })
       .slice(0, 8);
   }, [filteredShows]);

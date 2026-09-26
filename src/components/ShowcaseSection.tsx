@@ -16,6 +16,17 @@ export default function ShowcaseSection({
   const inProgressList = useMemo(() => {
     return shows
       .filter((s) => s.status === '⏳ Watching')
+      .sort((a, b) => {
+        const curA = parseInt(String(a.episodes).replace(/[^0-9]/g, '')) || 1;
+        const maxA = parseInt(String(a.maxEp).replace(/[^0-9]/g, '')) || 8;
+        const progressA = (curA / maxA);
+
+        const curB = parseInt(String(b.episodes).replace(/[^0-9]/g, '')) || 1;
+        const maxB = parseInt(String(b.maxEp).replace(/[^0-9]/g, '')) || 8;
+        const progressB = (curB / maxB);
+
+        return progressB - progressA;
+      })
       .slice(0, 8);
   }, [shows]);
 
@@ -26,6 +37,7 @@ export default function ShowcaseSection({
         const stars = s.ratingNum || (s.rating ? (s.rating.match(/⭐/g) || []).length : 0);
         return stars >= 4 || (s.rating && (s.rating.toLowerCase().includes('excellent') || s.rating.toLowerCase().includes('great')));
       })
+      .sort((a, b) => (b.ratingNum || 0) - (a.ratingNum || 0))
       .slice(0, 8);
   }, [shows]);
 
