@@ -23,8 +23,7 @@ import { ShowItem, WatchStatus, ShowType, PRESET_PLATFORMS } from '../types';
 import ImageUploader from './ImageUploader';
 import { normalizeSeasonStr, normalizeEpisodeStr, normalizePlatform, parseGoogleSheetsDate } from '../services/sheetsService';
 import { getOptimizedBackdrop } from '../utils/imageOptimizer';
-import { fetchLiveMetadata } from '../services/metadataService';
-import toast from 'react-hot-toast';
+import { autoFetchPoster } from '../services/posterService';
 
 interface ShowDetailModalProps {
   show: ShowItem | null;
@@ -195,38 +194,21 @@ export default function ShowDetailModal({
   const [backdropUrl, setBackdropUrl] = useState<string>(initialUrl);
   const [showImageUploader, setShowImageUploader] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
+  const [isAutoFetchingArtwork, setIsAutoFetchingArtwork] = useState(false);
 
-  const handleFetchMetadata = async () => {
-    if (!title.trim()) {
-      toast.error('Please enter a title first');
-      return;
-    }
-
-    setIsFetchingMetadata(true);
+  const handleAutoFetchArtwork = async () => {
+    if (!title.trim()) return;
+    setIsAutoFetchingArtwork(true);
     try {
-      const data = await fetchLiveMetadata(title, type);
-      setTitle(data.title);
-      setYear(String(data.year));
-      setGenre(data.genre);
-      setPosterUrl(data.posterUrl);
-      setBackdropUrl(data.backdropUrl);
-      if (data.type) setType(data.type);
-      if (data.maxEpisodes && type === 'Series') {
-        setMaxEp(`E${data.maxEpisodes}`);
+      const { result } = await autoFetchPoster(title.trim(), type, genre);
+      if (result && result.posterUrl) {
+        setPosterUrl(result.posterUrl);
+        setBackdropUrl(result.backdropUrl || result.posterUrl);
       }
-      if (data.synopsis) {
-        setNotes(prev => prev ? `${prev}\n\nSynopsis: ${data.synopsis}` : `Synopsis: ${data.synopsis}`);
-      }
-      if (data.ratingNum) {
-        setRatingNum(Math.round(data.ratingNum));
-      }
-      toast.success('✨ Professional metadata synced!');
-    } catch (err: any) {
-      console.error('Metadata fetch error:', err);
-      toast.error(`Could not fetch metadata: ${err.message}`);
+    } catch (e) {
+      console.warn('Auto fetch artwork error:', e);
     } finally {
-      setIsFetchingMetadata(false);
+      setIsAutoFetchingArtwork(false);
     }
   };
 
@@ -617,22 +599,7 @@ export default function ShowDetailModal({
             {/* Title and Type */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <div className="sm:col-span-2 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="detail-title-input" className="text-xs font-bold text-zinc-400 uppercase tracking-widest block ml-1">Title *</label>
-                  <button
-                    type="button"
-                    onClick={handleFetchMetadata}
-                    disabled={isFetchingMetadata || !title.trim()}
-                    className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-tighter px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-black transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-amber-500/30"
-                  >
-                    {isFetchingMetadata ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-3 h-3" />
-                    )}
-                    {isFetchingMetadata ? 'Fetching...' : 'AI Fetch Info'}
-                  </button>
-                </div>
+                <label htmlFor="detail-title-input" className="text-xs font-bold text-zinc-400 uppercase tracking-widest block ml-1">Title *</label>
                 <input
                   id="detail-title-input"
                   type="text"
@@ -883,21 +850,42 @@ export default function ShowDetailModal({
               </div>
             )}
 
-            {/* Custom Image Upload */}
+            {/* Title Artwork & Auto-Fetch */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
                   <ImageIcon className="w-3.5 h-3.5 text-[#E50914]" />
                   Title Artwork (Poster / Cover)
                 </label>
-                <button
-                  id="toggle-detail-modal-image-btn"
-                  type="button"
-                  onClick={() => setShowImageUploader(!showImageUploader)}
-                  className="text-xs text-red-400 hover:text-red-300 underline font-medium cursor-pointer"
-                >
-                  {showImageUploader ? 'Hide Image Field' : (posterUrl || backdropUrl) ? 'Change Web URL' : '+ Add Image URL'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAutoFetchArtwork}
+                    disabled={isAutoFetchingArtwork}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-600/50 px-2 py-0.5 rounded cursor-pointer transition-colors disabled:opacity-50"
+                    title="Auto-fetch official artwork from TVMaze/iTunes"
+                  >
+                    {isAutoFetchingArtwork ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>Fetching...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3 text-emerald-400" />
+                        <span>Auto-Detect Official Poster</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    id="toggle-detail-modal-image-btn"
+                    type="button"
+                    onClick={() => setShowImageUploader(!showImageUploader)}
+                    className="text-xs text-zinc-400 hover:text-zinc-200 underline font-medium cursor-pointer"
+                  >
+                    {showImageUploader ? 'Hide URL' : (posterUrl || backdropUrl) ? 'Custom URL' : '+ Custom URL'}
+                  </button>
+                </div>
               </div>
 
               {showImageUploader ? (
@@ -918,26 +906,30 @@ export default function ShowDetailModal({
                 />
               ) : (posterUrl || backdropUrl) ? (
                 <div className="flex items-center gap-3 p-2.5 bg-zinc-900 border border-zinc-700 rounded-lg">
-                  <img src={posterUrl || backdropUrl} alt="Preview" className="w-10 h-14 object-cover rounded border border-zinc-600" />
+                  <img src={posterUrl || backdropUrl} alt="Preview" className="w-10 h-14 object-cover rounded border border-zinc-600 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-emerald-400 font-semibold">Web poster/backdrop link attached</p>
+                    <p className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5" /> High-Resolution Poster Attached
+                    </p>
                     <p className="text-[11px] text-zinc-400 truncate font-mono">{posterUrl || backdropUrl}</p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setShowImageUploader(true)}
-                    className="text-xs text-zinc-300 hover:text-white bg-zinc-800 px-2 py-1 rounded border border-zinc-700 cursor-pointer"
+                    onClick={handleAutoFetchArtwork}
+                    disabled={isAutoFetchingArtwork}
+                    className="text-xs text-emerald-400 hover:text-emerald-300 bg-zinc-800 hover:bg-zinc-700 px-2 py-1 rounded border border-zinc-700 cursor-pointer flex items-center gap-1"
                   >
-                    Change
+                    <Sparkles className="w-3 h-3" /> Re-fetch
                   </button>
                 </div>
               ) : (
                 <div
-                  onClick={() => setShowImageUploader(true)}
-                  className="p-3 border border-dashed border-zinc-700 hover:border-zinc-500 rounded-lg text-center cursor-pointer bg-zinc-900/40 hover:bg-zinc-900 transition-colors"
+                  onClick={handleAutoFetchArtwork}
+                  className="p-3 border border-dashed border-emerald-600/50 hover:border-emerald-500 rounded-lg text-center cursor-pointer bg-emerald-950/20 hover:bg-emerald-950/40 transition-colors"
                 >
-                  <p className="text-xs text-zinc-300">
-                    <span className="text-red-400 font-semibold underline">Click here to add a custom web image URL</span>
+                  <p className="text-xs text-emerald-300 flex items-center justify-center gap-1.5 font-medium">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Click to auto-fetch official high-res poster from TVMaze / iTunes</span>
                   </p>
                 </div>
               )}

@@ -1,9 +1,10 @@
-import { useState, useMemo, useEffect } from 'react';
-import { X, Plus, Star, Tv, Film, Sparkles, Save, Image as ImageIcon } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { X, Plus, Star, Sparkles, Save, Image as ImageIcon, Loader2, Check, Search, Film, Tv } from 'lucide-react';
 import { ShowItem, ShowType, WatchStatus, PRESET_PLATFORMS } from '../types';
 import { getBackdropForShow, getPosterForShow } from '../data/mediaAssets';
 import ImageUploader from './ImageUploader';
 import { normalizeSeasonStr, normalizeEpisodeStr, normalizePlatform, parseGoogleSheetsDate } from '../services/sheetsService';
+import { autoFetchPoster, searchLiveSuggestions, LiveSearchItem, PosterCandidate, PosterSearchResult } from '../services/posterService';
 
 interface AddShowModalProps {
   isOpen: boolean;
@@ -72,11 +73,42 @@ export default function AddShowModal({
   const [who, setWho] = useState(defaultViewer || (sheetViewers.length > 0 ? sheetViewers[0] : ''));
   const [priority, setPriority] = useState('🔴 High');
 
+  // Auto Poster & IMDb Live Search State
+  const [posterUrl, setPosterUrl] = useState('');
+  const [backdropUrl, setBackdropUrl] = useState('');
+  const [isFetchingPoster, setIsFetchingPoster] = useState(false);
+  const [posterResult, setPosterResult] = useState<PosterSearchResult | null>(null);
+  const [posterCandidates, setPosterCandidates] = useState<PosterCandidate[]>([]);
+  const [selectedPosterUrl, setSelectedPosterUrl] = useState<string>('');
+  const [detectedMetadata, setDetectedMetadata] = useState<{ year?: string; genre?: string; synopsis?: string } | null>(null);
+  const [showManualUrlInput, setShowManualUrlInput] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Live Suggestion Dropdown State
+  const [liveSuggestions, setLiveSuggestions] = useState<LiveSearchItem[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
+  const suggestionContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!who && sheetViewers.length > 0) {
       setWho(sheetViewers[0]);
     }
   }, [sheetViewers, who]);
+
+  // Click outside to dismiss suggestion dropdown
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        suggestionContainerRef.current &&
+        !suggestionContainerRef.current.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
   const getTodayLocalString = () => {
     const d = new Date();
@@ -116,12 +148,153 @@ export default function AddShowModal({
     }
     return who ? [who] : [];
   }, [sheetViewers, who]);
-  const [posterUrl, setPosterUrl] = useState('');
-  const [showImageUpload, setShowImageUpload] = useState(false);
 
   const allPlatforms = PRESET_PLATFORMS;
 
+  // Auto-fetch poster, metadata, live suggestions, platform, and episode count as user types Title
+  useEffect(() => {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle || trimmedTitle.length < 2) {
+      setIsFetchingPoster(false);
+      setPosterResult(null);
+      setPosterCandidates([]);
+      setLiveSuggestions([]);
+      setSelectedPosterUrl('');
+      setPosterUrl('');
+      setBackdropUrl('');
+      setDetectedMetadata(null);
+      return;
+    }
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    setIsFetchingPoster(true);
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        // Fast parallel fetch: live IMDb/TVMaze suggestions & full auto-fetch
+        const [suggestions, fetchRes] = await Promise.all([
+          searchLiveSuggestions(trimmedTitle, type),
+          autoFetchPoster(trimmedTitle, type, genre),
+        ]);
+
+        setLiveSuggestions(suggestions);
+        const { result, candidates } = fetchRes;
+        setPosterResult(result);
+        setPosterCandidates(candidates);
+
+        if (result && result.posterUrl) {
+          setSelectedPosterUrl(result.posterUrl);
+          setPosterUrl(result.posterUrl);
+          setBackdropUrl(result.backdropUrl || result.posterUrl);
+        }
+
+        if (result && (result.year || result.genre || result.synopsis)) {
+          setDetectedMetadata({
+            year: result.year,
+            genre: result.genre,
+            synopsis: result.synopsis,
+          });
+
+          // Auto-apply detected synopsis directly into notes field
+          if (result.synopsis) {
+            setNotes(result.synopsis);
+          }
+
+          // Auto-apply detected year
+          if (result.year) {
+            setYear(result.year);
+          }
+
+          // Auto-apply detected genre
+          if (result.genre) {
+            const matchedGenre = allGenres.find(
+              (g) => g.toLowerCase() === result.genre?.toLowerCase() || result.genre?.toLowerCase().includes(g.toLowerCase())
+            );
+            if (matchedGenre) {
+              setGenre(matchedGenre);
+            }
+          }
+        }
+
+        // Auto-detect Season & Total Episodes for TV Series (e.g. S1 and E8 / E10 / E6)
+        if (result && type === 'Series' && result.maxEp) {
+          setMaxEp(result.maxEp);
+          setSeasons('S1');
+        }
+      } catch (err) {
+        console.warn('Auto poster fetch notice:', err);
+      } finally {
+        setIsFetchingPoster(false);
+      }
+    }, 280);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [title, type]);
+
   if (!isOpen) return null;
+
+  const handleSelectLiveSuggestion = (item: LiveSearchItem) => {
+    setTitle(item.title);
+    setType(item.type);
+    if (item.posterUrl) {
+      setPosterUrl(item.posterUrl);
+      setSelectedPosterUrl(item.posterUrl);
+      setBackdropUrl(item.backdropUrl || item.posterUrl);
+    }
+    if (item.year) {
+      setYear(item.year);
+    }
+    if (item.genre) {
+      const matchedGenre = allGenres.find(
+        (g) => g.toLowerCase() === item.genre?.toLowerCase() || item.genre?.toLowerCase().includes(g.toLowerCase())
+      );
+      if (matchedGenre) setGenre(matchedGenre);
+    }
+    if (item.synopsis) {
+      setNotes(item.synopsis);
+    }
+    if (item.type === 'Series' && item.maxEp) {
+      setMaxEp(item.maxEp);
+      setSeasons('S1');
+    }
+    setShowSuggestions(false);
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSuggestions || liveSuggestions.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveSuggestionIndex((prev) =>
+        prev < liveSuggestions.length - 1 ? prev + 1 : 0
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveSuggestionIndex((prev) =>
+        prev > 0 ? prev - 1 : liveSuggestions.length - 1
+      );
+    } else if (e.key === 'Enter') {
+      if (activeSuggestionIndex >= 0 && activeSuggestionIndex < liveSuggestions.length) {
+        e.preventDefault();
+        handleSelectLiveSuggestion(liveSuggestions[activeSuggestionIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSelectAlternatePoster = (candidate: PosterCandidate) => {
+    setSelectedPosterUrl(candidate.posterUrl);
+    setPosterUrl(candidate.posterUrl);
+    setBackdropUrl(candidate.posterUrl);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,7 +318,18 @@ export default function AddShowModal({
     const finalRatingNum = destination === 'wishlist' ? 0 : ratingNum;
     const id = `show-${Date.now()}-${title.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
 
-    const finalImg = posterUrl.trim();
+    const autoResolvedPoster =
+      selectedPosterUrl.trim() ||
+      posterUrl.trim() ||
+      posterResult?.posterUrl ||
+      getPosterForShow(title, genre);
+
+    const autoResolvedBackdrop =
+      backdropUrl.trim() ||
+      posterResult?.backdropUrl ||
+      autoResolvedPoster ||
+      getBackdropForShow(title, genre);
+
     const finalStatus: WatchStatus =
       destination === 'wishlist'
         ? (isWishlistDone ? '✅ Watched' : '⏳ Watching')
@@ -175,17 +359,24 @@ export default function AddShowModal({
       sheetTabName: isWishlist ? (wishlistSheetName || 'Wishlist') : (masterSheetName || 'MASTER TRACKER'),
       priority: isWishlist ? (priority.trim() || 'High') : undefined,
       dateAdded: isWishlist ? (dateAdded.trim() || new Date().toISOString().split('T')[0]) : undefined,
-      backdropUrl: finalImg || getBackdropForShow(title, genre),
-      posterUrl: finalImg || getPosterForShow(title, genre),
+      backdropUrl: autoResolvedBackdrop,
+      posterUrl: autoResolvedPoster,
     };
 
     onAdd(newShow);
     setTitle('');
     setNotes('');
     setPosterUrl('');
+    setBackdropUrl('');
+    setSelectedPosterUrl('');
     setRatingNum(0);
     onClose();
   };
+
+  const currentEffectivePoster =
+    selectedPosterUrl ||
+    posterUrl ||
+    (title.trim() ? getPosterForShow(title, genre) : '');
 
   return (
     <div
@@ -209,7 +400,7 @@ export default function AddShowModal({
                 Add New Show or Movie
               </h2>
               <p className="text-xs text-zinc-400">
-                Log a new title to your tracker {sheetConnected ? '& sync with Google Sheets' : ''}
+                Type the title — official poster & metadata auto-fetch instantly {sheetConnected ? '& sync with Google Sheets' : ''}
               </p>
             </div>
           </div>
@@ -274,18 +465,116 @@ export default function AddShowModal({
 
           {/* Title and Type */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <div className="sm:col-span-2 space-y-2">
-              <label htmlFor="new-show-title" className="text-xs font-bold text-zinc-400 uppercase tracking-widest block ml-1">Title *</label>
-              <input
-                id="new-show-title"
-                type="text"
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Severance, Shōgun, Dune..."
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-4 py-3 text-base text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500 shadow-inner"
-                autoFocus
-              />
+            <div ref={suggestionContainerRef} className="sm:col-span-2 space-y-2 relative">
+              <div className="flex items-center justify-between">
+                <label htmlFor="new-show-title" className="text-xs font-bold text-zinc-300 uppercase tracking-widest block ml-1 flex items-center gap-1.5">
+                  Title *
+                  {isFetchingPoster && (
+                    <span className="text-[11px] font-normal text-amber-400 normal-case flex items-center gap-1 animate-pulse">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Live IMDb Search...
+                    </span>
+                  )}
+                </label>
+                <span className="text-[10px] text-zinc-500 font-medium flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-amber-400" /> IMDb Live Search
+                </span>
+              </div>
+              <div className="relative">
+                <input
+                  id="new-show-title"
+                  type="text"
+                  required
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => {
+                    if (liveSuggestions.length > 0) setShowSuggestions(true);
+                  }}
+                  onKeyDown={handleTitleKeyDown}
+                  placeholder="Type title or paste IMDb URL here..."
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-4 py-3 text-base text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500 shadow-inner pr-10"
+                  autoFocus
+                  autoComplete="off"
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 pointer-events-none">
+                  {isFetchingPoster ? (
+                    <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+                  ) : (
+                    <Search className="w-4 h-4 text-zinc-500" />
+                  )}
+                </div>
+
+                {/* Live Suggestion Dropdown */}
+                {showSuggestions && liveSuggestions.length > 0 && (
+                  <div
+                    className="absolute z-50 left-0 right-0 top-full mt-1.5 bg-zinc-900/98 backdrop-blur-md border border-zinc-700 rounded-xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto divide-y divide-zinc-800 animate-in fade-in zoom-in-95 duration-150 scrollbar-thin"
+                  >
+                    <div className="px-3 py-1.5 bg-zinc-950/90 flex items-center justify-between text-[11px] text-zinc-400 border-b border-zinc-800">
+                      <span className="flex items-center gap-1 font-semibold text-amber-400">
+                        <Sparkles className="w-3 h-3 text-amber-400" /> Live Suggestions
+                      </span>
+                      <span className="text-[10px] text-zinc-500">Click or press Enter to auto-fill</span>
+                    </div>
+                    {liveSuggestions.map((item, idx) => {
+                      const isActive = idx === activeSuggestionIndex;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleSelectLiveSuggestion(item)}
+                          onMouseEnter={() => setActiveSuggestionIndex(idx)}
+                          className={`w-full text-left p-2.5 flex items-center gap-3 transition-colors cursor-pointer ${
+                            isActive ? 'bg-zinc-800 text-white' : 'hover:bg-zinc-800/70 text-zinc-200'
+                          }`}
+                        >
+                          {/* Thumbnail */}
+                          <div className="w-10 h-14 rounded overflow-hidden bg-zinc-950 shrink-0 border border-zinc-700/60 shadow-xs relative">
+                            <img
+                              src={item.posterUrl}
+                              alt={item.title}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = getPosterForShow(item.title, 'Drama');
+                              }}
+                            />
+                          </div>
+
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-sm text-white truncate">{item.title}</span>
+                              {item.year && (
+                                <span className="text-xs text-zinc-400 font-mono shrink-0">({item.year})</span>
+                              )}
+                              <span
+                                className={`text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded shrink-0 ${
+                                  item.type === 'Movie'
+                                    ? 'bg-amber-950 text-amber-300 border border-amber-800/60'
+                                    : 'bg-indigo-950 text-indigo-300 border border-indigo-800/60'
+                                }`}
+                              >
+                                {item.type}
+                              </span>
+                            </div>
+                            {item.cast && (
+                              <p className="text-[11px] text-zinc-400 truncate mt-0.5">{item.cast}</p>
+                            )}
+                          </div>
+
+                          <div className="shrink-0 text-zinc-500 text-xs pr-1">
+                            <span className="text-[10px] font-black bg-amber-400 text-black px-1.5 py-0.5 rounded font-mono shadow-xs">
+                              IMDb
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               <label htmlFor="new-show-type" className="text-xs font-bold text-zinc-400 uppercase tracking-widest block ml-1">Format</label>
@@ -301,26 +590,125 @@ export default function AddShowModal({
             </div>
           </div>
 
+          {/* Automatic Live Poster Card & Metadata Assistant */}
+          {title.trim().length > 1 && (
+            <div className="p-3.5 bg-zinc-900/90 border border-zinc-700/80 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-start gap-3.5">
+                {/* Poster Artwork Preview Box */}
+                <div className="relative w-16 sm:w-20 aspect-[2/3] rounded-lg overflow-hidden bg-zinc-950 border border-zinc-700 shadow-md shrink-0">
+                  {isFetchingPoster ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/90 text-amber-400 p-1 text-center">
+                      <Loader2 className="w-5 h-5 animate-spin mb-1 text-amber-400" />
+                      <span className="text-[9px] font-mono leading-tight">Fetching poster...</span>
+                    </div>
+                  ) : currentEffectivePoster ? (
+                    <img
+                      src={currentEffectivePoster}
+                      alt={title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = getPosterForShow(title, genre);
+                      }}
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900 text-zinc-500 p-2 text-center">
+                      <ImageIcon className="w-6 h-6 mb-1 opacity-50" />
+                      <span className="text-[10px]">No Poster</span>
+                    </div>
+                  )}
+                  {posterResult?.source && posterResult.source !== 'fallback' && (
+                    <div className="absolute bottom-0 inset-x-0 bg-black/80 backdrop-blur-xs py-0.5 text-[8px] text-center text-emerald-300 font-mono font-bold tracking-tighter">
+                      {posterResult.source.toUpperCase()}
+                    </div>
+                  )}
+                </div>
+
+                {/* Info & Detected Metadata */}
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span className="text-sm font-extrabold text-white truncate">
+                        {isFetchingPoster
+                          ? 'Searching official database...'
+                          : posterResult?.matchedTitle || title || 'Title'}
+                      </span>
+                    </div>
+                    {posterResult && posterResult.source !== 'fallback' && (
+                      <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-950/60 border border-emerald-600/40 px-2 py-0.5 rounded-full shrink-0">
+                        Official Match
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-zinc-300 line-clamp-2 leading-relaxed">
+                    {detectedMetadata?.synopsis
+                      ? detectedMetadata.synopsis
+                      : 'Poster & metadata are automatically attached and will sync directly to your Google Sheet.'}
+                  </p>
+
+                </div>
+              </div>
+
+              {/* Manual URL Override Option */}
+              <div className="pt-1 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setShowManualUrlInput(!showManualUrlInput)}
+                  className="text-[11px] text-zinc-400 hover:text-zinc-200 underline cursor-pointer"
+                >
+                  {showManualUrlInput ? 'Hide custom URL input' : 'Paste custom image URL instead'}
+                </button>
+              </div>
+
+              {showManualUrlInput && (
+                <div className="pt-2 border-t border-zinc-800 space-y-2">
+                  <ImageUploader
+                    label="Custom Web Image URL"
+                    description="Paste any custom image link (IMDb, TMDB, Wikipedia, direct URL) to override the auto poster"
+                    currentUrl={posterUrl}
+                    aspectRatio="poster"
+                    onImageSelected={(url) => {
+                      setPosterUrl(url);
+                      setSelectedPosterUrl(url);
+                      setBackdropUrl(url);
+                      setShowManualUrlInput(false);
+                    }}
+                    onImageRemoved={() => {
+                      setPosterUrl('');
+                      setSelectedPosterUrl('');
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Platform Selection */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-zinc-300 block">Platform</label>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {allPlatforms.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPlatform(p)}
-                  className={`text-xs px-2.5 py-1 rounded-md border transition-all ${
-                    platform === p
-                      ? 'bg-red-600 text-white border-red-500 font-semibold'
-                      : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-zinc-600'
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
+              {allPlatforms.map((p) => {
+                const isSelected = platform === p;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      setPlatform(p);
+                    }}
+                    className={`text-xs px-2.5 py-1.5 rounded-md border transition-all inline-flex items-center cursor-pointer ${
+                      isSelected
+                        ? 'bg-red-600 text-white border-red-500 font-semibold shadow-sm'
+                        : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-zinc-600'
+                    }`}
+                  >
+                    <span>{p}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -343,21 +731,15 @@ export default function AddShowModal({
             </div>
             <div className="space-y-2">
               <label htmlFor="new-show-year" className="text-xs font-bold text-zinc-400 uppercase tracking-widest block ml-1">Release Year</label>
-              <select
+              <input
                 id="new-show-year"
+                type="text"
+                maxLength={4}
                 value={year}
                 onChange={(e) => setYear(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-4 py-3 text-base text-white focus:outline-none focus:border-red-500 font-mono shadow-inner appearance-none"
-              >
-                {Array.from({ length: 45 }, (_, i) => {
-                  const y = (new Date().getFullYear() + 1 - i).toString();
-                  return (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
-                  );
-                })}
-              </select>
+                placeholder="e.g. 1975"
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-4 py-3 text-base text-white focus:outline-none focus:border-red-500 font-mono shadow-inner"
+              />
             </div>
           </div>
 
@@ -422,7 +804,7 @@ export default function AddShowModal({
                       />
                     </div>
                     <div className="space-y-2">
-                      <label htmlFor="new-show-max-ep" className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block ml-0.5">Max</label>
+                      <label htmlFor="new-show-max-ep" className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block ml-0.5">Max Ep</label>
                       <input
                         id="new-show-max-ep"
                         type="text"
@@ -516,75 +898,24 @@ export default function AddShowModal({
             </div>
           )}
 
-          {/* Custom Image Upload */}
-          <div className="space-y-2">
+          {/* Notes & Synopsis */}
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                <ImageIcon className="w-3.5 h-3.5 text-[#E50914]" />
-                Title Artwork (Poster / Cover)
+              <label htmlFor="new-show-notes" className="text-xs font-semibold text-zinc-300 block flex items-center gap-1.5">
+                <span>Notes & Synopsis</span>
+                {detectedMetadata?.synopsis && (
+                  <span className="text-[10px] text-emerald-400 font-normal">
+                    (Auto-filled from official database)
+                  </span>
+                )}
               </label>
-              <button
-                id="toggle-add-modal-image-btn"
-                type="button"
-                onClick={() => setShowImageUpload(!showImageUpload)}
-                className="text-xs text-red-400 hover:text-red-300 underline font-medium cursor-pointer"
-              >
-                {showImageUpload ? 'Hide Image Field' : posterUrl ? 'Change Web URL' : '+ Add Image URL'}
-              </button>
             </div>
-
-            {showImageUpload ? (
-              <ImageUploader
-                label="Poster Image Web Link"
-                description={
-                  destination === 'wishlist'
-                    ? 'Paste direct image link (e.g. IMDb, TMDB, Amazon) to add to your wishlist'
-                    : 'Paste direct image link (e.g. IMDb, TMDB, Amazon) to save to your tracker'
-                }
-                currentUrl={posterUrl}
-                aspectRatio="poster"
-                onImageSelected={(url) => {
-                  setPosterUrl(url);
-                  setShowImageUpload(false); // Auto-hide after selection
-                }}
-                onImageRemoved={() => setPosterUrl('')}
-              />
-            ) : posterUrl ? (
-              <div className="flex items-center gap-3 p-2.5 bg-zinc-900 border border-zinc-700 rounded-lg">
-                <img src={posterUrl} alt="Preview" className="w-10 h-14 object-cover rounded border border-zinc-600" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-emerald-400 font-semibold">Web poster link attached</p>
-                  <p className="text-[11px] text-zinc-400 truncate font-mono">{posterUrl}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowImageUpload(true)}
-                  className="text-xs text-zinc-300 hover:text-white bg-zinc-800 px-2 py-1 rounded border border-zinc-700"
-                >
-                  Change
-                </button>
-              </div>
-            ) : (
-              <div
-                onClick={() => setShowImageUpload(true)}
-                className="p-3 border border-dashed border-zinc-700 hover:border-zinc-500 rounded-lg text-center cursor-pointer bg-zinc-900/40 hover:bg-zinc-900 transition-colors"
-              >
-                <p className="text-xs text-zinc-300">
-                  <span className="text-red-400 font-semibold underline">Click here to add a custom web image URL</span>
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Notes */}
-          <div className="space-y-1">
-            <label htmlFor="new-show-notes" className="text-xs font-semibold text-zinc-300 block">Notes & Thoughts</label>
             <textarea
               id="new-show-notes"
-              rows={2}
+              rows={3}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Why you're watching, thoughts, reminders..."
+              placeholder="Synopsis, thoughts, reminders, why you're watching..."
               className="w-full bg-zinc-900 border border-zinc-700 rounded-md p-2.5 text-base text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500"
             />
           </div>
