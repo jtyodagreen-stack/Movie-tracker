@@ -1,11 +1,13 @@
 import { useState, useRef } from 'react';
 import { Play, Info, Sparkles, ChevronRight, Check, Star } from 'lucide-react';
-import { motion } from 'motion/react';
+import Skeleton from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
 import { ShowItem } from '../types';
 import { getOptimizedBackdrop, getOptimizedPoster } from '../utils/imageOptimizer';
 
 interface HeroBillboardProps {
   show: ShowItem | null;
+  isLoading?: boolean;
   onOpenDetails: (show: ShowItem) => void;
   onIncrementEpisode: (show: ShowItem) => void;
   onSelectNextFeatured?: () => void;
@@ -13,11 +15,37 @@ interface HeroBillboardProps {
 
 export default function HeroBillboard({
   show,
+  isLoading = false,
   onOpenDetails,
   onIncrementEpisode,
   onSelectNextFeatured,
 }: HeroBillboardProps) {
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+
+  if (isLoading) {
+    return (
+      <section className="relative w-full sm:h-[70vh] lg:h-[75vh] sm:min-h-[440px] sm:max-h-[750px] bg-zinc-900 animate-pulse">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full h-full flex flex-col md:flex-row items-start md:items-center justify-end md:justify-between pb-6 sm:pb-12 lg:pb-16 z-10 pt-20 sm:pt-28 gap-4 sm:gap-8">
+          <div className="max-w-2xl space-y-4 w-full">
+            <Skeleton width={120} height={20} />
+            <Skeleton height={80} className="w-full sm:w-3/4" />
+            <div className="flex gap-4">
+              <Skeleton width={100} height={30} />
+              <Skeleton width={100} height={30} />
+            </div>
+            <Skeleton count={3} />
+            <div className="flex gap-3">
+              <Skeleton width={150} height={45} borderRadius={6} />
+              <Skeleton width={120} height={45} borderRadius={6} />
+            </div>
+          </div>
+          <div className="hidden md:block w-32 lg:w-40 xl:w-48 aspect-[2/3] rounded-lg overflow-hidden">
+            <Skeleton height="100%" />
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   if (!show) return null;
 
@@ -95,11 +123,8 @@ export default function HeroBillboard({
         }
       }}
     >
-        <motion.div
+      <div
           key={show.id}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1.2, ease: [0.33, 1, 0.68, 1] }}
           className="relative sm:absolute sm:inset-0 w-full h-full"
         >
           {/* Backdrop image */}
@@ -126,31 +151,22 @@ export default function HeroBillboard({
 
           {/* Content Container */}
           <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full h-full flex flex-col md:flex-row items-start md:items-center justify-end md:justify-between pb-6 sm:pb-12 lg:pb-16 z-10 pt-20 sm:pt-28 gap-4 sm:gap-8">
-            <motion.div 
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.3, duration: 0.8 }}
+            <div 
               className="max-w-2xl space-y-3 sm:space-y-4"
             >
               {/* Top Tag & Platform */}
               <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-                <motion.span 
-                  initial={{ x: -10, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ delay: 0.5 }}
+                <div 
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-bold uppercase tracking-wider bg-red-600 text-white shadow-md"
                 >
                   Featured {show.type}
-                </motion.span>
+                </div>
                 {show.isWishlist && (
-                  <motion.span
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.6 }}
+                  <span
                     className="text-[10px] sm:text-[11px] font-black px-2 py-0.5 rounded bg-amber-500 text-black border border-amber-400 shadow-lg flex items-center gap-1"
                   >
                     🎁 Wishlist
-                  </motion.span>
+                  </span>
                 )}
                 <span className="px-2 py-0.5 rounded text-[11px] sm:text-xs font-semibold bg-zinc-800/90 text-zinc-200 border border-zinc-700 backdrop-blur-sm">
                   {show.platform}
@@ -162,14 +178,11 @@ export default function HeroBillboard({
               </div>
 
               {/* Title */}
-              <motion.h1 
-                initial={{ opacity: 0, filter: 'blur(10px)' }}
-                animate={{ opacity: 1, filter: 'blur(0px)' }}
-                transition={{ delay: 0.4, duration: 0.8 }}
+              <h1 
                 className="text-3xl sm:text-5xl lg:text-7xl font-black text-white tracking-tighter drop-shadow-2xl uppercase leading-[0.95]"
               >
                 {show.title}
-              </motion.h1>
+              </h1>
 
               {/* Quick Metrics Bar */}
               <div className="flex items-center gap-4 text-sm font-medium text-zinc-300 flex-wrap">
@@ -189,8 +202,7 @@ export default function HeroBillboard({
                   const label = stars === 5 ? 'Excellent' : stars === 4 ? 'Great' : stars === 3 ? 'Good' : stars === 2 ? 'Fair' : 'Poor';
 
                   return (
-                    <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-zinc-700/60 shadow-lg">
-                      <div className="flex items-center gap-0.5">
+                  <div className="flex items-center gap-0.5">
                         {[1, 2, 3, 4, 5].map((i) => (
                           <Star
                             key={i}
@@ -202,8 +214,6 @@ export default function HeroBillboard({
                           />
                         ))}
                       </div>
-                      <span className="text-xs font-bold text-amber-400 ml-1">{label}</span>
-                    </div>
                   );
                 })()}
                 <span className="text-zinc-500">•</span>
@@ -221,10 +231,8 @@ export default function HeroBillboard({
               {/* Progress Bar if Watching (Series only) */}
               {!isMovie && (
                 <div className="w-full max-w-md bg-zinc-800/90 rounded-full h-1.5 overflow-hidden border border-zinc-700/50">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${progressPercent}%` }}
-                    transition={{ duration: 1.5, ease: "easeOut", delay: 0.8 }}
+                  <div
+                    style={{ width: `${progressPercent}%` }}
                     className={`h-full ${isWatched ? 'bg-emerald-500' : 'bg-[#E50914]'}`}
                   />
                 </div>
@@ -232,7 +240,7 @@ export default function HeroBillboard({
 
               {/* Synopsis */}
               <p className="text-sm sm:text-base text-zinc-300 line-clamp-3 leading-relaxed drop-shadow max-w-xl font-normal">
-                {show.synopsis || show.notes || 'Track your watching progress, season renewals, and rating for this title.'}
+                {show.synopsis || show.notes || 'No overview synopsis has been entered. Custom details may be added directly to your Google Sheet or within the detail panel.'}
               </p>
 
               {/* Action Buttons */}
@@ -296,24 +304,20 @@ export default function HeroBillboard({
                   </button>
                 )}
               </div>
-            </motion.div>
+            </div>
 
             {/* Right Side Small Poster */}
-            <motion.div 
-              initial={{ scale: 0.8, opacity: 0, rotate: 10, x: 20 }}
-              animate={{ scale: 1, opacity: 1, rotate: 3, x: 0 }}
-              transition={{ delay: 0.6, duration: 0.8 }}
-              whileHover={{ rotate: 0, scale: 1.05 }}
-              className="hidden md:block w-32 lg:w-40 xl:w-48 aspect-[2/3] rounded-lg overflow-hidden border-4 border-white/10 shadow-2xl transition-all duration-500 shrink-0 mt-auto"
+            <div 
+              className="hidden md:block w-32 lg:w-40 xl:w-48 aspect-[2/3] rounded-lg overflow-hidden border-4 border-white/10 shadow-2xl transition-all duration-500 shrink-0 mt-auto hover:rotate-0 hover:scale-105"
             >
               <img 
                  src={getOptimizedPoster(show.posterUrl || show.backdropUrl)} 
                  alt={`${show.title} poster`}
                  className="w-full h-full object-cover"
               />
-            </motion.div>
+            </div>
           </div>
-        </motion.div>
+        </div>
     </section>
   );
 }

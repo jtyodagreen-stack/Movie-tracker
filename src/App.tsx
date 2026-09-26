@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Toaster } from 'react-hot-toast';
 import type { User } from 'firebase/auth';
 import {
   auth,
@@ -34,6 +35,7 @@ import {
   fetchCustomViewers,
 } from './services/sheetsService';
 
+import toast from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import HeroBillboard from './components/HeroBillboard';
 import ShowRow from './components/ShowRow';
@@ -44,6 +46,7 @@ import SheetSyncModal from './components/SheetSyncModal';
 import ConfirmModal from './components/ConfirmModal';
 import DashboardStats from './components/DashboardStats';
 import ShowcaseSection from './components/ShowcaseSection';
+import NetflixHoverPortal from './components/NetflixHoverPortal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { getCachedShows, setCachedShows, queueOfflineAction } from './services/offlineQueue';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
@@ -64,7 +67,6 @@ import {
   BarChart3,
   ArrowUp,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -126,6 +128,44 @@ export default function App() {
   const [selectedPlatform, setSelectedPlatform] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
   const [selectedShow, setSelectedShow] = useState<ShowItem | null>(null);
+
+  const [hoveredShowId, setHoveredShowId] = useState<string | null>(null);
+  const [hoveredRect, setHoveredRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const hoverGraceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const hoveredShow = useMemo(() => {
+    return shows.find((s) => s.id === hoveredShowId) || null;
+  }, [shows, hoveredShowId]);
+
+  const handleHoverEnter = useCallback((show: ShowItem, rect: { top: number; left: number; width: number; height: number }) => {
+    if (hoverGraceTimeoutRef.current) {
+      clearTimeout(hoverGraceTimeoutRef.current);
+      hoverGraceTimeoutRef.current = null;
+    }
+    setHoveredShowId(show.id);
+    setHoveredRect(rect);
+  }, []);
+
+  const handleHoverPortalEnter = useCallback(() => {
+    if (hoverGraceTimeoutRef.current) {
+      clearTimeout(hoverGraceTimeoutRef.current);
+      hoverGraceTimeoutRef.current = null;
+    }
+  }, []);
+
+  const handleHoverLeave = useCallback(() => {
+    // Completely ignore mouse-leave events on mobile viewports (window.innerWidth < 768)
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      return;
+    }
+    if (hoverGraceTimeoutRef.current) {
+      clearTimeout(hoverGraceTimeoutRef.current);
+    }
+    hoverGraceTimeoutRef.current = setTimeout(() => {
+      setHoveredShowId(null);
+      setHoveredRect(null);
+    }, 150); // Small grace period so the mouse can easily glide from the static card to the portal
+  }, []);
 
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -311,8 +351,7 @@ export default function App() {
   // Notification toast
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const showToast = (msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3500);
+    toast(msg);
   };
 
   // Reusable silent/background sync from Google Sheets
@@ -997,6 +1036,38 @@ export default function App() {
     } else {
       setShowSyncModal(true);
       showToast('⚠️ Connect your Google Sheet to auto-sync status!');
+    }
+  };
+
+  // Quick update rating with auto-sync
+  const handleUpdateRating = async (show: ShowItem, ratingNum: number) => {
+    const getRatingText = (num: number): string => {
+      if (num === 1) return '⭐ = Poor';
+      if (num === 2) return '⭐⭐ = Fair';
+      if (num === 3) return '⭐⭐⭐ = Good';
+      if (num === 4) return '⭐⭐⭐⭐ = Great';
+      if (num === 5) return '⭐⭐⭐⭐⭐ = Excellent';
+      return 'Unrated';
+    };
+
+    const updatedShow: ShowItem = {
+      ...show,
+      ratingNum,
+      rating: getRatingText(ratingNum),
+    };
+
+    setShows((prev) => prev.map((s) => (s.id === show.id ? updatedShow : s)));
+    if (selectedShow?.id === show.id) {
+      setSelectedShow(updatedShow);
+    }
+
+    showToast(`Rated "${show.title}" ${ratingNum} Stars`);
+
+    if (spreadsheetId) {
+      syncShowToSheet(updatedShow);
+    } else {
+      setShowSyncModal(true);
+      showToast('⚠️ Connect your Google Sheet to auto-sync ratings!');
     }
   };
 
@@ -1992,6 +2063,7 @@ export default function App() {
             {!isAnyFilterActive && (
               <HeroBillboard
                 show={featuredShow}
+                isLoading={isSyncing}
                 onOpenDetails={(s) => setSelectedShow(s)}
                 onIncrementEpisode={handleIncrementEpisode}
                 onSelectNextFeatured={() => setFeaturedIndex((prev) => prev + 1)}
@@ -2202,6 +2274,8 @@ export default function App() {
                     onOpenDetails={(s) => setSelectedShow(s)}
                     onIncrementEpisode={handleIncrementEpisode}
                     onToggleStatus={handleToggleStatus}
+                    onHoverEnter={handleHoverEnter}
+                    onHoverLeave={handleHoverLeave}
                   />
                 ))}
               </div>
@@ -2218,10 +2292,13 @@ export default function App() {
               title="Continue Watching"
               subtitle="Pick up right where you left off"
               shows={continueWatching}
+              isLoading={isSyncing}
               onOpenDetails={(s) => setSelectedShow(s)}
               onIncrementEpisode={handleIncrementEpisode}
               onToggleStatus={handleToggleStatus}
               onTitleClick={() => setActiveFilter('⏳ Watching')}
+              onHoverEnter={handleHoverEnter}
+              onHoverLeave={handleHoverLeave}
             />
 
             {/* Wishlist Sheet Shelf */}
@@ -2230,10 +2307,13 @@ export default function App() {
                 id="wishlist-shelf"
                 title="🎁 Your Wishlist"
                 shows={wishlistShows}
+                isLoading={isSyncing}
                 onOpenDetails={(s) => setSelectedShow(s)}
                 onIncrementEpisode={handleIncrementEpisode}
                 onToggleStatus={handleToggleStatus}
                 onTitleClick={() => setActiveFilter('🎁 Wishlist')}
+                onHoverEnter={handleHoverEnter}
+                onHoverLeave={handleHoverLeave}
               />
             )}
 
@@ -2242,9 +2322,12 @@ export default function App() {
               id="top-rated"
               title="Top Rated &amp; Great Picks"
               shows={topRated}
+              isLoading={isSyncing}
               onOpenDetails={(s) => setSelectedShow(s)}
               onIncrementEpisode={handleIncrementEpisode}
               onToggleStatus={handleToggleStatus}
+              onHoverEnter={handleHoverEnter}
+              onHoverLeave={handleHoverLeave}
             />
 
             {/* Netflix Originals & Shows */}
@@ -2252,10 +2335,13 @@ export default function App() {
               id="netflix-shelf"
               title="On Netflix"
               shows={netflixShows}
+              isLoading={isSyncing}
               onOpenDetails={(s) => setSelectedShow(s)}
               onIncrementEpisode={handleIncrementEpisode}
               onToggleStatus={handleToggleStatus}
               onTitleClick={() => setSelectedPlatform('Netflix')}
+              onHoverEnter={handleHoverEnter}
+              onHoverLeave={handleHoverLeave}
             />
 
             {/* Prime Video Hits */}
@@ -2263,10 +2349,13 @@ export default function App() {
               id="prime-shelf"
               title="On Prime Video"
               shows={primeShows}
+              isLoading={isSyncing}
               onOpenDetails={(s) => setSelectedShow(s)}
               onIncrementEpisode={handleIncrementEpisode}
               onToggleStatus={handleToggleStatus}
               onTitleClick={() => setSelectedPlatform('Prime Video')}
+              onHoverEnter={handleHoverEnter}
+              onHoverLeave={handleHoverLeave}
             />
 
             {/* Additional Platforms */}
@@ -2275,10 +2364,13 @@ export default function App() {
                 id="disney-shelf"
                 title="On Disney+"
                 shows={disneyShows}
+                isLoading={isSyncing}
                 onOpenDetails={(s) => setSelectedShow(s)}
                 onIncrementEpisode={handleIncrementEpisode}
                 onToggleStatus={handleToggleStatus}
                 onTitleClick={() => setSelectedPlatform('Disney+')}
+                onHoverEnter={handleHoverEnter}
+                onHoverLeave={handleHoverLeave}
               />
             )}
             {appleShows.length > 0 && (
@@ -2286,10 +2378,13 @@ export default function App() {
                 id="apple-shelf"
                 title="On Apple TV+"
                 shows={appleShows}
+                isLoading={isSyncing}
                 onOpenDetails={(s) => setSelectedShow(s)}
                 onIncrementEpisode={handleIncrementEpisode}
                 onToggleStatus={handleToggleStatus}
                 onTitleClick={() => setSelectedPlatform('Apple TV+')}
+                onHoverEnter={handleHoverEnter}
+                onHoverLeave={handleHoverLeave}
               />
             )}
             {paramountShows.length > 0 && (
@@ -2297,10 +2392,13 @@ export default function App() {
                 id="paramount-shelf"
                 title="On Paramount+"
                 shows={paramountShows}
+                isLoading={isSyncing}
                 onOpenDetails={(s) => setSelectedShow(s)}
                 onIncrementEpisode={handleIncrementEpisode}
                 onToggleStatus={handleToggleStatus}
                 onTitleClick={() => setSelectedPlatform('Paramount+')}
+                onHoverEnter={handleHoverEnter}
+                onHoverLeave={handleHoverLeave}
               />
             )}
             {maxShows.length > 0 && (
@@ -2308,10 +2406,13 @@ export default function App() {
                 id="max-shelf"
                 title="On Max / HBO"
                 shows={maxShows}
+                isLoading={isSyncing}
                 onOpenDetails={(s) => setSelectedShow(s)}
                 onIncrementEpisode={handleIncrementEpisode}
                 onToggleStatus={handleToggleStatus}
                 onTitleClick={() => setSelectedPlatform('Max')}
+                onHoverEnter={handleHoverEnter}
+                onHoverLeave={handleHoverLeave}
               />
             )}
             {skyShows.length > 0 && (
@@ -2319,10 +2420,13 @@ export default function App() {
                 id="sky-shelf"
                 title="On Sky / Now"
                 shows={skyShows}
+                isLoading={isSyncing}
                 onOpenDetails={(s) => setSelectedShow(s)}
                 onIncrementEpisode={handleIncrementEpisode}
                 onToggleStatus={handleToggleStatus}
                 onTitleClick={() => setSelectedPlatform('Sky')}
+                onHoverEnter={handleHoverEnter}
+                onHoverLeave={handleHoverLeave}
               />
             )}
 
@@ -2332,10 +2436,13 @@ export default function App() {
               title="Completed &amp; Watched"
               subtitle="Everything you've finished"
               shows={watchedShows}
+              isLoading={isSyncing}
               onOpenDetails={(s) => setSelectedShow(s)}
               onIncrementEpisode={handleIncrementEpisode}
               onToggleStatus={handleToggleStatus}
               onTitleClick={() => setActiveFilter('✅ Watched')}
+              onHoverEnter={handleHoverEnter}
+              onHoverLeave={handleHoverLeave}
             />
 
             {/* Paused & Dropped */}
@@ -2345,10 +2452,13 @@ export default function App() {
                 title="Paused &amp; Dropped"
                 subtitle="Titles currently on hold or dropped"
                 shows={pausedShows}
+                isLoading={isSyncing}
                 onOpenDetails={(s) => setSelectedShow(s)}
                 onIncrementEpisode={handleIncrementEpisode}
                 onToggleStatus={handleToggleStatus}
                 onTitleClick={() => setActiveFilter('⏸️ Paused / ❌ Dropped')}
+                onHoverEnter={handleHoverEnter}
+                onHoverLeave={handleHoverLeave}
               />
             )}
           </div>
@@ -2377,6 +2487,13 @@ export default function App() {
         accessibilitySettings.reduceMotion ? 'accessible-reduce-motion' : ''
       } text-white flex flex-col selection:bg-[#E50914] selection:text-white font-sans antialiased`}
     >
+      <Toaster position="bottom-center" toastOptions={{
+        style: {
+          background: '#181818',
+          color: '#fff',
+          border: '1px solid #3f3f46',
+        }
+      }} />
       {/* Offline Indicator & Sync Queue Processor */}
       <OfflineIndicator onSyncOfflineQueue={handleSyncOfflineQueue} />
 
@@ -2541,6 +2658,39 @@ export default function App() {
           isDestructive={confirmState.isDestructive}
           onConfirm={confirmState.onConfirm}
           onCancel={() => setConfirmState((prev) => ({ ...prev, isOpen: false }))}
+        />
+      )}
+
+      {/* Netflix True Hover Expansion Card */}
+      {hoveredShow && hoveredRect && (
+        <NetflixHoverPortal
+          key={`hover-portal-${hoveredShow.id}`}
+          show={hoveredShow}
+          rect={hoveredRect}
+          onMouseEnter={handleHoverPortalEnter}
+          onClose={() => {
+            if (hoverGraceTimeoutRef.current) {
+              clearTimeout(hoverGraceTimeoutRef.current);
+              hoverGraceTimeoutRef.current = null;
+            }
+            setHoveredShowId(null);
+            setHoveredRect(null);
+          }}
+          onMouseLeave={handleHoverLeave}
+          onOpenDetails={(s) => {
+            setHoveredShowId(null);
+            setHoveredRect(null);
+            setSelectedShow(s);
+          }}
+          onIncrementEpisode={(s) => {
+            handleIncrementEpisode(s);
+          }}
+          onToggleStatus={(s) => {
+            handleToggleStatus(s);
+          }}
+          onUpdateRating={(s, num) => {
+            handleUpdateRating(s, num);
+          }}
         />
       )}
     </div>

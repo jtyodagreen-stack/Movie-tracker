@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Skeleton Loader Styles */
+.react-loading-skeleton {
+  --base-color: #27272a;
+  --highlight-color: #3f3f46;
+  background-color: var(--base-color);
+  background-image: linear-gradient(90deg, var(--base-color), var(--highlight-color), var(--base-color));
+}
+
 /* Smooth Hover Animation Utilities */
 @layer utilities {
   .hover-lift-card {
@@ -227,5 +235,15 @@ html, body, #root {
   background-size: 200% 200% !important;
   animation: sync-progress-flow 2s ease infinite !important;
   box-shadow: 0 0 25px -5px rgba(2, 132, 199, 0.45), 0 20px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Ken Burns panning/zooming effect for authentic cinematic feel */
+@keyframes kenburns-pan-zoom {
+  0% {
+    transform: scale(1) translate(0, 0);
+  }
+  100% {
+    transform: scale(1.18) translate(-1.5%, -1%);
+  }
 }
 

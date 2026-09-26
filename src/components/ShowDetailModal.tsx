@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { motion } from 'motion/react';
 import {
   X,
   Play,
@@ -104,6 +105,7 @@ export default function ShowDetailModal({
   const [year, setYear] = useState(show?.year ?? new Date().getFullYear().toString());
   const [status, setStatus] = useState<WatchStatus>(show?.status || '⏳ Watching');
   const [ratingNum, setRatingNum] = useState<number>(show?.ratingNum || 0);
+  const [hoverRating, setHoverRating] = useState<number>(0);
   const [notes, setNotes] = useState(show?.notes || '');
   const [who, setWho] = useState(show?.who || (sheetViewers.length > 0 ? sheetViewers[0] : ''));
 
@@ -190,29 +192,6 @@ export default function ShowDetailModal({
   const [backdropUrl, setBackdropUrl] = useState<string>(initialUrl);
   const [showImageUploader, setShowImageUploader] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [tilt, setTilt] = useState({ x: 0, y: 0, isHovered: false });
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Disable tilt on small screen touch devices
-    if (window.innerWidth < 640) return;
-    
-    const card = e.currentTarget;
-    const rect = card.getBoundingClientRect();
-    
-    // Calculate cursor position relative to card center
-    const x = e.clientX - rect.left - rect.width / 2;
-    const y = e.clientY - rect.top - rect.height / 2;
-    
-    // Smooth angle scaling (max 6 degrees tilt for perfect legibility)
-    const rotateX = -(y / rect.height) * 8;
-    const rotateY = (x / rect.width) * 8;
-    
-    setTilt({ x: rotateX, y: rotateY, isHovered: true });
-  };
-
-  const handleMouseLeave = () => {
-    setTilt({ x: 0, y: 0, isHovered: false });
-  };
 
   if (!isOpen || !show) return null;
 
@@ -317,17 +296,8 @@ export default function ShowDetailModal({
     >
       <div
         id="show-detail-modal-card"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
         style={{
-          transform: `perspective(1200px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) translate3d(0, 0, ${tilt.isHovered ? '15px' : '0px'})`,
-          transformStyle: 'preserve-3d',
-          boxShadow: tilt.isHovered 
-            ? '0 35px 70px -15px rgba(0, 0, 0, 0.95), 0 0 35px rgba(229, 9, 20, 0.12)' 
-            : '0 25px 50px -12px rgba(0, 0, 0, 0.75)',
-          transition: tilt.isHovered 
-            ? 'transform 0.08s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.3s ease' 
-            : 'transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.6s ease',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.75)',
         }}
         className="relative w-full max-w-3xl max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-[#181818] border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
@@ -831,23 +801,31 @@ export default function ShowDetailModal({
                       : 'Unrated'}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5" onMouseLeave={() => setHoverRating(0)}>
                   {[1, 2, 3, 4, 5].map((star) => (
-                    <button
+                    <motion.button
                       key={star}
                       type="button"
-                      onClick={() => setRatingNum(star === ratingNum ? 0 : star)}
-                      className="p-1 text-zinc-600 hover:text-amber-400 hover:scale-110 active:scale-95 transition-all cursor-pointer rounded-md hover:bg-zinc-800/50"
+                      onClick={() => setRatingNum(star)}
+                      onMouseEnter={() => setHoverRating(star)}
+                      whileHover={{ scale: 1.2 }}
+                      whileTap={{ scale: 0.9 }}
+                      className="p-1 text-zinc-600 cursor-pointer rounded-md hover:bg-zinc-800/50"
                       title={`${star} Star${star > 1 ? 's' : ''}`}
                     >
-                      <Star
-                        className={`w-7 h-7 transition-all ${
-                          star <= ratingNum
-                            ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.35)]'
-                            : 'text-zinc-600 hover:text-zinc-400'
-                        }`}
-                      />
-                    </button>
+                      <motion.div
+                        animate={{ scale: (hoverRating || ratingNum) >= star ? [1, 1.2, 1] : 1 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <Star
+                          className={`w-7 h-7 transition-colors ${
+                            (hoverRating || ratingNum) >= star
+                              ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.35)]'
+                              : 'text-zinc-600'
+                          }`}
+                        />
+                      </motion.div>
+                    </motion.button>
                   ))}
                 </div>
               </div>

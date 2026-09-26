@@ -1,5 +1,7 @@
 import { useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import Skeleton from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
 import { ShowItem } from '../types';
 import ShowCard from './ShowCard';
 
@@ -8,10 +10,13 @@ interface ShowRowProps {
   title: string;
   subtitle?: string;
   shows: ShowItem[];
+  isLoading?: boolean;
   onOpenDetails: (show: ShowItem) => void;
   onIncrementEpisode: (show: ShowItem) => void;
   onToggleStatus: (show: ShowItem) => void;
   onTitleClick?: () => void;
+  onHoverEnter?: (show: ShowItem, rect: { top: number; left: number; width: number; height: number }) => void;
+  onHoverLeave?: () => void;
 }
 
 export default function ShowRow({
@@ -19,14 +24,17 @@ export default function ShowRow({
   title,
   subtitle,
   shows,
+  isLoading = false,
   onOpenDetails,
   onIncrementEpisode,
   onToggleStatus,
   onTitleClick,
+  onHoverEnter,
+  onHoverLeave,
 }: ShowRowProps) {
   const rowRef = useRef<HTMLDivElement>(null);
 
-  if (shows.length === 0) return null;
+  if (!isLoading && shows.length === 0) return null;
 
   const handleScroll = (direction: 'left' | 'right') => {
     if (!rowRef.current) return;
@@ -84,18 +92,30 @@ export default function ShowRow({
         {/* Scrollable Row */}
         <div
           ref={rowRef}
-          className="flex items-start gap-3 sm:gap-4 overflow-x-auto scrollbar-hide scroll-smooth pt-12 pb-14 px-2 -my-10"
+          className="flex items-start gap-3 sm:gap-4 overflow-x-auto scrollbar-hide scroll-smooth pb-3 px-1"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-          {shows.map((show) => (
-            <ShowCard
-              key={show.id}
-              show={show}
-              onOpenDetails={onOpenDetails}
-              onIncrementEpisode={onIncrementEpisode}
-              onToggleStatus={onToggleStatus}
-            />
-          ))}
+          {isLoading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex-shrink-0 w-44 sm:w-56 md:w-64 space-y-2">
+                <Skeleton className="aspect-[16/10] w-full rounded-md" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
+              </div>
+            ))
+          ) : (
+            shows.map((show) => (
+              <ShowCard
+                key={show.id}
+                show={show}
+                onOpenDetails={onOpenDetails}
+                onIncrementEpisode={onIncrementEpisode}
+                onToggleStatus={onToggleStatus}
+                onHoverEnter={onHoverEnter}
+                onHoverLeave={onHoverLeave}
+              />
+            ))
+          )}
         </div>
 
         {/* Right Arrow */}
