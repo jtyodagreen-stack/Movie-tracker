@@ -4,6 +4,8 @@ import { Play, Plus, Check, Info, Star, ThumbsUp, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShowItem } from '../types';
 import { getOptimizedPoster } from '../utils/imageOptimizer';
+import { getOrFetchImdbUrl } from '../services/posterService';
+import { formatToDDMMYYYY } from '../utils/dateUtils';
 
 interface NetflixHoverPortalProps {
   show: ShowItem;
@@ -35,6 +37,25 @@ export default function NetflixHoverPortal({
     return false;
   });
   const [hoverRating, setHoverRating] = useState<number>(0);
+  const [isResolvingImdb, setIsResolvingImdb] = useState(false);
+
+  const handleOpenImdb = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (show.imdbId && show.imdbId.startsWith('tt')) {
+      window.open(`https://www.imdb.com/title/${show.imdbId}/`, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    setIsResolvingImdb(true);
+    try {
+      const url = await getOrFetchImdbUrl(show.title, show.imdbId);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } finally {
+      setIsResolvingImdb(false);
+    }
+  };
 
   useEffect(() => {
     const handleResize = () => {
@@ -236,20 +257,38 @@ export default function NetflixHoverPortal({
           <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-[#181818]/30 to-transparent pointer-events-none" />
 
           {/* Floating Action Brand Overlay */}
-          <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none">
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/75 text-zinc-200 backdrop-blur-sm border border-zinc-700/50 shadow-md">
-                {show.platform}
-              </span>
-              {show.isWishlist && (
-                <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500 text-black border border-amber-400 shadow-md shrink-0">
-                  🎁 Wishlist
+          <div className="absolute top-2 left-2 right-2 flex items-start justify-between z-20 pointer-events-auto">
+            <div className="flex flex-col gap-1 items-start">
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/75 text-zinc-200 backdrop-blur-sm border border-zinc-700/50 shadow-md">
+                  {show.platform}
+                </span>
+                {show.isWishlist && (
+                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500 text-black border border-amber-400 shadow-md shrink-0">
+                    🎁 Wishlist
+                  </span>
+                )}
+              </div>
+              {show.releaseDate && (
+                <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-400 text-black border border-amber-300 shadow-md shrink-0 flex items-center gap-0.5">
+                  ⏰ {formatToDDMMYYYY(show.releaseDate)}
                 </span>
               )}
             </div>
-            <span className="hidden sm:block text-[10px] font-semibold px-1.5 py-0.5 rounded bg-zinc-900/90 text-zinc-300 border border-zinc-700 shadow-md">
-              {show.genre.split('/')[0].trim()}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleOpenImdb}
+                disabled={isResolvingImdb}
+                className="text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-400 hover:bg-amber-300 active:scale-95 text-black shadow-lg transition-all hover:scale-105 cursor-pointer border border-amber-300/80 disabled:opacity-60"
+                title="Open Official IMDb Title Page"
+              >
+                {isResolvingImdb ? '...' : 'IMDb ↗'}
+              </button>
+              <span className="hidden sm:block text-[10px] font-semibold px-1.5 py-0.5 rounded bg-zinc-900/90 text-zinc-300 border border-zinc-700 shadow-md">
+                {show.genre.split('/')[0].trim()}
+              </span>
+            </div>
           </div>
 
           {/* Close button on mobile top-right */}
@@ -289,7 +328,7 @@ export default function NetflixHoverPortal({
         <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 bg-[#181818]">
           {/* Primary Action Buttons Row */}
           <div className="flex items-center gap-2 w-full">
-            {!isMovie ? (
+            {!isMovie && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -300,18 +339,6 @@ export default function NetflixHoverPortal({
               >
                 <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
                 <span>Play Ep {currentEpNum}</span>
-              </button>
-            ) : (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenDetails(show);
-                  onClose();
-                }}
-                className="flex items-center justify-center gap-1.5 bg-white hover:bg-zinc-200 text-black font-black text-xs sm:text-sm px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-full transition-all active:scale-95 shadow-md hover:scale-105 cursor-pointer shrink-0"
-              >
-                <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
-                <span>Play Movie</span>
               </button>
             )}
 
@@ -353,8 +380,8 @@ export default function NetflixHoverPortal({
             <span aria-hidden="true" className="text-zinc-600">•</span>
             <span className="text-zinc-300 font-semibold">{show.year}</span>
             <span aria-hidden="true" className="text-zinc-600">•</span>
-            <span className="text-emerald-400 font-extrabold">
-              {isMovie ? 'Movie' : `${formatS(show.seasons)} • ${formatE(show.episodes)}/${formatE(show.maxEp)}`}
+            <span className="text-zinc-300 font-semibold">
+              {isMovie ? 'Movie' : `${formatS(show.seasons)} • ${formatE(show.episodes)}`}
             </span>
           </div>
 
@@ -362,6 +389,17 @@ export default function NetflixHoverPortal({
           {show.who && (
             <div className="text-xs sm:text-sm text-zinc-300 font-medium">
               Watching with: <span className="text-amber-400 font-extrabold">{show.who}</span>
+            </div>
+          )}
+
+          {/* Release Premiere Info Bar */}
+          {(show.releaseDate || show.releaseNote) && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold">
+              <span>⏰</span>
+              <span>
+                {show.releaseDate ? `Target Premiere: ${formatToDDMMYYYY(show.releaseDate)}` : 'Upcoming Release'}
+                {show.releaseNote ? ` (${show.releaseNote})` : ''}
+              </span>
             </div>
           )}
 

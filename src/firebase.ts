@@ -102,6 +102,7 @@ export interface UserSheetConfig {
   sheetTitle?: string;
   sheetTabId?: number;
   autoSyncEnabled?: boolean;
+  syncFrequency?: number;
 }
 
 export async function saveUserSheetConfig(userId: string, config: Partial<UserSheetConfig>) {
@@ -118,6 +119,7 @@ export async function saveUserSheetConfig(userId: string, config: Partial<UserSh
     if (config.sheetTitle !== undefined) dataToSave.sheetTitle = config.sheetTitle;
     if (config.sheetTabId !== undefined) dataToSave.sheetTabId = config.sheetTabId;
     if (config.autoSyncEnabled !== undefined) dataToSave.autoSyncEnabled = config.autoSyncEnabled;
+    if (config.syncFrequency !== undefined) dataToSave.syncFrequency = config.syncFrequency;
 
     await setDoc(doc(db, 'user_settings', userId), dataToSave, { merge: true });
   } catch (error) {

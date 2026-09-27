@@ -39,6 +39,19 @@ export interface ShowItem {
   sheetTabName?: string; // The specific sheet tab this show belongs to (e.g. MASTER TRACKER, Wishlist)
   priority?: string; // e.g. "High", "Medium", "Low"
   dateAdded?: string; // e.g. "2026-09-21"
+  imdbId?: string; // Official IMDb ID (e.g. tt1234567)
+  // Live Season Premiere & Weekly Air Schedule Tracking
+  nextAirDate?: string; // Formatted as DD-MM-YYYY (e.g. "15-10-2026")
+  nextAirTime?: string; // e.g. "21:00"
+  nextAirTimestamp?: number; // Epoch ms for live ticking countdown
+  nextEpisodeTitle?: string; // e.g. "Hello Ms. Cobel"
+  nextSeasonNum?: number | string; // e.g. 2
+  nextEpisodeNum?: number | string; // e.g. 1
+  airScheduleText?: string; // e.g. "Airs Fridays at 21:00 on Apple TV+"
+  isOngoing?: boolean; // True if series is actively airing or has upcoming season premiere
+  scheduleStatus?: string; // e.g. "Season 2 Premiere", "Weekly Episode", "Returning Series"
+  releaseDate?: string; // Target Premiere/Release date (e.g. DD-MM-YYYY)
+  releaseNote?: string; // Premiere/Countdown note (e.g. "Season 5 Premiere")
 }
 
 export interface SheetConfig {

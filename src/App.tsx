@@ -33,6 +33,8 @@ import {
   getSheetTabHeaders,
   extractSpreadsheetId,
   fetchCustomViewers,
+  parseGoogleSheetsDate,
+  formatA1Range,
 } from './services/sheetsService';
 
 import toast from 'react-hot-toast';
@@ -45,6 +47,7 @@ import AddShowModal from './components/AddShowModal';
 import SheetSyncModal from './components/SheetSyncModal';
 import ConfirmModal from './components/ConfirmModal';
 import DashboardStats from './components/DashboardStats';
+import MainPageReleaseRadarBanner from './components/MainPageReleaseRadarBanner';
 import ShowcaseSection from './components/ShowcaseSection';
 import NetflixHoverPortal from './components/NetflixHoverPortal';
 import { OfflineIndicator } from './components/OfflineIndicator';
@@ -279,6 +282,47 @@ export default function App() {
       return true;
     }
   });
+  const [syncFrequency, setSyncFrequency] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('bingebox_sync_frequency');
+      if (saved) return parseInt(saved, 10) || 45;
+    } catch {}
+    return 45;
+  });
+  const [isOnline, setIsOnline] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      showToast('🌐 Internet connection restored');
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      showToast('⚠️ Offline Mode: Changes stored locally and will sync when online');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const handleUpdateSyncFrequency = (freq: number) => {
+    setSyncFrequency(freq);
+    try {
+      localStorage.setItem('bingebox_sync_frequency', String(freq));
+    } catch {}
+    const activeUid = user?.uid || auth.currentUser?.uid;
+    if (activeUid) {
+      saveUserSheetConfig(activeUid, { syncFrequency: freq }).catch(console.warn);
+    }
+    showToast(`⏱️ Background sync frequency set to ${freq >= 60 ? `${freq / 60} min` : `${freq}s`}`);
+  };
 
   const clearAllUserData = useCallback(() => {
     setUser(null);
@@ -466,6 +510,10 @@ export default function App() {
                 setAutoSyncEnabled(cloudConfig.autoSyncEnabled);
                 localStorage.setItem('bingebox_auto_sync', String(cloudConfig.autoSyncEnabled));
               }
+              if (cloudConfig.syncFrequency !== undefined) {
+                setSyncFrequency(cloudConfig.syncFrequency);
+                localStorage.setItem('bingebox_sync_frequency', String(cloudConfig.syncFrequency));
+              }
             } else if (activeSheetId) {
               // Save existing local config to Firestore so it is synced across devices
               saveUserSheetConfig(currentUser.uid, {
@@ -475,6 +523,7 @@ export default function App() {
                 sheetTitle: sheetTitle || '',
                 sheetTabId: sheetTabId,
                 autoSyncEnabled: autoSyncEnabled,
+                syncFrequency: syncFrequency,
               }).catch(console.warn);
             }
           } catch (e) {
@@ -561,18 +610,19 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Background Auto-Sync: Poll every 45 seconds when tab is active
+  // Background Auto-Sync: Poll at configured frequency when tab is active and online
   useEffect(() => {
-    if (!autoSyncEnabled || !spreadsheetId) return;
+    if (!autoSyncEnabled || !spreadsheetId || !isOnline) return;
 
+    const intervalMs = (syncFrequency || 45) * 1000;
     const intervalId = setInterval(() => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
         fetchLatestFromSheet(true);
       }
-    }, 45000);
+    }, intervalMs);
 
     return () => clearInterval(intervalId);
-  }, [autoSyncEnabled, spreadsheetId, fetchLatestFromSheet]);
+  }, [autoSyncEnabled, spreadsheetId, syncFrequency, isOnline, fetchLatestFromSheet]);
 
   // Tab Focus & Visibility Change Auto-Sync: Refresh whenever user switches back to this tab
   useEffect(() => {
@@ -592,6 +642,8 @@ export default function App() {
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
   }, [autoSyncEnabled, spreadsheetId, fetchLatestFromSheet]);
+
+
 
   const handleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
     try {
@@ -765,6 +817,7 @@ export default function App() {
           sheetTitle: meta.title,
           sheetTabId: matchedSheetObj?.id,
           autoSyncEnabled: autoSyncEnabled,
+          syncFrequency: syncFrequency,
         }).catch((e) => console.warn('Could not persist to Firestore:', e));
       }
 
@@ -812,7 +865,7 @@ export default function App() {
   };
 
   // Helper: auto-sync updated show to Google Sheet (reliable non-blocking live update)
-  const syncShowToSheet = async (updatedShow: ShowItem) => {
+  const syncShowToSheet = async (updatedShow: ShowItem, isExplicitSave = false) => {
     if (!navigator.onLine) {
       queueOfflineAction('UPDATE_SHOW', updatedShow);
       showToast('📴 Offline: Change queued locally and will sync when online');
@@ -880,6 +933,62 @@ export default function App() {
         rowNum = (await findRowNumberByTitle(spreadsheetId, targetTab, updatedShow.title, token)) ?? undefined;
       }
 
+      // --- DEEP VERIFICATION STEP ---
+      // For quick actions (increment episode, toggle status), ensure releaseDate and releaseNote are not lost
+      if (!isExplicitSave) {
+        const existingShow = shows.find(
+          (s) =>
+            s.id === updatedShow.id ||
+            (s.title && updatedShow.title && s.title.toLowerCase().trim() === updatedShow.title.toLowerCase().trim())
+        );
+
+        let verifiedReleaseDate = updatedShow.releaseDate?.trim();
+        let verifiedReleaseNote = updatedShow.releaseNote?.trim();
+
+        // Check state fallback: if incoming show has empty/undefined, but existing state has valid values, preserve them!
+        if (!verifiedReleaseDate && existingShow?.releaseDate?.trim()) {
+          verifiedReleaseDate = existingShow.releaseDate.trim();
+          console.log(`[Google Sheets Deep Verification] Preserved releaseDate from local state for "${updatedShow.title}": "${verifiedReleaseDate}"`);
+        }
+        if (!verifiedReleaseNote && existingShow?.releaseNote?.trim()) {
+          verifiedReleaseNote = existingShow.releaseNote.trim();
+          console.log(`[Google Sheets Deep Verification] Preserved releaseNote from local state for "${updatedShow.title}": "${verifiedReleaseNote}"`);
+        }
+
+        // Live Sheet fallback: if still missing and row exists in Google Sheets, query the live sheet row
+        if ((!verifiedReleaseDate || !verifiedReleaseNote) && rowNum && spreadsheetId) {
+          try {
+            const checkRange = formatA1Range(targetTab, `Q${rowNum}:R${rowNum}`);
+            const checkRes = await fetch(
+              `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(checkRange)}`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (checkRes.ok) {
+              const checkData = await checkRes.json();
+              const rowCells = checkData.values?.[0];
+              if (rowCells) {
+                const liveDate = rowCells[0]?.trim();
+                const liveNote = rowCells[1]?.trim();
+                if (!verifiedReleaseDate && liveDate) {
+                  verifiedReleaseDate = liveDate;
+                  console.log(`[Google Sheets Deep Verification] Preserved live sheet releaseDate for "${updatedShow.title}": "${liveDate}"`);
+                }
+                if (!verifiedReleaseNote && liveNote) {
+                  verifiedReleaseNote = liveNote;
+                  console.log(`[Google Sheets Deep Verification] Preserved live sheet releaseNote for "${updatedShow.title}": "${liveNote}"`);
+                }
+              }
+            }
+          } catch (checkErr) {
+            console.warn('[Google Sheets Deep Verification] Querying live sheet release fields error:', checkErr);
+          }
+        }
+
+        // Apply verified values to updatedShow
+        updatedShow.releaseDate = verifiedReleaseDate || undefined;
+        updatedShow.releaseNote = verifiedReleaseNote || undefined;
+      }
+
       // 2. If row not found in sheet, automatically append it so the Google Sheet is updated!
       if (!rowNum) {
         showToast(`Adding "${updatedShow.title}" to ${targetTab}...`);
@@ -887,13 +996,19 @@ export default function App() {
         rowNum = appendRes.rowNumber;
         if (rowNum) {
           updatedShow.rowNumber = rowNum;
-          setShows((prev) => prev.map((s) => (s.id === updatedShow.id ? { ...s, rowNumber: rowNum, sheetTabName: targetTab } : s)));
+          setShows((prev) =>
+            prev.map((s) =>
+              s.id === updatedShow.id
+                ? { ...s, rowNumber: rowNum, sheetTabName: targetTab, releaseDate: updatedShow.releaseDate, releaseNote: updatedShow.releaseNote }
+                : s
+            )
+          );
         }
         showToast(`✅ Synced "${updatedShow.title}" to "${targetTab}"!`);
         return;
       }
 
-      console.log(`[Google Sheets Sync] Updating existing row ${rowNum} for "${updatedShow.title}" (Poster: "${updatedShow.posterUrl || 'none'}") in tab "${targetTab}"`);
+      console.log(`[Google Sheets Sync] Updating existing row ${rowNum} for "${updatedShow.title}" (Poster: "${updatedShow.posterUrl || 'none'}", ReleaseDate: "${updatedShow.releaseDate || 'none'}", ReleaseNote: "${updatedShow.releaseNote || 'none'}") in tab "${targetTab}"`);
 
       // 3. Row exists: update Episode, Season, Status, Next Ep, Poster, Max Ep, Rating, and Rating Num directly via batchUpdate!
       await updateEpisodeAndSeasonInSheet(
@@ -911,11 +1026,19 @@ export default function App() {
         updatedShow.maxEp,
         updatedShow.rating,
         updatedShow.ratingNum,
-        updatedShow.type
+        updatedShow.type,
+        updatedShow.releaseDate,
+        updatedShow.releaseNote
       );
 
-      // Keep rowNumber updated in state
-      setShows((prev) => prev.map((s) => (s.id === updatedShow.id ? { ...s, rowNumber: rowNum, sheetTabName: targetTab } : s)));
+      // Keep rowNumber and release info updated in state
+      setShows((prev) =>
+        prev.map((s) =>
+          s.id === updatedShow.id
+            ? { ...s, rowNumber: rowNum, sheetTabName: targetTab, releaseDate: updatedShow.releaseDate, releaseNote: updatedShow.releaseNote }
+            : s
+        )
+      );
 
       // 4. Also safely sync entire row values
       await updateSheetRow(
@@ -1080,7 +1203,7 @@ export default function App() {
     showToast(`Saved changes for "${updatedShow.title}"`);
 
     if (spreadsheetId) {
-      syncShowToSheet(updatedShow);
+      syncShowToSheet(updatedShow, true);
     }
   };
 
@@ -1311,7 +1434,7 @@ export default function App() {
                 sheetTabName: targetTab,
                 rowNumber: res.newRowNumber,
                 priority: normalizePriority(showToMove.priority),
-                dateAdded: showToMove.dateAdded || new Date().toISOString().split('T')[0],
+                dateAdded: parseGoogleSheetsDate(showToMove.dateAdded || new Date()),
               }
             : s
         )
@@ -2105,6 +2228,12 @@ export default function App() {
                 onSelectNextFeatured={() => setFeaturedIndex((prev) => prev + 1)}
               />
             )}
+            {!searchQuery && (
+              <MainPageReleaseRadarBanner
+                shows={shows}
+                onOpenDetails={(s) => setSelectedShow(s)}
+              />
+            )}
 
         {/* Master Tracker Summary & Quick Filters Bar (Top) */}
         {renderMasterTrackerOverviewBar('top')}
@@ -2641,6 +2770,10 @@ export default function App() {
         accessibilitySettings={accessibilitySettings}
         setAccessibilitySettings={setAccessibilitySettings}
         onOpenDashboard={() => setShowStatsModal(true)}
+        isOnline={isOnline}
+        syncFrequency={syncFrequency}
+        onUpdateSyncFrequency={handleUpdateSyncFrequency}
+        onOpenDetails={(show) => setSelectedShow(show)}
       />
 
       <main className={`flex-1 pb-16 ${!isAnyFilterActive && !showStatsModal ? 'pt-0' : 'pt-16'}`}>
@@ -2732,7 +2865,10 @@ export default function App() {
           rowCount={shows.length}
           autoSyncEnabled={autoSyncEnabled}
           onToggleAutoSync={handleToggleAutoSync}
+          syncFrequency={syncFrequency}
+          onUpdateSyncFrequency={handleUpdateSyncFrequency}
           onTriggerSync={() => fetchLatestFromSheet(false)}
+          isOnline={isOnline}
         />
       )}
 

@@ -17,10 +17,18 @@ import {
   Check,
   Accessibility,
   BarChart3,
+  WifiOff,
+  Clock,
+  History,
+  Sparkles,
+  Trash2,
+  Star,
+  Shuffle,
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
 import { ShowItem, PRESET_PLATFORMS, AccessibilitySettings } from '../types';
 import { normalizePlatform } from '../services/sheetsService';
+import { getOptimizedPoster } from '../utils/imageOptimizer';
 
 interface NavbarProps {
   user: User | null;
@@ -44,6 +52,11 @@ interface NavbarProps {
   accessibilitySettings: AccessibilitySettings;
   setAccessibilitySettings: (settings: AccessibilitySettings) => void;
   onOpenDashboard?: () => void;
+  isOnline?: boolean;
+  syncFrequency?: number;
+  onUpdateSyncFrequency?: (freq: number) => void;
+  onOpenDetails?: (show: ShowItem) => void;
+  onOpenRandomPicker?: () => void;
 }
 
 export default function Navbar({
@@ -68,25 +81,165 @@ export default function Navbar({
   accessibilitySettings,
   setAccessibilitySettings,
   onOpenDashboard,
+  isOnline,
+  syncFrequency = 45,
+  onUpdateSyncFrequency,
+  onOpenDetails,
+  onOpenRandomPicker,
 }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
   const [showSearch, setShowSearch] = useState(Boolean(searchQuery));
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAccMenu, setShowAccMenu] = useState(false);
+  const [isOnlineState, setIsOnlineState] = useState<boolean>(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnlineState(true);
+    const handleOffline = () => setIsOnlineState(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    setIsOnlineState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const online = isOnline !== undefined ? isOnline : isOnlineState;
+
+  // Global Keyboard shortcut Ctrl+K or Cmd+K or / to focus search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInputFocused = activeEl && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName);
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowSearch(true);
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      } else if (e.key === '/' && !isInputFocused && sheetConnected) {
+        e.preventDefault();
+        setShowSearch(true);
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [sheetConnected]);
 
   // Desktop Dropdown States
   const [showPlatformMenu, setShowPlatformMenu] = useState(false);
+  const [showSyncFreqMenu, setShowSyncFreqMenu] = useState(false);
 
   const platformDropdownRef = useRef<HTMLDivElement>(null);
   const platformTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const accDropdownRef = useRef<HTMLDivElement>(null);
   const mobileAccDropdownRef = useRef<HTMLDivElement>(null);
+  const syncFreqDropdownRef = useRef<HTMLDivElement>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Recent Searches State
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('bingebox_recent_searches');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed.filter((s) => typeof s === 'string' && s.trim());
+      }
+    } catch {}
+    return [];
+  });
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  const saveRecentSearch = (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed || trimmed.length < 2) return;
+    setRecentSearches((prev) => {
+      const filtered = prev.filter((item) => item.toLowerCase() !== trimmed.toLowerCase());
+      const next = [trimmed, ...filtered].slice(0, 8);
+      try {
+        localStorage.setItem('bingebox_recent_searches', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const removeRecentSearch = (itemToRemove: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setRecentSearches((prev) => {
+      const next = prev.filter((item) => item !== itemToRemove);
+      try {
+        localStorage.setItem('bingebox_recent_searches', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const clearAllRecentSearches = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setRecentSearches([]);
+    try {
+      localStorage.removeItem('bingebox_recent_searches');
+    } catch {}
+  };
+
+  const filteredRecentSearches = useMemo(() => {
+    if (!searchQuery.trim()) return recentSearches;
+    const q = searchQuery.toLowerCase().trim();
+    return recentSearches.filter((item) => item.toLowerCase().includes(q));
+  }, [recentSearches, searchQuery]);
+
+  const formatS = (s: string | number) => {
+    const str = String(s).trim();
+    if (!str) return 'S1';
+    if (/^\d+$/.test(str)) return `S${str}`;
+    if (/^[sS]\d+/.test(str)) return `S${str.slice(1)}`;
+    return str.startsWith('S') || str.startsWith('s') ? str.toUpperCase() : `S${str}`;
+  };
+
+  const formatE = (e: string | number) => {
+    const str = String(e).trim();
+    if (!str) return 'E1';
+    if (/^\d+$/.test(str)) return `E${str}`;
+    if (/^[eE]\d+/.test(str)) return `E${str.slice(1)}`;
+    return str.startsWith('E') || str.startsWith('e') ? str.toUpperCase() : `E${str}`;
+  };
+
+  // Live Matching Shows with Poster & Info for Search Results
+  const matchingShows = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase().trim();
+    return shows
+      .filter((s) => {
+        return (
+          s.title.toLowerCase().includes(q) ||
+          (s.genre && s.genre.toLowerCase().includes(q)) ||
+          (s.platform && s.platform.toLowerCase().includes(q)) ||
+          (s.type && s.type.toLowerCase().includes(q)) ||
+          (s.notes && s.notes.toLowerCase().includes(q)) ||
+          (s.who && s.who.toLowerCase().includes(q)) ||
+          (s.year && String(s.year).includes(q))
+        );
+      })
+      .slice(0, 6);
+  }, [shows, searchQuery]);
+
+  // Auto-save search term after debounce
+  useEffect(() => {
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) return;
+    const timer = setTimeout(() => {
+      saveRecentSearch(searchQuery);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleSearchMouseEnter = () => {
     if (searchTimeoutRef.current) {
@@ -172,6 +325,12 @@ export default function Navbar({
         setShowUserMenu(false);
       }
       if (
+        syncFreqDropdownRef.current &&
+        !syncFreqDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowSyncFreqMenu(false);
+      }
+      if (
         accDropdownRef.current &&
         !accDropdownRef.current.contains(event.target as Node) &&
         mobileAccDropdownRef.current &&
@@ -181,10 +340,12 @@ export default function Navbar({
       }
       if (
         searchContainerRef.current &&
-        !searchContainerRef.current.contains(event.target as Node) &&
-        !searchQuery.trim()
+        !searchContainerRef.current.contains(event.target as Node)
       ) {
-        setShowSearch(false);
+        setIsSearchFocused(false);
+        if (!searchQuery.trim()) {
+          setShowSearch(false);
+        }
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -462,42 +623,278 @@ export default function Navbar({
               onMouseLeave={handleSearchMouseLeave}
             >
               {showSearch ? (
-                <div className="flex items-center bg-[#202020] border border-zinc-700 rounded-full px-3 py-1.5 transition-all w-48 sm:w-60 shadow-lg">
-                  <Search className="w-3.5 h-3.5 text-red-500 mr-1.5 shrink-0" />
-                  <input
-                    ref={searchInputRef}
-                    id="navbar-search-input"
-                    type="text"
-                    placeholder="Search titles, genres..."
-                    value={searchQuery}
-                    onChange={(e) => onSearchChange(e.target.value)}
-                    autoFocus
-                    onBlur={() => {
-                      if (!searchQuery.trim()) setShowSearch(false);
-                    }}
-                    className="bg-transparent text-base text-white focus:outline-none w-full placeholder:text-zinc-500"
-                  />
-                  {searchQuery ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onSearchChange('');
-                        setShowSearch(false);
+                <div className="relative">
+                  <div className="flex items-center bg-[#202020] border border-zinc-700 rounded-full px-3 py-1.5 transition-all w-52 sm:w-64 shadow-lg focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/50">
+                    <Search className="w-3.5 h-3.5 text-red-500 mr-1.5 shrink-0" />
+                    <input
+                      ref={searchInputRef}
+                      id="navbar-search-input"
+                      type="text"
+                      placeholder="Search titles, genres, platforms..."
+                      value={searchQuery}
+                      onChange={(e) => onSearchChange(e.target.value)}
+                      onFocus={() => setIsSearchFocused(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          if (searchQuery.trim()) {
+                            saveRecentSearch(searchQuery);
+                          }
+                          setIsSearchFocused(false);
+                        } else if (e.key === 'Escape') {
+                          setIsSearchFocused(false);
+                          if (!searchQuery.trim()) setShowSearch(false);
+                        }
                       }}
-                      className="p-0.5 hover:text-white text-zinc-400 shrink-0 ml-1 rounded-full hover:bg-zinc-700 cursor-pointer"
-                      title="Clear search"
+                      autoFocus
+                      className="bg-transparent text-xs sm:text-sm text-white focus:outline-none w-full placeholder:text-zinc-500"
+                    />
+                    {searchQuery ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSearchChange('');
+                          setIsSearchFocused(false);
+                          setShowSearch(false);
+                        }}
+                        className="p-0.5 hover:text-white text-zinc-400 shrink-0 ml-1 rounded-full hover:bg-zinc-700 cursor-pointer"
+                        title="Clear search"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsSearchFocused(false);
+                          setShowSearch(false);
+                        }}
+                        className="p-0.5 hover:text-white text-zinc-500 shrink-0 ml-1 rounded-full hover:bg-zinc-700 cursor-pointer"
+                        title="Close search"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* RECENT SEARCHES & LIVE SHOW RESULTS DROPDOWN (POSTER + INFO) */}
+                  {isSearchFocused && (
+                    <div
+                      id="navbar-recent-searches-dropdown"
+                      className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-[#181818] border border-zinc-700 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden"
+                      onMouseDown={(e) => {
+                        // Keep input focus when clicking inside dropdown
+                        e.preventDefault();
+                      }}
                     >
-                      <X className="w-3 h-3" />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setShowSearch(false)}
-                      className="p-0.5 hover:text-white text-zinc-500 shrink-0 ml-1 rounded-full hover:bg-zinc-700 cursor-pointer"
-                      title="Close search"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+                      {searchQuery.trim() ? (
+                        /* LIVE MATCHING SHOWS WITH POSTER AND INFO */
+                        matchingShows.length > 0 ? (
+                          <>
+                            <div className="flex items-center justify-between px-3.5 py-2 border-b border-zinc-800 text-[11px] font-semibold text-zinc-400 bg-zinc-900/80">
+                              <div className="flex items-center gap-1.5 text-zinc-200">
+                                <Film className="w-3.5 h-3.5 text-red-500" />
+                                <span>Matching Shows & Movies ({matchingShows.length})</span>
+                              </div>
+                              <span className="text-[10px] text-zinc-500 font-mono">
+                                Click to preview
+                              </span>
+                            </div>
+
+                            <div className="py-1 max-h-80 overflow-y-auto divide-y divide-zinc-800/40">
+                              {matchingShows.map((show) => {
+                                const isSeries = show.type === 'Series';
+                                const poster = show.posterUrl ? getOptimizedPoster(show.posterUrl) : null;
+                                return (
+                                  <div
+                                    key={`${show.id}-${show.rowNumber || 0}`}
+                                    className="flex items-center gap-3 px-3.5 py-2.5 hover:bg-zinc-800/90 group transition-all cursor-pointer select-none"
+                                    onClick={() => {
+                                      saveRecentSearch(show.title);
+                                      setIsSearchFocused(false);
+                                      if (onOpenDetails) {
+                                        onOpenDetails(show);
+                                      }
+                                    }}
+                                  >
+                                    {/* Poster Thumbnail */}
+                                    <div className="w-12 h-16 rounded-md overflow-hidden bg-zinc-800 shrink-0 border border-zinc-700/80 shadow group-hover:border-red-500/80 transition-colors relative">
+                                      {poster ? (
+                                        <img
+                                          src={poster}
+                                          alt={show.title}
+                                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                          loading="lazy"
+                                        />
+                                      ) : (
+                                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900 text-zinc-500 p-1 text-center">
+                                          {isSeries ? (
+                                            <Tv className="w-4 h-4 mb-0.5 text-red-500/80" />
+                                          ) : (
+                                            <Film className="w-4 h-4 mb-0.5 text-amber-500/80" />
+                                          )}
+                                          <span className="text-[9px] font-black leading-none line-clamp-1">
+                                            {show.title.slice(0, 3)}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {show.platform && (
+                                        <span className="absolute bottom-0 inset-x-0 bg-black/85 backdrop-blur-xs text-[8px] text-zinc-300 text-center py-0.5 font-semibold truncate px-0.5 border-t border-white/10">
+                                          {show.platform}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Show Metadata Info */}
+                                    <div className="flex-1 min-w-0 space-y-1">
+                                      <div className="flex items-center justify-between gap-1.5">
+                                        <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-red-400 transition-colors truncate">
+                                          {show.title}
+                                        </h4>
+                                        {show.rating && (
+                                          <span className="text-[10px] font-bold text-amber-400 shrink-0 flex items-center gap-0.5 bg-amber-950/60 border border-amber-800/40 px-1.5 py-0.2 rounded">
+                                            <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+                                            <span>{show.rating}</span>
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <div className="flex items-center gap-1.5 text-[11px] text-zinc-400 flex-wrap">
+                                        <span className="inline-flex items-center gap-1 font-medium text-zinc-300">
+                                          {isSeries ? (
+                                            <Tv className="w-3 h-3 text-red-400" />
+                                          ) : (
+                                            <Film className="w-3 h-3 text-amber-400" />
+                                          )}
+                                          {show.type || 'Show'}
+                                        </span>
+                                        {show.year && <span>• {show.year}</span>}
+                                        {show.genre && (
+                                          <span className="truncate max-w-[120px] text-zinc-400">
+                                            • {show.genre}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Status and Progress Info */}
+                                      <div className="flex items-center gap-1.5 text-[10px] flex-wrap pt-0.5">
+                                        <span
+                                          className={`px-1.5 py-0.2 rounded font-semibold border ${
+                                            show.status === '✅ Watched'
+                                              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/50'
+                                              : show.status === '⏳ Watching'
+                                              ? 'bg-amber-950/80 text-amber-300 border-amber-700/50'
+                                              : show.isWishlist
+                                              ? 'bg-purple-950/80 text-purple-300 border-purple-700/50'
+                                              : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                                          }`}
+                                        >
+                                          {show.status || 'Tracked'}
+                                        </span>
+
+                                        {isSeries && (
+                                          <span className="font-mono text-zinc-300 bg-zinc-900 px-1.5 py-0.2 rounded border border-zinc-800">
+                                            {formatS(show.seasons || show.nextSeasonNum || 'S1')} {formatE(show.episodes || show.nextEpisodeNum || (typeof show.nextEp === 'string' ? show.nextEp : undefined) || 'E1')}
+                                            {show.maxEp ? ` / ${formatE(show.maxEp)}` : ''}
+                                          </span>
+                                        )}
+
+                                        {show.who && (
+                                          <span className="text-zinc-500 font-medium">
+                                            👤 {show.who}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                saveRecentSearch(searchQuery);
+                                setIsSearchFocused(false);
+                              }}
+                              className="w-full py-2 bg-zinc-900 hover:bg-zinc-800 text-red-400 hover:text-red-300 text-xs font-semibold text-center border-t border-zinc-800 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <span>View filtered tracker results ({shows.filter((s) => s.title.toLowerCase().includes(searchQuery.toLowerCase()) || (s.genre && s.genre.toLowerCase().includes(searchQuery.toLowerCase()))).length})</span>
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        ) : (
+                          <div className="p-4 text-center space-y-2">
+                            <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center mx-auto text-zinc-500">
+                              <Search className="w-5 h-5" />
+                            </div>
+                            <p className="text-xs font-semibold text-zinc-200">
+                              No shows found for "{searchQuery}"
+                            </p>
+                            <p className="text-[11px] text-zinc-500">
+                              Check spelling or explore other genres, platforms, or titles.
+                            </p>
+                          </div>
+                        )
+                      ) : (
+                        /* RECENT SEARCHES ONLY */
+                        filteredRecentSearches.length > 0 ? (
+                          <div>
+                            <div className="flex items-center justify-between px-3.5 py-1.5 text-[11px] font-semibold text-zinc-400 bg-zinc-900/60 border-b border-zinc-800">
+                              <div className="flex items-center gap-1.5 text-zinc-300">
+                                <History className="w-3.5 h-3.5 text-red-500" />
+                                <span>Recent Searches</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={clearAllRecentSearches}
+                                className="text-[10px] text-zinc-500 hover:text-red-400 transition-colors flex items-center gap-1 cursor-pointer font-medium"
+                                title="Clear search history"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>Clear All</span>
+                              </button>
+                            </div>
+
+                            <div className="py-1 max-h-56 overflow-y-auto divide-y divide-zinc-800/40">
+                              {filteredRecentSearches.map((term) => (
+                                <div
+                                  key={term}
+                                  className="flex items-center justify-between px-3.5 py-2 hover:bg-zinc-800/80 group transition-colors cursor-pointer"
+                                  onClick={() => {
+                                    onSearchChange(term);
+                                    saveRecentSearch(term);
+                                    setIsSearchFocused(false);
+                                  }}
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                    <History className="w-3.5 h-3.5 text-zinc-500 group-hover:text-red-500 shrink-0 transition-colors" />
+                                    <span className="text-xs text-zinc-200 group-hover:text-white truncate font-medium">
+                                      {term}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => removeRecentSearch(term, e)}
+                                    className="p-1 rounded-full text-zinc-500 hover:text-red-400 hover:bg-zinc-700/50 transition-colors opacity-60 group-hover:opacity-100 cursor-pointer"
+                                    title={`Remove "${term}" from history`}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-4 text-center text-xs text-zinc-500">
+                            <History className="w-5 h-5 mx-auto mb-1.5 opacity-40 text-zinc-400" />
+                            <p className="font-medium text-zinc-300">No recent searches</p>
+                            <p className="text-[11px] text-zinc-500 pt-0.5">
+                              Type above to search titles, genres, or platforms
+                            </p>
+                          </div>
+                        )
+                      )}
+                    </div>
                   )}
                 </div>
               ) : (
@@ -516,23 +913,20 @@ export default function Navbar({
 
           {/* DESKTOP-ONLY BUTTONS (xl: >= 1280px) */}
           <div className="hidden xl:flex items-center gap-2.5 2xl:gap-3">
-            {/* Google Sheets Auto-Sync Indicator & Button */}
-            {sheetConnected && (
+            {/* OFFLINE MODE STATUS BADGE (Desktop) */}
+            {!online && (
               <button
-                id="open-sheets-sync-btn"
+                id="nav-offline-mode-badge"
                 onClick={onOpenSync}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border transition-all whitespace-nowrap cursor-pointer shrink-0 bg-emerald-950/70 border-emerald-600/50 text-emerald-300 hover:bg-emerald-900/60 shadow-sm shadow-emerald-950/40"
-                title={`Auto-Sync Connected: ${sheetTitle || 'Google Sheet'} (${lastSyncedAt ? `Last synced: ${lastSyncedAt}` : 'Active'})`}
+                type="button"
+                className="flex items-center gap-2 text-xs font-bold px-3.5 py-1.5 rounded-md border bg-amber-950/90 border-amber-500/70 text-amber-300 shadow-md shadow-amber-950/50 shrink-0 cursor-pointer hover:bg-amber-900/70 transition-all animate-in fade-in duration-200"
+                title="Offline Mode: No internet connection detected. Changes saved locally will automatically sync when back online. Click to view sync status."
               >
-                <RefreshCw
-                  className={`w-3.5 h-3.5 text-emerald-400 shrink-0 ${
-                    isSyncing ? 'animate-spin text-amber-400' : ''
-                  }`}
-                />
-                <span className="font-semibold text-emerald-300">Auto-Synced</span>
+                <WifiOff className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
+                <span className="tracking-wide uppercase text-[11px]">Offline Mode</span>
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
                 </span>
               </button>
             )}
@@ -546,6 +940,19 @@ export default function Navbar({
               >
                 <Plus className="w-4 h-4 shrink-0" />
                 <span>Add Show</span>
+              </button>
+            )}
+
+            {/* Surprise Me / Random Picker Button */}
+            {sheetConnected && shows.length > 0 && onOpenRandomPicker && (
+              <button
+                id="nav-random-picker-btn"
+                onClick={onOpenRandomPicker}
+                className="hidden 2xl:flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white text-xs font-semibold px-2.5 py-1.5 rounded-md transition-colors border border-zinc-700 shadow-sm whitespace-nowrap cursor-pointer shrink-0"
+                title="Surprise Me: Randomly pick a show to watch next"
+              >
+                <Shuffle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>Surprise Me</span>
               </button>
             )}
 
@@ -703,20 +1110,44 @@ export default function Navbar({
                 <button
                   id="user-profile-btn"
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-2 p-1 rounded-md hover:bg-white/10 transition-colors cursor-pointer"
+                  className={`flex items-center gap-2 transition-all cursor-pointer shadow-sm ${
+                    !online
+                      ? 'px-2.5 py-1 rounded-lg bg-amber-950/70 border border-amber-500/50 text-amber-300 hover:bg-amber-900/60 shadow-amber-950/40'
+                      : sheetConnected
+                      ? 'px-2.5 py-1 rounded-lg bg-emerald-950/70 border border-emerald-600/50 text-emerald-300 hover:bg-emerald-900/60 shadow-emerald-950/40'
+                      : 'p-1 rounded-md hover:bg-white/10'
+                  }`}
+                  title={!online ? 'Offline Mode Active' : sheetConnected ? `Auto-Synced: ${sheetTitle || 'Google Sheet'} • Click for profile & sync settings` : 'Account & Profile'}
                 >
                   {user.photoURL ? (
                     <img
                       src={user.photoURL}
                       alt={user.displayName || 'User'}
-                      className="w-8 h-8 rounded-full object-cover ring-2 ring-red-600"
+                      className={!online || sheetConnected ? 'w-6 h-6 rounded-full object-cover ring-1 ring-amber-400 shrink-0' : 'w-8 h-8 rounded-full object-cover ring-2 ring-red-600 shrink-0'}
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className="w-8 h-8 rounded-full bg-red-600 text-white font-bold text-sm flex items-center justify-center">
+                    <div className={!online ? 'w-6 h-6 rounded-full bg-amber-700 text-white font-bold text-xs flex items-center justify-center shrink-0' : sheetConnected ? 'w-6 h-6 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shrink-0' : 'w-8 h-8 rounded-full bg-red-600 text-white font-bold text-sm flex items-center justify-center shrink-0'}>
                       {(user.displayName || user.email || 'U').charAt(0).toUpperCase()}
                     </div>
                   )}
+                  {!online ? (
+                    <>
+                      <span className="hidden sm:inline text-xs font-semibold text-amber-300">Offline Mode</span>
+                      <span className="relative flex h-2 w-2 ml-0.5 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                      </span>
+                    </>
+                  ) : sheetConnected ? (
+                    <>
+                      <span className="hidden sm:inline text-xs font-semibold text-emerald-300">Auto-Synced</span>
+                      <span className="relative flex h-2 w-2 ml-0.5 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                    </>
+                  ) : null}
                 </button>
 
                 {showUserMenu && (
@@ -727,10 +1158,17 @@ export default function Navbar({
                     <div className="px-3 py-2 border-b border-zinc-800">
                       <p className="text-white font-medium truncate">{user.displayName || 'Account'}</p>
                       <p className="text-xs text-zinc-400 truncate">{user.email}</p>
-                      <div className="mt-1 flex items-center gap-1 text-[11px] text-emerald-400 font-medium">
-                        <Zap className="w-3 h-3 text-emerald-400" />
-                        <span>Google Sheets Auto-Sync Enabled</span>
-                      </div>
+                      {online ? (
+                        <div className="mt-1 flex items-center gap-1 text-[11px] text-emerald-400 font-medium">
+                          <Zap className="w-3 h-3 text-emerald-400 shrink-0" />
+                          <span>Auto-Sync Active ({syncFrequency}s)</span>
+                        </div>
+                      ) : (
+                        <div className="mt-1 flex items-center gap-1 text-[11px] text-amber-400 font-medium">
+                          <WifiOff className="w-3 h-3 text-amber-400 shrink-0 animate-pulse" />
+                          <span>Offline Mode Active</span>
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={() => {
@@ -747,6 +1185,45 @@ export default function Navbar({
                         <span className="text-[10px] text-zinc-400">{lastSyncedAt}</span>
                       )}
                     </button>
+
+                    {/* Background Sync Frequency Setting in User Dropdown */}
+                    <div className="px-3 py-2 space-y-1.5 border-t border-zinc-800/80">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-zinc-300 font-medium flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Sync Frequency</span>
+                        </span>
+                        <span className="text-[10px] text-emerald-400 font-mono font-medium">
+                          {syncFrequency >= 60 ? `${syncFrequency / 60}m` : `${syncFrequency}s`}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1">
+                        {[
+                          { label: '15s', value: 15 },
+                          { label: '30s', value: 30 },
+                          { label: '45s', value: 45 },
+                          { label: '1m', value: 60 },
+                          { label: '2m', value: 120 },
+                          { label: '5m', value: 300 },
+                        ].map((p) => {
+                          const isSel = syncFrequency === p.value;
+                          return (
+                            <button
+                              key={p.value}
+                              type="button"
+                              onClick={() => onUpdateSyncFrequency && onUpdateSyncFrequency(p.value)}
+                              className={`py-1 rounded text-[11px] font-medium border text-center transition-colors cursor-pointer ${
+                                isSel
+                                  ? 'bg-emerald-600 text-white border-emerald-400 font-bold'
+                                  : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700 hover:text-white'
+                              }`}
+                            >
+                              {p.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                     <button
                       id="user-profile-stats-btn"
                       onClick={() => {
@@ -807,6 +1284,21 @@ export default function Navbar({
 
           {/* MOBILE & TABLET (< xl): Quick Accessibility + Quick Add + Hamburger Toggle */}
           <div className="flex xl:hidden items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Mobile Offline Mode Badge */}
+            {!online && (
+              <button
+                id="mobile-nav-offline-mode-badge"
+                onClick={onOpenSync}
+                type="button"
+                className="flex items-center gap-1 text-[11px] font-bold px-2 py-1.5 rounded border bg-amber-950/90 border-amber-500/60 text-amber-300 shrink-0 cursor-pointer animate-in fade-in"
+                title="Offline Mode Active - Click for sync details"
+              >
+                <WifiOff className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
+                <span className="hidden xs:inline sm:inline">Offline Mode</span>
+                <span className="xs:hidden">Offline</span>
+              </button>
+            )}
+
             {/* Accessibility Menu for Mobile / Tablet */}
             <div className="relative shrink-0" ref={mobileAccDropdownRef}>
               <button
@@ -989,8 +1481,16 @@ export default function Navbar({
                     <Menu className="w-5 h-5" />
                     {sheetConnected && (
                       <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        <span
+                          className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                            online ? 'bg-emerald-400' : 'bg-amber-400'
+                          }`}
+                        ></span>
+                        <span
+                          className={`relative inline-flex rounded-full h-2 w-2 ${
+                            online ? 'bg-emerald-500' : 'bg-amber-500'
+                          }`}
+                        ></span>
                       </span>
                     )}
                   </div>
@@ -1007,6 +1507,157 @@ export default function Navbar({
           id="mobile-dropdown-panel"
           className="xl:hidden bg-[#141414]/98 border-b border-zinc-800 backdrop-blur-xl shadow-2xl px-4 py-4 space-y-4 max-h-[85vh] overflow-y-auto animate-in slide-in-from-top-2 duration-200"
         >
+          {/* Offline Mode Alert in Mobile Drawer */}
+          {!online && (
+            <div className="p-3 rounded-lg bg-amber-950/80 border border-amber-500/50 flex items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <WifiOff className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
+                <div>
+                  <p className="font-bold text-amber-300">Offline Mode Active</p>
+                  <p className="text-[10px] text-zinc-400">Actions are stored locally & will sync when online</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  onOpenSync();
+                }}
+                className="text-[10px] font-semibold bg-amber-500 hover:bg-amber-400 text-black px-2.5 py-1 rounded transition-colors"
+              >
+                Sync Info
+              </button>
+            </div>
+          )}
+
+          {/* Mobile Search Bar & Recent Search Tags */}
+          {sheetConnected && (
+            <div className="space-y-2 pb-1 border-b border-zinc-800/80">
+              <div className="flex items-center bg-[#202020] border border-zinc-700 rounded-lg px-3 py-2">
+                <Search className="w-4 h-4 text-red-500 mr-2 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Search titles, genres, platforms..."
+                  value={searchQuery}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && searchQuery.trim()) {
+                      saveRecentSearch(searchQuery);
+                      setIsMobileMenuOpen(false);
+                    }
+                  }}
+                  className="bg-transparent text-xs text-white focus:outline-none w-full placeholder:text-zinc-500"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => onSearchChange('')}
+                    className="p-1 text-zinc-400 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Mobile Live Matching Shows Preview (Poster & Info) */}
+              {searchQuery.trim() && matchingShows.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between px-1 text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">
+                    <span className="flex items-center gap-1 text-zinc-300">
+                      <Film className="w-3 h-3 text-red-500" />
+                      Results Preview ({matchingShows.length})
+                    </span>
+                    <span className="text-[10px] text-zinc-500 lowercase">tap to open</span>
+                  </div>
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                    {matchingShows.map((show) => {
+                      const poster = show.posterUrl ? getOptimizedPoster(show.posterUrl) : null;
+                      return (
+                        <div
+                          key={`mobile-search-${show.id}`}
+                          onClick={() => {
+                            saveRecentSearch(show.title);
+                            setIsMobileMenuOpen(false);
+                            if (onOpenDetails) onOpenDetails(show);
+                          }}
+                          className="flex items-center gap-2.5 p-2 rounded-lg bg-zinc-900/90 border border-zinc-800 hover:border-red-500/60 transition-colors cursor-pointer"
+                        >
+                          <div className="w-9 h-12 rounded overflow-hidden bg-zinc-800 shrink-0 border border-zinc-700/60 relative">
+                            {poster ? (
+                              <img src={poster} alt={show.title} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-[9px] text-zinc-500 font-bold">
+                                {show.title.slice(0, 3)}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <h5 className="text-xs font-bold text-white truncate">{show.title}</h5>
+                              {show.rating && (
+                                <span className="text-[9px] font-bold text-amber-400 flex items-center gap-0.5">
+                                  ⭐ {show.rating}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-zinc-400 truncate flex items-center gap-1">
+                              <span>{show.type || 'Show'}</span>
+                              {show.type === 'Series' && (show.seasons || show.episodes) && (
+                                <span className="font-mono text-zinc-300">
+                                  • {formatS(show.seasons || 'S1')} {formatE(show.episodes || 'E1')}
+                                </span>
+                              )}
+                              {show.year ? <span>• {show.year}</span> : null}
+                            </p>
+                            <span className="text-[9px] font-semibold text-emerald-300">
+                              {show.status || 'Tracked'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Mobile Recent Searches Quick Chips */}
+              {recentSearches.length > 0 && (
+                <div className="space-y-1.5 pt-0.5">
+                  <div className="flex items-center justify-between px-1 text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">
+                    <span className="flex items-center gap-1">
+                      <History className="w-3 h-3 text-red-500" />
+                      Recent Searches
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearAllRecentSearches}
+                      className="text-zinc-500 hover:text-red-400 lowercase text-[10px] cursor-pointer"
+                    >
+                      clear all
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {recentSearches.slice(0, 6).map((term) => (
+                      <button
+                        key={term}
+                        type="button"
+                        onClick={() => {
+                          onSearchChange(term);
+                          saveRecentSearch(term);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="text-[11px] px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <History className="w-2.5 h-2.5 text-zinc-500" />
+                        <span>{term}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* 1. Category Navigation Links */}
           <div className="space-y-1">
             <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-2">
@@ -1188,6 +1839,26 @@ export default function Navbar({
             </p>
 
             <div className="grid grid-cols-1 gap-2">
+              {/* Surprise Me / Random Picker */}
+              {sheetConnected && shows.length > 0 && onOpenRandomPicker && (
+                <button
+                  id="mobile-dropdown-random-btn"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onOpenRandomPicker();
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-md text-xs font-medium border bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Shuffle className="w-4 h-4 text-amber-400" />
+                    <span>Surprise Me (Random Picker)</span>
+                  </div>
+                  <span className="text-[10px] text-amber-400 bg-amber-950/60 border border-amber-800/40 px-2 py-0.5 rounded font-bold">
+                    🎲 Pick
+                  </span>
+                </button>
+              )}
+
               {/* Google Sheets Sync Button */}
               <button
                 id="mobile-dropdown-sync-btn"
@@ -1210,9 +1881,23 @@ export default function Navbar({
                   <span>{sheetConnected ? 'Auto-Sync Active' : 'Google Sheets Sync'}</span>
                 </div>
                 {sheetConnected ? (
-                  <span className="flex items-center gap-1 text-[10px] bg-emerald-900/80 text-emerald-200 px-2 py-0.5 rounded font-semibold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                    Live
+                  <span
+                    className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-semibold ${
+                      online
+                        ? 'bg-emerald-900/80 text-emerald-200'
+                        : 'bg-amber-900/80 text-amber-200'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full animate-ping ${
+                        online ? 'bg-emerald-400' : 'bg-amber-400'
+                      }`}
+                    ></span>
+                    {online
+                      ? syncFrequency >= 60
+                        ? `${syncFrequency / 60}m`
+                        : `${syncFrequency}s`
+                      : 'Offline'}
                   </span>
                 ) : (
                   <span className="text-[10px] text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">
@@ -1220,6 +1905,47 @@ export default function Navbar({
                   </span>
                 )}
               </button>
+
+              {/* Background Sync Frequency Setting in Mobile Menu */}
+              {sheetConnected && (
+                <div className="p-3 rounded-lg bg-zinc-900/90 border border-zinc-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs text-zinc-300 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Sync Frequency</span>
+                    </div>
+                    <span className="text-[10px] text-emerald-400 font-mono font-semibold">
+                      Every {syncFrequency >= 60 ? `${syncFrequency / 60}m` : `${syncFrequency}s`}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-6 gap-1 pt-0.5">
+                    {[
+                      { label: '15s', value: 15 },
+                      { label: '30s', value: 30 },
+                      { label: '45s', value: 45 },
+                      { label: '1m', value: 60 },
+                      { label: '2m', value: 120 },
+                      { label: '5m', value: 300 },
+                    ].map((p) => {
+                      const isSel = syncFrequency === p.value;
+                      return (
+                        <button
+                          key={p.value}
+                          type="button"
+                          onClick={() => onUpdateSyncFrequency && onUpdateSyncFrequency(p.value)}
+                          className={`py-1.5 px-0.5 rounded text-[11px] font-medium border text-center transition-colors cursor-pointer ${
+                            isSel
+                              ? 'bg-emerald-600 text-white border-emerald-400 font-bold'
+                              : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700 hover:text-white'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

@@ -51,13 +51,56 @@ textarea {
   box-sizing: border-box !important;
 }
 
-/* Restrict webkit datepicker indicator from adding extra horizontal margin/padding on iOS */
+/* Restrict webkit datepicker indicator from adding extra horizontal margin/padding on iOS & stretch click-target */
+input[type="date"] {
+  position: relative !important;
+  cursor: pointer !important;
+}
+
 input[type="date"]::-webkit-calendar-picker-indicator {
-  cursor: pointer;
-  filter: invert(1);
-  margin-left: 0;
-  padding-left: 0;
-  max-width: 24px;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  opacity: 0 !important;
+  cursor: pointer !important;
+  z-index: 10 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Custom keyframes for premium flashing "OUT NOW" countdown states */
+@keyframes outNowFlash {
+  0%, 100% {
+    background-color: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.4);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+  }
+  50% {
+    background-color: rgba(16, 185, 129, 0.35);
+    border-color: rgba(52, 211, 153, 0.9);
+    box-shadow: 0 0 25px rgba(52, 211, 153, 0.6);
+  }
+}
+
+@keyframes bannerOutNowFlash {
+  0%, 100% {
+    border-color: rgba(16, 185, 129, 0.3);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 12px rgba(16, 185, 129, 0.1);
+  }
+  50% {
+    border-color: rgba(52, 211, 153, 0.7);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 24px rgba(52, 211, 153, 0.35);
+  }
+}
+
+.animate-out-now-flash {
+  animation: outNowFlash 1.5s infinite ease-in-out;
+}
+
+.animate-banner-out-now {
+  animation: bannerOutNowFlash 2s infinite ease-in-out;
 }
 
 /* High Contrast Mode - Rigorous WCAG AAA Compliance */

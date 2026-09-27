@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ShowItem } from '../types';
 import { getOptimizedPoster } from '../utils/imageOptimizer';
+import { formatToDDMMYYYY } from '../utils/dateUtils';
 
 interface ShowCardProps {
   show: ShowItem;
@@ -176,14 +177,21 @@ export default function ShowCard({
         />
 
         {/* Top Badges */}
-        <div className="absolute top-2 left-2 right-2 flex items-center justify-between gap-1 pointer-events-none">
-          <div className="flex items-center gap-1 max-w-[130px] truncate">
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/75 text-zinc-200 backdrop-blur-sm border border-zinc-700/50 truncate">
-              {show.platform}
-            </span>
-            {show.isWishlist && (
-              <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500 text-black border border-amber-400 shadow-sm shrink-0">
-                🎁 Wishlist
+        <div className="absolute top-2 left-2 right-2 flex items-start justify-between gap-1 pointer-events-none">
+          <div className="flex flex-col gap-1 items-start max-w-[130px]">
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/75 text-zinc-200 backdrop-blur-sm border border-zinc-700/50 truncate">
+                {show.platform}
+              </span>
+              {show.isWishlist && (
+                <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500 text-black border border-amber-400 shadow-sm shrink-0">
+                  🎁 Wishlist
+                </span>
+              )}
+            </div>
+            {show.releaseDate && (
+              <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-400 text-black border border-amber-300 shadow-sm shrink-0 flex items-center gap-0.5">
+                ⏰ {formatToDDMMYYYY(show.releaseDate)}
               </span>
             )}
           </div>

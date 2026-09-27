@@ -7,6 +7,8 @@ import {
   Star,
   Tv,
   Calendar,
+  Clock,
+  RotateCcw,
   Layers,
   FileText,
   User,
@@ -23,7 +25,8 @@ import { ShowItem, WatchStatus, ShowType, PRESET_PLATFORMS } from '../types';
 import ImageUploader from './ImageUploader';
 import { normalizeSeasonStr, normalizeEpisodeStr, normalizePlatform, parseGoogleSheetsDate } from '../services/sheetsService';
 import { getOptimizedBackdrop } from '../utils/imageOptimizer';
-import { autoFetchPoster } from '../services/posterService';
+import { autoFetchPoster, getOrFetchImdbUrl } from '../services/posterService';
+import { extractDateOnly, extractTimeOnly, combineDateAndTime } from '../utils/dateUtils';
 
 interface ShowDetailModalProps {
   show: ShowItem | null;
@@ -110,6 +113,25 @@ export default function ShowDetailModal({
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [notes, setNotes] = useState(show?.notes || '');
   const [who, setWho] = useState(show?.who || (sheetViewers.length > 0 ? sheetViewers[0] : ''));
+  const [isResolvingImdb, setIsResolvingImdb] = useState(false);
+
+  const handleOpenImdb = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (show?.imdbId && show.imdbId.startsWith('tt')) {
+      window.open(`https://www.imdb.com/title/${show.imdbId}/`, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    setIsResolvingImdb(true);
+    try {
+      const url = await getOrFetchImdbUrl(show?.title || title, show?.imdbId);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } finally {
+      setIsResolvingImdb(false);
+    }
+  };
 
   const normalizePriorityLocal = (p?: string): string => {
     if (!p) return '🔴 High';
@@ -120,23 +142,68 @@ export default function ShowDetailModal({
     return '🔴 High';
   };
 
-  const getTodayLocalString = () => {
+  const getTodayDDMMYYYY = () => {
     const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  const formatToYYYYMMDD = (dateStr: string): string => {
+    if (!dateStr) return '';
+    const str = parseGoogleSheetsDate(dateStr);
+    const parts = str.split('-');
+    if (parts.length === 3) {
+      if (parts[2].length === 4) {
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+      if (parts[0].length === 4) {
+        return str;
+      }
+    }
+    return str;
+  };
+
+  const formatToDDMMYYYY = (dateStr: string): string => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      if (parts[0].length === 4) {
+        return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
+      }
+      if (parts[2].length === 4) {
+        return dateStr;
+      }
+    }
+    return dateStr;
   };
 
   const [priority, setPriority] = useState<string>(normalizePriorityLocal(show?.priority));
   const [dateAdded, setDateAdded] = useState<string>(
-    parseGoogleSheetsDate(show?.dateAdded || getTodayLocalString())
+    parseGoogleSheetsDate(show?.dateAdded || getTodayDDMMYYYY())
   );
+  const [releaseDate, setReleaseDate] = useState<string>(show?.releaseDate || '');
+  const [releaseDateOnly, setReleaseDateOnly] = useState<string>(() => extractDateOnly(show?.releaseDate));
+  const [releaseTime, setReleaseTime] = useState<string>(() => extractTimeOnly(show?.releaseDate));
+  const [releaseNote, setReleaseNote] = useState<string>(show?.releaseNote || '');
   const [isWishlistDone, setIsWishlistDone] = useState<boolean>(
     show?.status === '✅ Watched' ||
       String(show?.status || '').toLowerCase().includes('watched') ||
       String(show?.status || '').toUpperCase() === 'DONE'
   );
+
+  const handleReleaseDateChange = (newDate: string) => {
+    setReleaseDateOnly(newDate);
+    const combined = combineDateAndTime(newDate, releaseTime);
+    setReleaseDate(combined);
+  };
+
+  const handleReleaseTimeChange = (newTime: string) => {
+    setReleaseTime(newTime);
+    const combined = combineDateAndTime(releaseDateOnly, newTime);
+    setReleaseDate(combined);
+  };
 
   useEffect(() => {
     if (show) {
@@ -153,7 +220,11 @@ export default function ShowDetailModal({
       setNotes(show.notes);
       setWho(show.who || (sheetViewers.length > 0 ? sheetViewers[0] : ''));
       setPriority(normalizePriorityLocal(show.priority));
-      setDateAdded(parseGoogleSheetsDate(show.dateAdded || getTodayLocalString()));
+      setDateAdded(parseGoogleSheetsDate(show.dateAdded || getTodayDDMMYYYY()));
+      setReleaseDate(show.releaseDate || '');
+      setReleaseDateOnly(extractDateOnly(show.releaseDate));
+      setReleaseTime(extractTimeOnly(show.releaseDate));
+      setReleaseNote(show.releaseNote || '');
       setIsWishlistDone(
         show.status === '✅ Watched' ||
           String(show.status).toLowerCase().includes('watched') ||
@@ -299,6 +370,8 @@ export default function ShowDetailModal({
       backdropUrl: unifiedUrl,
       nextEp: isMovie || show.isWishlist ? false : epCurrentNum < epMaxNum,
       nextSsn: false,
+      releaseDate: releaseDate ? parseGoogleSheetsDate(releaseDate) : '',
+      releaseNote: releaseNote.trim() || '',
     };
     onSave(updated);
     onClose();
@@ -347,6 +420,16 @@ export default function ShowDetailModal({
           </div>
 
           <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex items-center gap-1.5 sm:gap-2 z-20">
+            <button
+              type="button"
+              onClick={handleOpenImdb}
+              disabled={isResolvingImdb}
+              className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-black px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-full bg-amber-400 hover:bg-amber-300 text-black shadow-xl transition-all cursor-pointer border border-amber-300/60 hover:scale-105 active:scale-95 disabled:opacity-60"
+              title="Open Official IMDb Title Page"
+            >
+              <span>IMDb</span>
+              <span className="text-[10px]">↗</span>
+            </button>
             <button
               id="detail-top-save-btn"
               onClick={handleSave}
@@ -710,13 +793,18 @@ export default function ShowDetailModal({
                     <label htmlFor="detail-wishlist-date" className="text-xs font-bold text-zinc-400 uppercase tracking-widest block ml-1">
                       Date Added
                     </label>
-                    <input
-                      id="detail-wishlist-date"
-                      type="date"
-                      value={dateAdded}
-                      onChange={(e) => setDateAdded(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-4 py-3 text-base text-white focus:outline-none focus:border-zinc-500 font-mono shadow-inner relative appearance-none [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
-                    />
+                    <div className="relative">
+                      <input
+                        id="detail-wishlist-date"
+                        type="date"
+                        value={formatToYYYYMMDD(dateAdded)}
+                        onChange={(e) => setDateAdded(formatToDDMMYYYY(e.target.value))}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-md pl-4 pr-11 py-3 text-base text-white focus:outline-none focus:border-zinc-500 font-mono shadow-inner"
+                      />
+                      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
+                        <Calendar className="w-5 h-5 text-zinc-400" />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -933,6 +1021,79 @@ export default function ShowDetailModal({
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* Release & Premiere Countdown Setup */}
+            <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-lg space-y-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-zinc-300 uppercase tracking-widest flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Live Countdown Premiere Setup</span>
+                </span>
+                {(releaseDateOnly || releaseTime || releaseNote || releaseDate) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReleaseDateOnly('');
+                      setReleaseTime('');
+                      setReleaseDate('');
+                      setReleaseNote('');
+                    }}
+                    className="text-[11px] font-semibold text-zinc-400 hover:text-red-400 flex items-center gap-1 transition-colors cursor-pointer px-2 py-0.5 rounded bg-zinc-800/80 border border-zinc-700/60 hover:border-red-500/40"
+                    title="Clear and reset countdown date and time"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Clear / Reset</span>
+                  </button>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Target Premiere Date */}
+                <div className="space-y-1.5">
+                  <label htmlFor="detail-release-date" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-zinc-400" />
+                    Target Premiere Date
+                  </label>
+                  <input
+                    id="detail-release-date"
+                    type="date"
+                    value={releaseDateOnly}
+                    onChange={(e) => handleReleaseDateChange(e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white font-mono shadow-inner focus:outline-none focus:border-amber-500 cursor-pointer"
+                  />
+                </div>
+
+                {/* Specific Premiere Time */}
+                <div className="space-y-1.5">
+                  <label htmlFor="detail-release-time" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-zinc-400" />
+                    Specify Time (HH:mm)
+                  </label>
+                  <input
+                    id="detail-release-time"
+                    type="time"
+                    value={releaseTime}
+                    onChange={(e) => handleReleaseTimeChange(e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white font-mono shadow-inner focus:outline-none focus:border-amber-500 cursor-pointer"
+                  />
+                </div>
+
+                {/* Premiere / Countdown Note */}
+                <div className="space-y-1.5">
+                  <label htmlFor="detail-release-note" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5">
+                    Premiere / Countdown Note
+                  </label>
+                  <input
+                    id="detail-release-note"
+                    type="text"
+                    value={releaseNote}
+                    onChange={(e) => setReleaseNote(e.target.value)}
+                    placeholder="e.g. Season 2, Final Movie"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white shadow-inner focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Notes */}

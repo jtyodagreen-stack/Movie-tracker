@@ -44,46 +44,83 @@ export function normalizePriority(raw?: string): string {
 export function parseGoogleSheetsDate(val: any): string {
   if (!val) {
     const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
   }
   
   const num = Number(val);
   if (!isNaN(num) && num > 30000 && num < 60000) {
     const baseDate = new Date(1899, 11, 30);
-    baseDate.setDate(baseDate.getDate() + num);
-    const year = baseDate.getFullYear();
-    const month = String(baseDate.getMonth() + 1).padStart(2, '0');
+    const wholeDays = Math.floor(num);
+    const fraction = num - wholeDays;
+    baseDate.setDate(baseDate.getDate() + wholeDays);
+    const ms = Math.round(fraction * 86400000);
+    baseDate.setTime(baseDate.getTime() + ms);
     const day = String(baseDate.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const month = String(baseDate.getMonth() + 1).padStart(2, '0');
+    const year = baseDate.getFullYear();
+    const hours = String(baseDate.getHours()).padStart(2, '0');
+    const minutes = String(baseDate.getMinutes()).padStart(2, '0');
+    if (fraction > 0.0001 && (hours !== '00' || minutes !== '00')) {
+      return `${day}-${month}-${year} ${hours}:${minutes}`;
+    }
+    return `${day}-${month}-${year}`;
   }
   
   const str = String(val).trim();
   const rawNum = Number(str);
   if (!isNaN(rawNum) && rawNum > 30000 && rawNum < 60000) {
     const baseDate = new Date(1899, 11, 30);
-    baseDate.setDate(baseDate.getDate() + rawNum);
-    const year = baseDate.getFullYear();
-    const month = String(baseDate.getMonth() + 1).padStart(2, '0');
+    const wholeDays = Math.floor(rawNum);
+    const fraction = rawNum - wholeDays;
+    baseDate.setDate(baseDate.getDate() + wholeDays);
+    const ms = Math.round(fraction * 86400000);
+    baseDate.setTime(baseDate.getTime() + ms);
     const day = String(baseDate.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const month = String(baseDate.getMonth() + 1).padStart(2, '0');
+    const year = baseDate.getFullYear();
+    const hours = String(baseDate.getHours()).padStart(2, '0');
+    const minutes = String(baseDate.getMinutes()).padStart(2, '0');
+    if (fraction > 0.0001 && (hours !== '00' || minutes !== '00')) {
+      return `${day}-${month}-${year} ${hours}:${minutes}`;
+    }
+    return `${day}-${month}-${year}`;
   }
 
-  if (str.includes('-')) {
-    return str.split('T')[0];
-  }
+  // Extract time if present: "2026-09-27 20:00" or "27-09-2026 20:00" or "2026-09-27T20:00"
+  const timeMatch = str.match(/[\sT](\d{1,2}:\d{2}(?::\d{2})?)/);
+  const timePart = timeMatch ? timeMatch[1].slice(0, 5) : '';
+  const dateOnly = str.split(/[\sT]/)[0].trim();
 
-  if (str.includes('/')) {
-    const parts = str.split('/');
+  if (dateOnly.includes('-')) {
+    const parts = dateOnly.split('-');
     if (parts.length === 3) {
+      let formattedDate = dateOnly;
       if (parts[0].length === 4) {
-        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+        // YYYY-MM-DD -> DD-MM-YYYY
+        formattedDate = `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
+      } else if (parts[2].length === 4) {
+        // DD-MM-YYYY -> DD-MM-YYYY
+        formattedDate = `${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[2]}`;
       }
-      if (parts[2].length === 4) {
-        return `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+      return timePart ? `${formattedDate} ${timePart}` : formattedDate;
+    }
+  }
+
+  if (dateOnly.includes('/')) {
+    const parts = dateOnly.split('/');
+    if (parts.length === 3) {
+      let formattedDate = dateOnly;
+      if (parts[0].length === 4) {
+        // YYYY/MM/DD -> DD-MM-YYYY
+        formattedDate = `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
+      } else if (parts[2].length === 4) {
+        // DD/MM/YYYY -> DD-MM-YYYY
+        formattedDate = `${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[2]}`;
       }
+      return timePart ? `${formattedDate} ${timePart}` : formattedDate;
     }
   }
   
@@ -107,6 +144,8 @@ export const DEFAULT_TRACKER_HEADERS = [
   'Rating num',  // Col N (13)
   'Max Ep',      // Col O (14)
   'Poster',      // Col P (15)
+  'Release Date', // Col Q (16)
+  'Release Note', // Col R (17)
 ];
 
 export const DEFAULT_WISHLIST_HEADERS = [
@@ -118,6 +157,8 @@ export const DEFAULT_WISHLIST_HEADERS = [
   'Date Added',   // Col F (5)
   'DONE',         // Col G (6)
   'Poster',       // Col H (7)
+  'Release Date', // Col I (8)
+  'Release Note', // Col J (9)
 ];
 
 export function extractImageUrl(val: string | undefined): string | undefined {
@@ -170,6 +211,36 @@ export function matchHeaderToField(header: string, index: number): string {
     if (index === 13) return 'rating_num';
     if (index === 14) return 'max_ep';
     if (index === 15) return 'poster';
+    if (index === 16) return 'release_date';
+    if (index === 17) return 'release_note';
+  }
+
+  // Specific Release Date check MUST run BEFORE generic date or release checks
+  if (
+    h.includes('release date') ||
+    h.includes('release_date') ||
+    h.includes('premiere date') ||
+    h.includes('target date') ||
+    h.includes('air date') ||
+    h.includes('air_date') ||
+    h === 'releasedate' ||
+    h === 'target premiere date' ||
+    h === 'target premiere'
+  ) {
+    return 'release_date';
+  }
+
+  // Specific Release Note check MUST run BEFORE generic note or release checks
+  if (
+    h.includes('release note') ||
+    h.includes('release_note') ||
+    h.includes('premiere note') ||
+    h.includes('countdown note') ||
+    h === 'releasenote' ||
+    h === 'premiere/countdown note' ||
+    h === 'countdown_note'
+  ) {
+    return 'release_note';
   }
 
   // Next ep / Next ssn MUST be checked before general episode / season
@@ -236,8 +307,8 @@ export function matchHeaderToField(header: string, index: number): string {
     return 'priority';
   }
 
-  // Date Added (Wishlist Col F)
-  if (h.includes('date') || h.includes('added')) {
+  // Date Added (Wishlist Col F) - only match date added, not general dates
+  if (h.includes('date added') || h.includes('date_added') || h === 'added' || h === 'date') {
     return 'date_added';
   }
 
@@ -246,8 +317,8 @@ export function matchHeaderToField(header: string, index: number): string {
     return 'done';
   }
 
-  // Year / Release Year (Wishlist Col D or Master Col I)
-  if (h.includes('year') || h.includes('release')) {
+  // Year / Release Year (Wishlist Col D or Master Col I) - only match year or release year
+  if (h === 'year' || h.includes('release year') || h === 'release_year' || (h.includes('year') && !h.includes('next'))) {
     return 'year';
   }
 
@@ -291,8 +362,8 @@ export function matchHeaderToField(header: string, index: number): string {
     return 'rating';
   }
 
-  // Notes (Master Col L)
-  if (h.includes('note') || h.includes('comment') || h.includes('review')) {
+  // Notes (Master Col L) - avoid release notes
+  if ((h.includes('note') && !h.includes('release') && !h.includes('premiere')) || h.includes('comment') || h.includes('review')) {
     return 'notes';
   }
 
@@ -590,9 +661,12 @@ export async function fetchSheetRows(
   let maxEpIdx = -1;
   let posterIdx = -1;
   let backdropIdx = -1;
+  let releaseDateIdx = -1;
+  let releaseNoteIdx = -1;
 
   headers.forEach((h, idx) => {
     const field = matchHeaderToField(h, idx);
+    console.log(`[Google Sheets Mapping] Header: "${h}", Field: "${field}", Index: ${idx}`);
     if (field === 'title' && titleIdx === -1) titleIdx = idx;
     else if (field === 'type' && typeIdx === -1) typeIdx = idx;
     else if (field === 'platform' && platformIdx === -1) platformIdx = idx;
@@ -613,21 +687,23 @@ export async function fetchSheetRows(
     else if (field === 'max_ep' && maxEpIdx === -1) maxEpIdx = idx;
     else if (field === 'poster' && posterIdx === -1) posterIdx = idx;
     else if (field === 'backdrop' && backdropIdx === -1) backdropIdx = idx;
+    else if (field === 'release_date' && releaseDateIdx === -1) releaseDateIdx = idx;
+    else if (field === 'release_note' && releaseNoteIdx === -1) releaseNoteIdx = idx;
   });
 
   console.log(`[Google Sheets Fetch] Sheet: "${targetSheet}", mapped poster column index: ${posterIdx} (header: "${posterIdx !== -1 ? headers[posterIdx] : 'None'}"), title column index: ${titleIdx}`);
 
   const isEffectiveWishlist =
     isWishlistTab ||
-    sheetName.toLowerCase().includes('wishlist') ||
-    priorityIdx !== -1 ||
-    dateAddedIdx !== -1 ||
-    doneIdx !== -1;
+    sheetName.toLowerCase().includes('wishlist');
 
   // Safe fallbacks by standard position ONLY if NOT a Wishlist tab:
   if (!isEffectiveWishlist) {
     if (seasonsIdx === -1 && headers.length > 3 && yearIdx !== 3) seasonsIdx = 3;
     if (episodesIdx === -1 && headers.length > 4 && priorityIdx !== 4) episodesIdx = 4;
+    if (posterIdx === -1 && headers.length > 15) posterIdx = 15;
+    if (releaseDateIdx === -1 && headers.length > 16) releaseDateIdx = 16;
+    if (releaseNoteIdx === -1 && headers.length > 17) releaseNoteIdx = 17;
   }
   if (titleIdx === -1 && headers.length > 0) titleIdx = 0;
 
@@ -700,6 +776,9 @@ export async function fetchSheetRows(
     const notes = notesIdx !== -1 && row[notesIdx] ? String(row[notesIdx]).trim() : '';
     const who = whoIdx !== -1 && row[whoIdx] ? String(row[whoIdx]).trim() : '';
     const maxEp = isMovie ? '' : (maxEpIdx !== -1 && row[maxEpIdx] ? String(row[maxEpIdx]).trim() : 'E8');
+    const releaseDateRaw = releaseDateIdx !== -1 && row[releaseDateIdx] ? String(row[releaseDateIdx]).trim() : undefined;
+    const releaseDate = releaseDateRaw ? parseGoogleSheetsDate(releaseDateRaw) : undefined;
+    const releaseNote = releaseNoteIdx !== -1 && row[releaseNoteIdx] ? String(row[releaseNoteIdx]).trim() : undefined;
 
     // Poster resolution across all possible column sources
     let rawPosterCell = '';
@@ -789,6 +868,8 @@ export async function fetchSheetRows(
       dateAdded,
       backdropUrl: finalBackdropUrl,
       posterUrl: finalPosterUrl,
+      releaseDate,
+      releaseNote,
     });
   }
 
@@ -865,17 +946,47 @@ export function buildRowValues(show: ShowItem, headers: string[]): string[] {
       String(show.status).toUpperCase() === 'DONE';
 
     const posterVal = formatPosterForSheet(show.posterUrl || show.backdropUrl);
+    const activeHeaders = headers && headers.length > 0 ? headers : DEFAULT_WISHLIST_HEADERS;
+    const values: string[] = [];
 
-    return [
-      show.title || '',
-      show.type || 'Movie',
-      normalizePlatform(show.platform) || '📺 Netflix',
-      String(show.year || ''),
-      normalizePriority(show.priority),
-      show.dateAdded || new Date().toISOString().split('T')[0],
-      isDone ? 'TRUE' : 'FALSE',
-      posterVal,
-    ];
+    for (let i = 0; i < activeHeaders.length; i++) {
+      const field = matchHeaderToField(activeHeaders[i], i);
+      switch (field) {
+        case 'title':
+          values.push(show.title || '');
+          break;
+        case 'type':
+          values.push(show.type || 'Movie');
+          break;
+        case 'platform':
+          values.push(normalizePlatform(show.platform) || '📺 Netflix');
+          break;
+        case 'year':
+          values.push(String(show.year || ''));
+          break;
+        case 'priority':
+          values.push(normalizePriority(show.priority));
+          break;
+        case 'date_added':
+          values.push(parseGoogleSheetsDate(show.dateAdded));
+          break;
+        case 'done':
+          values.push(isDone ? 'TRUE' : 'FALSE');
+          break;
+        case 'poster':
+          values.push(posterVal);
+          break;
+        case 'release_date':
+          values.push(show.releaseDate || '');
+          break;
+        case 'release_note':
+          values.push(show.releaseNote || '');
+          break;
+        default:
+          values.push('');
+      }
+    }
+    return values;
   }
 
   // Master Tracker (16 columns)
@@ -888,6 +999,7 @@ export function buildRowValues(show: ShowItem, headers: string[]): string[] {
 
   for (let i = 0; i < activeHeaders.length; i++) {
     const field = matchHeaderToField(activeHeaders[i], i);
+    console.log(`[Google Sheets BuildRowValues] Header: "${activeHeaders[i]}", Field: "${field}", Index: ${i}`);
     switch (field) {
       case 'title':
         values.push(show.title || '');
@@ -940,18 +1052,15 @@ export function buildRowValues(show: ShowItem, headers: string[]): string[] {
       case 'backdrop':
         values.push(formatPosterForSheet(show.backdropUrl));
         break;
+      case 'release_date':
+        values.push(show.releaseDate || '');
+        break;
+      case 'release_note':
+        values.push(show.releaseNote || '');
+        break;
       default:
-        if (i === 3) {
-          values.push(isMovie ? '' : (show.seasons ? normalizeSeasonStr(show.seasons) : ''));
-        } else if (i === 4) {
-          values.push(isMovie ? '' : (show.episodes ? normalizeEpisodeStr(show.episodes) : ''));
-        } else if (i === 14) {
-          values.push(isMovie ? '' : (show.maxEp ? normalizeEpisodeStr(show.maxEp) : ''));
-        } else if (i === 15) {
-          values.push(formatPosterForSheet(show.posterUrl));
-        } else {
-          values.push('');
-        }
+        values.push('');
+        break;
     }
   }
 
@@ -1066,8 +1175,9 @@ export async function updateSheetRow(
   }
 
   const rowValues = buildRowValues(show, activeHeaders);
-  const endColLetter = isWishlist ? 'Z' : colIndexToLetter(Math.max(activeHeaders.length - 1, rowValues.length - 1, 4));
-  const finalValues = rowValues;
+  const maxColIndex = Math.max(activeHeaders.length - 1, rowValues.length - 1, 17);
+  const endColLetter = isWishlist ? 'Z' : colIndexToLetter(maxColIndex);
+  const finalValues = rowValues.slice(0, maxColIndex + 1);
   const a1Range = formatA1Range(sheetName, `A${rowNumber}:${endColLetter}${rowNumber}`);
   const encodedRange = encodeURIComponent(a1Range);
 
@@ -1108,12 +1218,14 @@ export async function updateEpisodeAndSeasonInSheet(
   maxEp?: string,
   rating?: string,
   ratingNum?: number,
-  type?: string
+  type?: string,
+  releaseDate?: string,
+  releaseNote?: string
 ): Promise<void> {
   const isMovie = type === 'Movie' || (seasons === '' && episodes === '' && maxEp === '');
   const activeHeaders = headers && headers.length > 0 ? headers : DEFAULT_TRACKER_HEADERS;
 
-  // Find column index for Season, Episode, Status, Next Ep, Next Ssn, Poster, Max Ep, Rating, Rating Num
+  // Find column index for Season, Episode, Status, Next Ep, Next Ssn, Poster, Max Ep, Rating, Rating Num, Release Date, Release Note
   let ssnColIndex = -1;
   let epColIndex = -1;
   let statusColIndex = -1;
@@ -1123,6 +1235,8 @@ export async function updateEpisodeAndSeasonInSheet(
   let maxEpColIndex = -1;
   let ratingColIndex = -1;
   let ratingNumColIndex = -1;
+  let releaseDateColIndex = -1;
+  let releaseNoteColIndex = -1;
 
   for (let i = 0; i < activeHeaders.length; i++) {
     const f = matchHeaderToField(activeHeaders[i], i);
@@ -1135,6 +1249,8 @@ export async function updateEpisodeAndSeasonInSheet(
     else if (f === 'max_ep' && maxEpColIndex === -1) maxEpColIndex = i;
     else if (f === 'rating' && ratingColIndex === -1) ratingColIndex = i;
     else if (f === 'rating_num' && ratingNumColIndex === -1) ratingNumColIndex = i;
+    else if (f === 'release_date' && releaseDateColIndex === -1) releaseDateColIndex = i;
+    else if (f === 'release_note' && releaseNoteColIndex === -1) releaseNoteColIndex = i;
   }
 
   // Fallbacks based on standard template positions: Col D (3) = Season, Col E (4) = Episode, Col P (15) = Poster, Col O (14) = Max Ep
@@ -1147,6 +1263,8 @@ export async function updateEpisodeAndSeasonInSheet(
   if (maxEpColIndex === -1 && activeHeaders.length > 14) maxEpColIndex = 14;
   if (ratingColIndex === -1 && activeHeaders.length > 10) ratingColIndex = 10;
   if (ratingNumColIndex === -1 && activeHeaders.length > 13) ratingNumColIndex = 13;
+  if (releaseDateColIndex === -1 && activeHeaders.length > 16) releaseDateColIndex = 16;
+  if (releaseNoteColIndex === -1 && activeHeaders.length > 17) releaseNoteColIndex = 17;
 
   const dataToUpdate: Array<{ range: string; values: string[][] }> = [];
 
@@ -1223,6 +1341,31 @@ export async function updateEpisodeAndSeasonInSheet(
     });
   }
 
+  // Release Date cell update (clear if empty string, or write new value)
+  if (releaseDate !== undefined && releaseDateColIndex !== -1) {
+    dataToUpdate.push({
+      range: formatA1Range(sheetName, `${colIndexToLetter(releaseDateColIndex)}${rowNumber}`),
+      values: [[(releaseDate || '').trim()]],
+    });
+  }
+
+  // Release Note cell update (clear if empty string, or write new value)
+  if (releaseNote !== undefined && releaseNoteColIndex !== -1) {
+    dataToUpdate.push({
+      range: formatA1Range(sheetName, `${colIndexToLetter(releaseNoteColIndex)}${rowNumber}`),
+      values: [[(releaseNote || '').trim()]],
+    });
+  }
+
+  const batchPayload = {
+    valueInputOption: 'USER_ENTERED',
+    data: dataToUpdate,
+  };
+
+  console.log(`[Google Sheets batchUpdate Payload Inspector] Target: "${sheetName}" Row ${rowNumber}`);
+  console.log(`[Google Sheets batchUpdate Payload Inspector] Total Cell Ranges to update: ${dataToUpdate.length}`);
+  console.log('[Google Sheets batchUpdate Payload Inspector] Payload sent to API:', JSON.stringify(batchPayload, null, 2));
+
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`,
     {
@@ -1231,10 +1374,7 @@ export async function updateEpisodeAndSeasonInSheet(
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        valueInputOption: 'USER_ENTERED',
-        data: dataToUpdate,
-      }),
+      body: JSON.stringify(batchPayload),
     }
   );
 
@@ -1660,12 +1800,14 @@ export async function moveShowBetweenTabs(
     isWishlist: isTargetWishlist,
     sheetTabName: actualTargetSheet,
     priority: isTargetWishlist ? normalizePriority(show.priority) : undefined,
-    dateAdded: show.dateAdded || (isTargetWishlist ? new Date().toISOString().split('T')[0] : undefined),
+    dateAdded: show.dateAdded ? parseGoogleSheetsDate(show.dateAdded) : (isTargetWishlist ? parseGoogleSheetsDate(undefined) : undefined),
     seasons: isTargetWishlist ? '' : normalizeSeasonStr(show.seasons || 'S1'),
     episodes: isTargetWishlist ? '' : normalizeEpisodeStr(show.episodes || 'E1'),
     maxEp: isTargetWishlist ? '' : normalizeEpisodeStr(show.maxEp || 'E8'),
     posterUrl: show.posterUrl,
     backdropUrl: show.backdropUrl,
+    releaseDate: show.releaseDate,
+    releaseNote: show.releaseNote,
   };
 
   const appendRes = await appendSheetRow(

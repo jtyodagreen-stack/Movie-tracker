@@ -61,38 +61,6 @@ function cleanString(str: string): string {
 }
 
 /**
- * Fetches the streaming platform / network from TVMaze API
- */
-async function fetchTVMazePlatform(title: string): Promise<string | undefined> {
-  try {
-    const res = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(title)}`, {
-      signal: AbortSignal.timeout(3000),
-    });
-    if (!res.ok) return undefined;
-    const data = await res.json();
-    if (Array.isArray(data) && data.length > 0 && data[0].show) {
-      const show = data[0].show;
-      const netName = show.network?.name || show.webChannel?.name;
-      if (netName) {
-        const lower = netName.toLowerCase();
-        if (lower.includes('netflix')) return '📺 Netflix';
-        if (lower.includes('apple') || lower.includes('tv+')) return '🟣 Apple Tv+';
-        if (lower.includes('hbo') || lower.includes('max') || lower.includes('warner')) return '🟪 Max / Hbo';
-        if (lower.includes('amazon') || lower.includes('prime')) return '🛒 Prime Video';
-        if (lower.includes('disney') || lower.includes('fx')) return '⚡ Disney+';
-        if (lower.includes('paramount') || lower.includes('showtime') || lower.includes('cbs')) return '🟥 Paramount+';
-        if (lower.includes('hulu')) return '🟩 Hulu';
-        if (lower.includes('peacock') || lower.includes('nbc')) return '🦚 Peacock';
-        if (netName) return netName;
-      }
-    }
-  } catch {
-    // Ignore
-  }
-  return undefined;
-}
-
-/**
  * Detects the streaming platform from show title & keywords
  */
 export function detectPlatformFromTitle(title?: string): string | undefined {
@@ -204,9 +172,8 @@ export function detectPlatformFromTitle(title?: string): string | undefined {
     return '⚡ Disney+';
   }
 
-  // 6. Paramount+ / Showtime
+  // 6. Paramount+
   if (
-    clean.includes('dexter') ||
     clean.includes('yellowstone') ||
     clean.includes('yellowjackets') ||
     clean.includes('halo') ||
@@ -270,10 +237,7 @@ export async function searchIMDb(query: string): Promise<{ result: PosterSearchR
     const omdbData = await searchOMDb(trimmed);
     if (omdbData.posterUrl || omdbData.title) {
       const matchTitle = omdbData.title || trimmed;
-      let detectedPlatform = detectPlatformFromTitle(matchTitle);
-      if (!detectedPlatform) {
-        detectedPlatform = await fetchTVMazePlatform(matchTitle);
-      }
+      const detectedPlatform = detectPlatformFromTitle(matchTitle);
       bestMatch = {
         posterUrl: omdbData.posterUrl!,
         backdropUrl: omdbData.posterUrl,
@@ -370,10 +334,7 @@ export async function searchIMDb(query: string): Promise<{ result: PosterSearchR
         const posterUrl = rawPoster || omdbData.posterUrl || getPosterForShow(titleName, omdbData.genre || 'Drama');
         const backdropUrl = rawPoster || omdbData.posterUrl || getBackdropForShow(titleName, omdbData.genre || 'Drama');
 
-        let detectedPlatform = detectPlatformFromTitle(titleName);
-        if (!detectedPlatform) {
-          detectedPlatform = await fetchTVMazePlatform(titleName);
-        }
+        const detectedPlatform = detectPlatformFromTitle(titleName);
 
         // Check if already added
         if (liveItems.some((li) => cleanString(li.title) === cleanTitle)) continue;
@@ -546,4 +507,43 @@ export async function autoFetchPoster(
 
   searchCache.set(cacheKey, output);
   return output;
+}
+
+/**
+ * Returns direct IMDb URL for title (e.g. https://www.imdb.com/title/tt1234567/).
+ * If existingImdbId is missing, dynamically looks up the IMDb ID by title.
+ */
+export async function getOrFetchImdbUrl(
+  title: string,
+  existingImdbId?: string
+): Promise<string> {
+  if (existingImdbId && existingImdbId.startsWith('tt')) {
+    return `https://www.imdb.com/title/${existingImdbId}/`;
+  }
+
+  const trimmed = title.trim();
+  const idMatch = trimmed.match(/(tt\d+)/i);
+  if (idMatch) {
+    return `https://www.imdb.com/title/${idMatch[1]}/`;
+  }
+
+  try {
+    const omdb = await searchOMDb(trimmed);
+    if (omdb.imdbId) {
+      return `https://www.imdb.com/title/${omdb.imdbId}/`;
+    }
+
+    const imdbRes = await searchIMDb(trimmed);
+    if (imdbRes.result?.imdbId) {
+      return `https://www.imdb.com/title/${imdbRes.result.imdbId}/`;
+    }
+
+    if (imdbRes.liveItems && imdbRes.liveItems[0]?.imdbId) {
+      return `https://www.imdb.com/title/${imdbRes.liveItems[0].imdbId}/`;
+    }
+  } catch (err) {
+    console.warn('IMDb ID resolve notice:', err);
+  }
+
+  return `https://www.imdb.com/find?q=${encodeURIComponent(trimmed)}`;
 }
