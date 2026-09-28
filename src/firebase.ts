@@ -2,6 +2,8 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   onAuthStateChanged,
   signOut,
@@ -188,27 +190,73 @@ export const initAuth = (
 export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
   try {
     isSigningIn = true;
-    const result = await signInWithPopup(auth, provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (!credential?.accessToken) {
-      throw new Error('Failed to get access token from Firebase Auth');
+
+    // Check if we are inside an iframe of AI Studio preview
+    const isIframe = typeof window !== 'undefined' && window.self !== window.top;
+
+    if (isIframe) {
+      console.log('Inside iframe: triggering signInWithRedirect fallback directly');
+      await signInWithRedirect(auth, provider);
+      return null;
     }
 
-    cachedAccessToken = credential.accessToken;
     try {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(TOKEN_KEY, cachedAccessToken);
-        localStorage.setItem(TOKEN_TIME_KEY, String(Date.now()));
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (!credential?.accessToken) {
+        throw new Error('Failed to get access token from Firebase Auth');
       }
-    } catch {}
 
-    return { user: result.user, accessToken: cachedAccessToken };
+      cachedAccessToken = credential.accessToken;
+      try {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(TOKEN_KEY, cachedAccessToken);
+          localStorage.setItem(TOKEN_TIME_KEY, String(Date.now()));
+        }
+      } catch {}
+
+      return { user: result.user, accessToken: cachedAccessToken };
+    } catch (popupError: any) {
+      console.warn('signInWithPopup blocked or failed, falling back to signInWithRedirect:', popupError);
+      const code = popupError?.code;
+      if (
+        code === 'auth/popup-blocked' ||
+        code === 'auth/cancelled-popup-request' ||
+        String(popupError).includes('Pending promise was never set')
+      ) {
+        await signInWithRedirect(auth, provider);
+        return null;
+      }
+      throw popupError;
+    }
   } catch (error: any) {
     console.error('Sign in error:', error);
     throw error;
   } finally {
     isSigningIn = false;
   }
+};
+
+export const handleRedirectResultOnLoad = async (): Promise<{ user: User; accessToken: string } | null> => {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result) {
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        cachedAccessToken = credential.accessToken;
+        try {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(TOKEN_KEY, cachedAccessToken);
+            localStorage.setItem(TOKEN_TIME_KEY, String(Date.now()));
+          }
+        } catch {}
+        return { user: result.user, accessToken: cachedAccessToken };
+      }
+    }
+  } catch (err) {
+    console.warn('getRedirectResult on load error:', err);
+  }
+  return null;
 };
 
 export const getAccessToken = async (): Promise<string | null> => {

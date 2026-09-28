@@ -3,6 +3,7 @@ import { Sparkles, Clock, CheckCircle2 } from 'lucide-react';
 import { ShowItem } from '../types';
 import { getOptimizedPoster, getOptimizedBackdrop } from '../utils/imageOptimizer';
 import { parseAnyDate, formatToDDMMYYYY } from '../utils/dateUtils';
+import { checkAndTrigger24hNotifications } from '../services/notificationService';
 
 interface MainPageReleaseRadarBannerProps {
   shows: ShowItem[];
@@ -16,11 +17,15 @@ export default function MainPageReleaseRadarBanner({
   const [now, setNow] = useState<Date>(new Date());
 
   useEffect(() => {
+    // Check notifications on tick
+    checkAndTrigger24hNotifications(shows);
+
     const interval = setInterval(() => {
       setNow(new Date());
+      checkAndTrigger24hNotifications(shows);
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [shows]);
 
   // Helper to parse date string into Date object
   const parseShowDate = (dateStr?: string): Date | null => {

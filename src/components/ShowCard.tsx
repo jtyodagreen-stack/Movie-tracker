@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
+import { Bell, BellRing } from 'lucide-react';
 import { ShowItem } from '../types';
 import { getOptimizedPoster } from '../utils/imageOptimizer';
 import { formatToDDMMYYYY } from '../utils/dateUtils';
+import { isNotificationEnabled, toggleShowNotification, isShowOutNow, isFutureRelease } from '../services/notificationService';
 
 interface ShowCardProps {
   show: ShowItem;
@@ -23,9 +25,21 @@ export default function ShowCard({
   onHoverLeave,
 }: ShowCardProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [isNotifActive, setIsNotifActive] = useState(() => isNotificationEnabled(show.id));
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setIsNotifActive(isNotificationEnabled(show.id));
+  }, [show.id]);
+
+  const handleToggleNotif = async (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const enabled = await toggleShowNotification(show);
+    setIsNotifActive(enabled);
+  };
 
   // Clean up timeouts on unmount
   useEffect(() => {
@@ -190,9 +204,17 @@ export default function ShowCard({
               )}
             </div>
             {show.releaseDate && (
-              <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-400 text-black border border-amber-300 shadow-sm shrink-0 flex items-center gap-0.5">
-                ⏰ {formatToDDMMYYYY(show.releaseDate)}
-              </span>
+              isShowOutNow(show) ? (
+                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500 text-black border border-emerald-400 shadow-md shrink-0 flex items-center gap-1 animate-pulse">
+                  🎉 OUT NOW!
+                </span>
+              ) : isFutureRelease(show) ? (
+                <div className="flex items-center gap-1 pointer-events-auto">
+                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-400 text-black border border-amber-300 shadow-sm shrink-0 flex items-center gap-0.5">
+                    ⏰ {formatToDDMMYYYY(show.releaseDate)}
+                  </span>
+                </div>
+              ) : null
             )}
           </div>
           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-zinc-900/90 text-zinc-300 border border-zinc-700">

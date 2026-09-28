@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Play, Plus, Check, Info, Star, ThumbsUp, Heart } from 'lucide-react';
+import { Play, Plus, Check, Info, Star, ThumbsUp, Heart, Bell, BellRing } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShowItem } from '../types';
 import { getOptimizedPoster } from '../utils/imageOptimizer';
 import { getOrFetchImdbUrl } from '../services/posterService';
 import { formatToDDMMYYYY } from '../utils/dateUtils';
+import { isNotificationEnabled, toggleShowNotification, isShowOutNow, isFutureRelease, parseReleaseDateToTimestamp } from '../services/notificationService';
+import { fetchLiveTvMazeInfo } from '../services/tvMazeService';
 
 interface NetflixHoverPortalProps {
   show: ShowItem;
@@ -38,6 +40,82 @@ export default function NetflixHoverPortal({
   });
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [isResolvingImdb, setIsResolvingImdb] = useState(false);
+  const [isNotifActive, setIsNotifActive] = useState(() => isNotificationEnabled(show.id));
+
+  useEffect(() => {
+    setIsNotifActive(isNotificationEnabled(show.id));
+  }, [show.id]);
+
+  const [liveAirstamp, setLiveAirstamp] = useState<string | null>(null);
+  const [liveEpisodeNote, setLiveEpisodeNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (show.releaseDate) {
+      setLiveAirstamp(null);
+      setLiveEpisodeNote(null);
+      return;
+    }
+
+    if (show.type !== 'Series') {
+      setLiveAirstamp(null);
+      setLiveEpisodeNote(null);
+      return;
+    }
+
+    let isMounted = true;
+    fetchLiveTvMazeInfo(show.title).then((info) => {
+      if (isMounted && info && info.nextEpisode) {
+        setLiveAirstamp(info.nextEpisode.airstamp);
+        setLiveEpisodeNote(`S${info.nextEpisode.season} E${info.nextEpisode.number}: ${info.nextEpisode.name}`);
+      }
+    }).catch((err) => console.warn('Hover TVMaze fetch failed:', err));
+
+    return () => {
+      isMounted = false;
+    };
+  }, [show.id, show.title, show.releaseDate]);
+
+  const [timeLeft, setTimeLeft] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
+
+  useEffect(() => {
+    const targetSource = show.releaseDate 
+      ? parseReleaseDateToTimestamp(show.releaseDate) 
+      : liveAirstamp 
+        ? new Date(liveAirstamp).getTime() 
+        : null;
+
+    if (!targetSource) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const update = () => {
+      const now = Date.now();
+      const diff = targetSource - now;
+
+      if (diff <= 0) {
+        setTimeLeft(null);
+        return;
+      }
+
+      const d = Math.floor(diff / (24 * 60 * 60 * 1000));
+      const h = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+      const m = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000));
+      const s = Math.floor((diff % (60 * 1000)) / 1000);
+
+      setTimeLeft({ d, h, m, s });
+    };
+
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [show.releaseDate, liveAirstamp]);
+
+  const handleToggleNotif = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const enabled = await toggleShowNotification(show);
+    setIsNotifActive(enabled);
+  };
 
   const handleOpenImdb = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -225,8 +303,19 @@ export default function NetflixHoverPortal({
       style={containerStyle}
       onMouseEnter={isMobile ? undefined : onMouseEnter}
       onMouseLeave={isMobile ? undefined : onMouseLeave}
-      className="pointer-events-auto selection:bg-[#E50914] selection:text-white netflix-hover-portal-active"
+      className="pointer-events-auto selection:bg-[#E50914] selection:text-white netflix-hover-portal-active relative"
     >
+      {/* Cinematic Ambient Glow */}
+      {!isMobile && (
+        <div 
+          className="absolute inset-[-30px] z-[-1] opacity-[0.38] blur-[35px] saturate-150 pointer-events-none transition-all duration-300 select-none rounded-xl"
+          style={{
+            backgroundImage: `url(${getOptimizedPoster(show.backdropUrl || show.posterUrl)})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+      )}
       <motion.div
         ref={cardContentRef}
         initial={isMobile ? { scale: 0.9, opacity: 0 } : { scale: 1, boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
@@ -269,10 +358,16 @@ export default function NetflixHoverPortal({
                   </span>
                 )}
               </div>
-              {show.releaseDate && (
-                <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-400 text-black border border-amber-300 shadow-md shrink-0 flex items-center gap-0.5">
-                  ⏰ {formatToDDMMYYYY(show.releaseDate)}
-                </span>
+              {(show.releaseDate || liveAirstamp) && (
+                isShowOutNow(show) ? (
+                  <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500 text-black border border-emerald-400 shadow-md shrink-0 flex items-center gap-1 animate-pulse">
+                    🎉 OUT NOW!
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-400 text-black border border-amber-300 shadow-md shrink-0 flex items-center gap-0.5">
+                    ⏰ {show.releaseDate ? formatToDDMMYYYY(show.releaseDate) : liveAirstamp ? new Date(liveAirstamp).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-') : ''}
+                  </span>
+                )
               )}
             </div>
             <div className="flex items-center gap-1.5">
@@ -358,6 +453,26 @@ export default function NetflixHoverPortal({
               {isWatched ? <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
             </button>
 
+            {/* Notification Alert Toggle (for upcoming releases) */}
+            {isFutureRelease(show) && (
+              <button
+                type="button"
+                onClick={handleToggleNotif}
+                className={`w-7.5 h-7.5 sm:w-8.5 sm:h-8.5 rounded-full border flex items-center justify-center transition-all hover:scale-110 cursor-pointer shrink-0 ${
+                  isNotifActive
+                    ? 'bg-amber-400 text-black border-amber-300 shadow-lg'
+                    : 'bg-zinc-800/90 hover:bg-zinc-700 border-zinc-600 hover:border-zinc-400 text-zinc-300'
+                }`}
+                title={isNotifActive ? '24h Release Alert Active (Click to disable)' : 'Notify me 24 hours before release'}
+              >
+                {isNotifActive ? (
+                  <BellRing className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current animate-pulse" />
+                ) : (
+                  <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                )}
+              </button>
+            )}
+
             {/* Expand Details Button */}
             <button
               onClick={(e) => {
@@ -393,13 +508,52 @@ export default function NetflixHoverPortal({
           )}
 
           {/* Release Premiere Info Bar */}
-          {(show.releaseDate || show.releaseNote) && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold">
-              <span>⏰</span>
-              <span>
-                {show.releaseDate ? `Target Premiere: ${formatToDDMMYYYY(show.releaseDate)}` : 'Upcoming Release'}
-                {show.releaseNote ? ` (${show.releaseNote})` : ''}
-              </span>
+          {(show.releaseDate || show.releaseNote || liveAirstamp || liveEpisodeNote) && (
+            <div className="flex flex-col gap-2 p-3 rounded-lg bg-amber-500/[0.06] border border-amber-500/25 shadow-sm text-xs text-amber-300 font-bold">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 uppercase tracking-wider text-[10px] font-black">
+                  <span>⏰</span>
+                  <span>Target Premiere</span>
+                </span>
+                {(show.releaseDate || liveAirstamp) && (
+                  <span className="text-zinc-400 font-medium font-mono text-[10px]">
+                    {show.releaseDate 
+                      ? formatToDDMMYYYY(show.releaseDate) 
+                      : liveAirstamp 
+                        ? new Date(liveAirstamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) 
+                        : ''}
+                  </span>
+                )}
+              </div>
+
+              {/* Ticking Countdown! */}
+              {timeLeft ? (
+                <div className="space-y-1 pt-1.5 border-t border-amber-500/10">
+                  <div className="flex items-center gap-1 font-mono text-amber-400 font-black text-sm">
+                    <span className="text-zinc-500 font-sans text-[10px] uppercase font-bold tracking-wider mr-1.5">Starts In:</span>
+                    <span>{timeLeft.d}d</span>
+                    <span className="text-zinc-600 font-sans font-normal mx-0.5">:</span>
+                    <span>{timeLeft.h}h</span>
+                    <span className="text-zinc-600 font-sans font-normal mx-0.5">:</span>
+                    <span>{timeLeft.m}m</span>
+                    <span className="text-zinc-600 font-sans font-normal mx-0.5">:</span>
+                    <span className="animate-pulse">{timeLeft.s}s</span>
+                  </div>
+                  {(show.releaseNote || liveEpisodeNote) && (
+                    <p className="text-[10px] text-zinc-400 font-medium line-clamp-1 italic">
+                      Note: {show.releaseNote || liveEpisodeNote}
+                    </p>
+                  )}
+                </div>
+              ) : isShowOutNow(show) ? (
+                <div className="text-emerald-400 font-black animate-pulse flex items-center gap-1 pt-1 border-t border-amber-500/10">
+                  <span>🎉 OUT NOW! WATCH NOW!</span>
+                </div>
+              ) : (
+                <div className="text-zinc-400 font-medium pt-1 border-t border-amber-500/10">
+                  {show.releaseNote || liveEpisodeNote || 'Airing soon'}
+                </div>
+              )}
             </div>
           )}
 

@@ -1,11 +1,13 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { X, Plus, Star, Sparkles, Save, Image as ImageIcon, Loader2, Check, Search, Film, Tv, Calendar, Clock, RotateCcw } from 'lucide-react';
+import { X, Plus, Star, Sparkles, Save, Image as ImageIcon, Loader2, Check, Search, Film, Tv, Calendar, Clock, RotateCcw, Tag } from 'lucide-react';
 import { ShowItem, ShowType, WatchStatus, PRESET_PLATFORMS } from '../types';
 import { getBackdropForShow, getPosterForShow } from '../data/mediaAssets';
 import ImageUploader from './ImageUploader';
 import { normalizeSeasonStr, normalizeEpisodeStr, normalizePlatform, parseGoogleSheetsDate } from '../services/sheetsService';
 import { autoFetchPoster, searchLiveSuggestions, LiveSearchItem, PosterCandidate, PosterSearchResult } from '../services/posterService';
+import { fetchLiveTvMazeInfo, TvMazeShowInfo, TvMazeEpisode } from '../services/tvMazeService';
 import { extractDateOnly, extractTimeOnly, combineDateAndTime } from '../utils/dateUtils';
+import { enableShowNotificationSilent } from '../services/notificationService';
 
 interface AddShowModalProps {
   isOpen: boolean;
@@ -41,6 +43,57 @@ const GENRE_PRESETS = [
   'Documentary',
   'War',
 ];
+
+const TvMazeEpisodeCountdown = ({ airstamp }: { airstamp: string }) => {
+  const [timeLeft, setTimeLeft] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
+
+  useEffect(() => {
+    const target = new Date(airstamp).getTime();
+    if (isNaN(target)) return;
+
+    const update = () => {
+      const now = Date.now();
+      const diff = target - now;
+
+      if (diff <= 0) {
+        setTimeLeft(null);
+        return;
+      }
+
+      const d = Math.floor(diff / (24 * 60 * 60 * 1000));
+      const h = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+      const m = Math.floor((diff % (60 * 1000)) / (60 * 1000));
+      const s = Math.floor((diff % (60 * 1000)) / 1000);
+
+      setTimeLeft({ d, h, m, s });
+    };
+
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [airstamp]);
+
+  if (!timeLeft) {
+    return (
+      <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1 animate-pulse">
+        🎉 Airing now or very soon!
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1 font-mono text-[11px] bg-zinc-950/70 py-0.5 px-2 rounded-md border border-zinc-800">
+      <span className="text-zinc-500 font-sans text-[10px] uppercase font-bold tracking-wider mr-1">Starts In:</span>
+      <span className="text-amber-400 font-bold">{timeLeft.d}d</span>
+      <span className="text-zinc-600">:</span>
+      <span className="text-amber-400 font-bold">{timeLeft.h}h</span>
+      <span className="text-zinc-600">:</span>
+      <span className="text-amber-400 font-bold">{timeLeft.m}m</span>
+      <span className="text-zinc-600">:</span>
+      <span className="text-amber-400 font-bold animate-pulse">{timeLeft.s}s</span>
+    </div>
+  );
+};
 
 export default function AddShowModal({
   isOpen,
@@ -85,6 +138,10 @@ export default function AddShowModal({
   const [imdbId, setImdbId] = useState('');
   const [showManualUrlInput, setShowManualUrlInput] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // TVMaze Live Tracker State
+  const [tvMazeInfo, setTvMazeInfo] = useState<TvMazeShowInfo | null>(null);
+  const [isLoadingTvMaze, setIsLoadingTvMaze] = useState(false);
 
   // Live Suggestion Dropdown State
   const [liveSuggestions, setLiveSuggestions] = useState<LiveSearchItem[]>([]);
@@ -210,6 +267,10 @@ export default function AddShowModal({
       setPosterUrl('');
       setBackdropUrl('');
       setDetectedMetadata(null);
+      setReleaseDate('');
+      setReleaseDateOnly('');
+      setReleaseTime('');
+      setReleaseNote('');
       return;
     }
 
@@ -218,19 +279,28 @@ export default function AddShowModal({
     }
 
     setIsFetchingPoster(true);
+    setIsLoadingTvMaze(true);
+    
+    // Clear release countdown setup fields on new search
+    setReleaseDate('');
+    setReleaseDateOnly('');
+    setReleaseTime('');
+    setReleaseNote('');
 
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        // Fast parallel fetch: live IMDb/TVMaze suggestions & full auto-fetch
-        const [suggestions, fetchRes] = await Promise.all([
+        // Fast parallel fetch: live IMDb/TVMaze suggestions, auto poster, and live TVMaze schedule
+        const [suggestions, fetchRes, tvMazeSchedule] = await Promise.all([
           searchLiveSuggestions(trimmedTitle, type),
           autoFetchPoster(trimmedTitle, type, genre),
+          type === 'Series' ? fetchLiveTvMazeInfo(trimmedTitle) : Promise.resolve(null),
         ]);
 
         setLiveSuggestions(suggestions);
         const { result, candidates } = fetchRes;
         setPosterResult(result);
         setPosterCandidates(candidates);
+        setTvMazeInfo(tvMazeSchedule);
 
         if (result && result.posterUrl) {
           setSelectedPosterUrl(result.posterUrl);
@@ -240,6 +310,14 @@ export default function AddShowModal({
 
         if (result && result.imdbId) {
           setImdbId(result.imdbId);
+        }
+
+        if (tvMazeSchedule && tvMazeSchedule.nextEpisode) {
+          const nextEp = tvMazeSchedule.nextEpisode;
+          setReleaseDateOnly(nextEp.airdate);
+          setReleaseTime(nextEp.airtime || '00:00');
+          setReleaseNote(`S${nextEp.season} E${nextEp.number}: ${nextEp.name}`);
+          setReleaseDate(combineDateAndTime(nextEp.airdate, nextEp.airtime || '00:00'));
         }
 
         if (result && (result.year || result.genre || result.synopsis)) {
@@ -279,6 +357,7 @@ export default function AddShowModal({
         console.warn('Auto poster fetch notice:', err);
       } finally {
         setIsFetchingPoster(false);
+        setIsLoadingTvMaze(false);
       }
     }, 280);
 
@@ -294,6 +373,13 @@ export default function AddShowModal({
   const handleSelectLiveSuggestion = (item: LiveSearchItem) => {
     setTitle(item.title);
     setType(item.type);
+
+    // Clear release countdown setup fields before potential new data
+    setReleaseDate('');
+    setReleaseDateOnly('');
+    setReleaseTime('');
+    setReleaseNote('');
+
     if (item.posterUrl) {
       setPosterUrl(item.posterUrl);
       setSelectedPosterUrl(item.posterUrl);
@@ -317,6 +403,22 @@ export default function AddShowModal({
     if (item.type === 'Series' && item.maxEp) {
       setMaxEp(item.maxEp);
       setSeasons('S1');
+    }
+    if (item.type === 'Series') {
+      setIsLoadingTvMaze(true);
+      fetchLiveTvMazeInfo(item.title).then((info) => {
+        setTvMazeInfo(info);
+        if (info && info.nextEpisode) {
+          const nextEp = info.nextEpisode;
+          setReleaseDateOnly(nextEp.airdate);
+          setReleaseTime(nextEp.airtime || '00:00');
+          setReleaseNote(`S${nextEp.season} E${nextEp.number}: ${nextEp.name}`);
+          setReleaseDate(combineDateAndTime(nextEp.airdate, nextEp.airtime || '00:00'));
+        }
+      }).catch(err => console.warn(err))
+        .finally(() => setIsLoadingTvMaze(false));
+    } else {
+      setTvMazeInfo(null);
     }
     setShowSuggestions(false);
   };
@@ -419,6 +521,10 @@ export default function AddShowModal({
       releaseDate: releaseDate ? parseGoogleSheetsDate(releaseDate) : undefined,
       releaseNote: releaseNote.trim() || undefined,
     };
+
+    if (releaseDate && releaseDate.trim()) {
+      enableShowNotificationSilent(id);
+    }
 
     onAdd(newShow);
     setTitle('');
@@ -963,79 +1069,6 @@ export default function AddShowModal({
             </div>
           )}
 
-          {/* Release & Premiere Countdown Setup */}
-          <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-lg space-y-3.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-zinc-300 uppercase tracking-widest flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-amber-400" />
-                <span>Live Countdown Premiere Setup</span>
-              </span>
-              {(releaseDateOnly || releaseTime || releaseNote || releaseDate) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReleaseDateOnly('');
-                    setReleaseTime('');
-                    setReleaseDate('');
-                    setReleaseNote('');
-                  }}
-                  className="text-[11px] font-semibold text-zinc-400 hover:text-red-400 flex items-center gap-1 transition-colors cursor-pointer px-2 py-0.5 rounded bg-zinc-800/80 border border-zinc-700/60 hover:border-red-500/40"
-                  title="Clear and reset countdown date and time"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>Clear / Reset</span>
-                </button>
-              )}
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Target Premiere Date */}
-              <div className="space-y-1.5">
-                <label htmlFor="new-show-release-date" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-zinc-400" />
-                  Target Premiere Date
-                </label>
-                <input
-                  id="new-show-release-date"
-                  type="date"
-                  value={releaseDateOnly}
-                  onChange={(e) => handleReleaseDateChange(e.target.value)}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white font-mono shadow-inner focus:outline-none focus:border-amber-500 cursor-pointer"
-                />
-              </div>
-
-              {/* Specific Premiere Time */}
-              <div className="space-y-1.5">
-                <label htmlFor="new-show-release-time" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-zinc-400" />
-                  Specify Time (HH:mm)
-                </label>
-                <input
-                  id="new-show-release-time"
-                  type="time"
-                  value={releaseTime}
-                  onChange={(e) => handleReleaseTimeChange(e.target.value)}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white font-mono shadow-inner focus:outline-none focus:border-amber-500 cursor-pointer"
-                />
-              </div>
-
-              {/* Premiere / Countdown Note */}
-              <div className="space-y-1.5">
-                <label htmlFor="new-show-release-note" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5">
-                  Premiere / Countdown Note
-                </label>
-                <input
-                  id="new-show-release-note"
-                  type="text"
-                  value={releaseNote}
-                  onChange={(e) => setReleaseNote(e.target.value)}
-                  placeholder="e.g. Season 2, Final Movie"
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white shadow-inner focus:outline-none focus:border-amber-500"
-                />
-              </div>
-            </div>
-          </div>
-
           {/* Notes & Synopsis */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
@@ -1054,8 +1087,159 @@ export default function AddShowModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Synopsis, thoughts, reminders, why you're watching..."
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-md p-2.5 text-base text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500"
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-md p-2.5 text-base text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500 shadow-inner"
             />
+          </div>
+
+          {/* Live Network Schedule Tracker (Consolidated) */}
+          <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-lg space-y-3.5 relative overflow-hidden transition-all duration-300">
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-indigo-500/30" />
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-zinc-300 uppercase tracking-widest flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping shrink-0" />
+                <span>📡 Live Network Schedule Tracker</span>
+              </span>
+              {(releaseDateOnly || releaseTime || releaseNote || releaseDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReleaseDateOnly('');
+                    setReleaseTime('');
+                    setReleaseDate('');
+                    setReleaseNote('');
+                  }}
+                  className="text-[11px] font-semibold text-zinc-400 hover:text-red-400 flex items-center gap-1 transition-colors cursor-pointer px-2 py-0.5 rounded bg-zinc-800/80 border border-zinc-700/60 hover:border-red-500/40"
+                  title="Clear and reset countdown date and time"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Clear / Reset</span>
+                </button>
+              )}
+            </div>
+
+            {/* Live Network Results (Top) */}
+            {type === 'Series' && (isLoadingTvMaze || tvMazeInfo) && (
+              <div className="pt-2">
+                {isLoadingTvMaze ? (
+                  <div className="flex items-center gap-2 py-2 text-zinc-400 text-xs animate-pulse">
+                    <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+                    <span>Querying official global television databases...</span>
+                  </div>
+                ) : tvMazeInfo ? (
+                  <div className="space-y-3.5">
+                    {tvMazeInfo.nextEpisode ? (
+                      <div className="p-3 bg-indigo-950/20 border border-indigo-900/40 rounded-lg space-y-2.5">
+                        <div className="flex items-start justify-between gap-3 flex-wrap">
+                          <div>
+                            <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                              S{tvMazeInfo.nextEpisode.season} E{tvMazeInfo.nextEpisode.number} Scheduled
+                            </span>
+                            <h5 className="text-xs font-black text-white mt-1">
+                              &ldquo;{tvMazeInfo.nextEpisode.name}&rdquo;
+                            </h5>
+                          </div>
+                          
+                          {/* Real-time Ticking Live Countdown component */}
+                          {tvMazeInfo.nextEpisode.airstamp && (
+                            <TvMazeEpisodeCountdown airstamp={tvMazeInfo.nextEpisode.airstamp} />
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1.5 border-t border-zinc-800/60 flex-wrap gap-2">
+                          <p className="text-[11px] text-zinc-400">
+                            Airing: <span className="text-zinc-200 font-bold">{new Date(tvMazeInfo.nextEpisode.airdate).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}</span> {tvMazeInfo.nextEpisode.airtime && `at ${tvMazeInfo.nextEpisode.airtime}`}
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!tvMazeInfo.nextEpisode) return;
+                              setReleaseDateOnly(tvMazeInfo.nextEpisode.airdate);
+                              setReleaseTime(tvMazeInfo.nextEpisode.airtime || '00:00');
+                              setReleaseNote(`S${tvMazeInfo.nextEpisode.season} E${tvMazeInfo.nextEpisode.number}: ${tvMazeInfo.nextEpisode.name}`);
+                              setReleaseDate(combineDateAndTime(tvMazeInfo.nextEpisode.airdate, tvMazeInfo.nextEpisode.airtime || '00:00'));
+                            }}
+                            className="text-[10px] font-extrabold bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-1 rounded border border-indigo-500/30 transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-1 shrink-0"
+                            title="Auto-fill these dates into your Premiere Countdown Setup"
+                          >
+                            <Calendar className="w-3 h-3" />
+                            <span>Apply to Countdown Setup</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-zinc-950/40 border border-zinc-800/60 rounded-lg">
+                        <p className="text-xs text-zinc-400 leading-relaxed">
+                          {tvMazeInfo.status === 'Ended' ? (
+                            <span className="flex items-center gap-1.5 text-red-400/90 font-medium">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                              <span>This series is marked as <strong>Ended</strong> by the network. No future episodes are scheduled.</span>
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1.5 text-zinc-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                              <span>Series is active/ongoing, but the next episode's premiere date hasn't been officially scheduled yet.</span>
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            {/* Manual Personal Countdown Setup (Bottom) */}
+            <div className="space-y-3.5 pt-3 border-t border-zinc-800/60 mt-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Target Premiere Date & Time (Coupled side-by-side) */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label htmlFor="new-show-release-date" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-zinc-400" />
+                      Target Date
+                    </label>
+                    <input
+                      id="new-show-release-date"
+                      type="date"
+                      value={releaseDateOnly}
+                      onChange={(e) => handleReleaseDateChange(e.target.value)}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white font-mono shadow-inner focus:outline-none focus:border-amber-500 cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="new-show-release-time" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-zinc-400" />
+                      Specify Time
+                    </label>
+                    <input
+                      id="new-show-release-time"
+                      type="time"
+                      value={releaseTime}
+                      onChange={(e) => handleReleaseTimeChange(e.target.value)}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white font-mono shadow-inner focus:outline-none focus:border-amber-500 cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                {/* Premiere / Countdown Note */}
+                <div className="space-y-1.5">
+                  <label htmlFor="new-show-release-note" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
+                    <Tag className="w-3 h-3 text-zinc-400" />
+                    Premiere / Countdown Note
+                  </label>
+                  <input
+                    id="new-show-release-note"
+                    type="text"
+                    value={releaseNote}
+                    onChange={(e) => setReleaseNote(e.target.value)}
+                    placeholder="e.g. Season 2, Final Movie, Special..."
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white shadow-inner focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Submit */}

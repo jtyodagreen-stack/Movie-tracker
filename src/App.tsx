@@ -5,6 +5,7 @@ import {
   auth,
   initAuth,
   googleSignIn,
+  handleRedirectResultOnLoad,
   logout,
   getAccessToken,
   setCachedAccessToken,
@@ -50,6 +51,7 @@ import DashboardStats from './components/DashboardStats';
 import MainPageReleaseRadarBanner from './components/MainPageReleaseRadarBanner';
 import ShowcaseSection from './components/ShowcaseSection';
 import NetflixHoverPortal from './components/NetflixHoverPortal';
+import { checkAndTrigger24hNotifications, parseReleaseDateToTimestamp } from './services/notificationService';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { getCachedShows, setCachedShows, queueOfflineAction } from './services/offlineQueue';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
@@ -88,6 +90,14 @@ export default function App() {
   useEffect(() => {
     setCachedShows(shows);
   }, [shows]);
+
+  const showsRef = useRef<ShowItem[]>([]);
+  useEffect(() => {
+    showsRef.current = shows;
+  }, [shows]);
+
+  const isResetCheckInProgressRef = useRef(false);
+  const lastResetCheckTimeRef = useRef(0);
 
   const handleSyncOfflineQueue = async (queue: any[]) => {
     for (const action of queue) {
@@ -468,6 +478,18 @@ export default function App() {
     },
     [spreadsheetId, sheetName, wishlistSheetName, availableTabs]
   );
+
+  // Handle Firebase sign-in redirect results on load
+  useEffect(() => {
+    handleRedirectResultOnLoad().then((res) => {
+      if (res?.user) {
+        setUser(res.user);
+        showToast(`Signed in as ${res.user.displayName || res.user.email}`);
+      }
+    }).catch((err) => {
+      console.warn('Redirect result check on load failed:', err);
+    });
+  }, []);
 
   // Initialize Firebase Auth listener and auto-sync on load
   useEffect(() => {
@@ -1008,27 +1030,16 @@ export default function App() {
         return;
       }
 
-      console.log(`[Google Sheets Sync] Updating existing row ${rowNum} for "${updatedShow.title}" (Poster: "${updatedShow.posterUrl || 'none'}", ReleaseDate: "${updatedShow.releaseDate || 'none'}", ReleaseNote: "${updatedShow.releaseNote || 'none'}") in tab "${targetTab}"`);
+      console.log(`[Google Sheets Sync] Updating existing row ${rowNum} for "${updatedShow.title}" in tab "${targetTab}"`);
 
-      // 3. Row exists: update Episode, Season, Status, Next Ep, Poster, Max Ep, Rating, and Rating Num directly via batchUpdate!
-      await updateEpisodeAndSeasonInSheet(
+      // 3. Row exists: sync entire row values in a single API call to minimize Google Sheets write quota consumption
+      await updateSheetRow(
         spreadsheetId,
         targetTab,
         rowNum,
-        updatedShow.seasons,
-        updatedShow.episodes,
+        updatedShow,
         currentHeaders,
-        token,
-        updatedShow.status,
-        updatedShow.nextEp,
-        updatedShow.nextSsn,
-        updatedShow.posterUrl,
-        updatedShow.maxEp,
-        updatedShow.rating,
-        updatedShow.ratingNum,
-        updatedShow.type,
-        updatedShow.releaseDate,
-        updatedShow.releaseNote
+        token
       );
 
       // Keep rowNumber and release info updated in state
@@ -1039,18 +1050,6 @@ export default function App() {
             : s
         )
       );
-
-      // 4. Also safely sync entire row values
-      await updateSheetRow(
-        spreadsheetId,
-        targetTab,
-        rowNum,
-        updatedShow,
-        currentHeaders,
-        token
-      ).catch((e) => {
-        console.warn('Full row update secondary warning (batchUpdate already succeeded):', e);
-      });
 
       showToast(`✅ Google Sheet Updated: "${updatedShow.title}" (${targetTab})`);
     } catch (err: any) {
@@ -1064,6 +1063,90 @@ export default function App() {
       }
     }
   };
+
+  // Check and auto-reset expired release dates (more than 24 hours in the past)
+  const checkAndResetExpiredReleases = useCallback(async (currentShows: ShowItem[]) => {
+    if (isResetCheckInProgressRef.current) return;
+
+    const now = Date.now();
+    const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+    // Find shows that have an expired release date (more than 24h past)
+    const showsToReset = currentShows.filter((s) => {
+      if (!s.releaseDate) return false;
+      const ts = parseReleaseDateToTimestamp(s.releaseDate);
+      return ts !== null && (now - ts) > TWENTY_FOUR_HOURS_MS;
+    });
+
+    if (showsToReset.length === 0) {
+      return;
+    }
+
+    // Cooldown check (30 seconds) ONLY when there are actually shows to reset to prevent hammering Sheets API
+    if (now - lastResetCheckTimeRef.current < 30 * 1000) {
+      return;
+    }
+
+    isResetCheckInProgressRef.current = true;
+    lastResetCheckTimeRef.current = now;
+
+    console.log(`[Auto Reset] Resetting expired release dates for: ${showsToReset.map(s => s.title).join(', ')}`);
+
+    // Update local state first (optimistic)
+    setShows((prev) =>
+      prev.map((s) => {
+        const found = showsToReset.some((r) => r.id === s.id);
+        if (found) {
+          return { ...s, releaseDate: '', releaseNote: '' };
+        }
+        return s;
+      })
+    );
+
+    // Sync each reset to Google Sheet with throttling (2.0 seconds between requests) to prevent Sheets write quota limits
+    for (let i = 0; i < showsToReset.length; i++) {
+      const s = showsToReset[i];
+      if (spreadsheetId) {
+        try {
+          const updated = { ...s, releaseDate: '', releaseNote: '' };
+          await syncShowToSheet(updated, true);
+          if (i < showsToReset.length - 1) {
+            // Sleep 2000ms before next sync to honor Sheets API quotas
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+        } catch (e) {
+          console.warn(`[Auto Reset] Failed to sync reset for "${s.title}":`, e);
+        }
+      }
+    }
+
+    toast('🔄 Archived expired premieres so you can enter future release dates!', {
+      icon: '🔄',
+      style: { background: '#1c1917', color: '#fff', border: '1px solid #44403c' },
+    });
+
+    isResetCheckInProgressRef.current = false;
+  }, [spreadsheetId]);
+
+  // Periodic 24-Hour Release Notification Check & Auto-Reset of Expired Premieres
+  useEffect(() => {
+    if (!shows || shows.length === 0) return;
+
+    // Run checks immediately on mount or when shows are loaded/changed
+    checkAndTrigger24hNotifications(shows);
+    checkAndResetExpiredReleases(shows);
+
+    // Re-check periodically every 5 minutes in case the tab stays open
+    const interval = setInterval(() => {
+      const current = showsRef.current;
+      if (current && current.length > 0) {
+        checkAndTrigger24hNotifications(current);
+        checkAndResetExpiredReleases(current);
+      }
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [shows, checkAndTrigger24hNotifications, checkAndResetExpiredReleases]);
 
   // Quick increment episode with season advancement & auto-click Google Sheets sync
   const handleIncrementEpisode = async (show: ShowItem) => {
@@ -1568,6 +1651,7 @@ export default function App() {
         if (activeFilter === 'Movie') return show.type === 'Movie';
         if (activeFilter === '⏳ Watching') return show.status === '⏳ Watching';
         if (activeFilter === '✅ Watched') return show.status === '✅ Watched';
+        if (activeFilter === '⏰ Coming Soon') return Boolean(show.releaseDate || show.releaseNote);
         if (activeFilter === '⏸️ Paused') return show.status === '⏸️ Paused';
         if (activeFilter === '❌ Dropped') return show.status === '❌ Dropped';
         if (activeFilter === '⏸️ Paused / ❌ Dropped') return show.status === '⏸️ Paused' || show.status === '❌ Dropped';
@@ -1777,6 +1861,10 @@ export default function App() {
     () => shows.filter((s) => s.isWishlist),
     [shows]
   );
+  const comingSoonShows = useMemo(
+    () => shows.filter((s) => Boolean(s.releaseDate || s.releaseNote)),
+    [shows]
+  );
 
   const renderMasterTrackerOverviewBar = (position: 'top' | 'bottom' = 'top') => (
     <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${position === 'top' ? 'pt-2 sm:pt-3 pb-2' : 'pt-6 pb-4'}`}>
@@ -1822,7 +1910,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 pt-1">
           <button
             type="button"
             onClick={() => setActiveFilter((prev) => (prev === 'Movie' ? 'all' : 'Movie'))}
@@ -1904,6 +1992,27 @@ export default function App() {
             <div>
               <span className="text-[10px] text-zinc-400 uppercase font-semibold block">Watched</span>
               <span className="text-base font-extrabold text-white">{watchedShows.length}</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveFilter((prev) => (prev === '⏰ Coming Soon' ? 'all' : '⏰ Coming Soon'))}
+            className={`text-left rounded-xl p-3 flex items-center gap-3 transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] border-solid focus:outline-none ${
+              activeFilter === '⏰ Coming Soon'
+                ? 'bg-amber-950/80 border-2 border-amber-500 shadow-xl shadow-amber-950/60 ring-2 ring-amber-500/70'
+                : 'bg-zinc-900/60 border border-zinc-800/80 hover:border-amber-500/80 active:border-2 active:border-amber-500 active:ring-2 active:ring-amber-500/50 hover:bg-zinc-900 hover:shadow-lg hover:shadow-amber-950/30 hover:-translate-y-0.5'
+            }`}
+            title="Filter by Coming Soon (click again to clear)"
+          >
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm transition-transform duration-200 group-hover:scale-110 ${
+              activeFilter === '⏰ Coming Soon' ? 'bg-amber-500 text-white' : 'bg-amber-500/10 text-amber-400'
+            }`}>
+              ⏰
+            </div>
+            <div>
+              <span className="text-[10px] text-zinc-400 uppercase font-semibold block">Coming Soon</span>
+              <span className="text-base font-extrabold text-white">{comingSoonShows.length}</span>
             </div>
           </button>
 
@@ -2458,6 +2567,8 @@ export default function App() {
                             ? 'Watching'
                             : activeFilter === '✅ Watched'
                             ? 'Watched'
+                            : activeFilter === '⏰ Coming Soon'
+                            ? 'Coming Soon'
                             : activeFilter === '🎁 Wishlist' || activeFilter === 'Wishlist'
                             ? 'Wishlist'
                             : activeFilter
@@ -2502,7 +2613,7 @@ export default function App() {
 
         {/* Netflix Category Shelves (Default Home) */}
         {!isAnyFilterActive && (
-          <div className="space-y-4 sm:space-y-6 pt-4">
+          <div className="space-y-4 sm:space-y-6 pt-2">
             {/* Continue Watching Row */}
             <ShowRow
               id="continue-watching"
@@ -2529,6 +2640,23 @@ export default function App() {
                 onIncrementEpisode={handleIncrementEpisode}
                 onToggleStatus={handleToggleStatus}
                 onTitleClick={() => setActiveFilter('🎁 Wishlist')}
+                onHoverEnter={handleHoverEnter}
+                onHoverLeave={handleHoverLeave}
+              />
+            )}
+
+            {/* Coming Soon & Premieres Showcase Shelf */}
+            {comingSoonShows.length > 0 && (
+              <ShowRow
+                id="coming-soon-shelf"
+                title="⏰ Upcoming Release Dates"
+                subtitle="Shows with upcoming release dates"
+                shows={comingSoonShows}
+                isLoading={isSyncing}
+                onOpenDetails={(s) => setSelectedShow(s)}
+                onIncrementEpisode={handleIncrementEpisode}
+                onToggleStatus={handleToggleStatus}
+                onTitleClick={() => setActiveFilter('⏰ Coming Soon')}
                 onHoverEnter={handleHoverEnter}
                 onHoverLeave={handleHoverLeave}
               />

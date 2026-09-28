@@ -20,6 +20,8 @@ import {
   Upload,
   Image as ImageIcon,
   Loader2,
+  Bell,
+  BellRing,
 } from 'lucide-react';
 import { ShowItem, WatchStatus, ShowType, PRESET_PLATFORMS } from '../types';
 import ImageUploader from './ImageUploader';
@@ -27,6 +29,59 @@ import { normalizeSeasonStr, normalizeEpisodeStr, normalizePlatform, parseGoogle
 import { getOptimizedBackdrop } from '../utils/imageOptimizer';
 import { autoFetchPoster, getOrFetchImdbUrl } from '../services/posterService';
 import { extractDateOnly, extractTimeOnly, combineDateAndTime } from '../utils/dateUtils';
+import { isNotificationEnabled, toggleShowNotification, isShowOutNow, isFutureRelease, enableShowNotificationSilent } from '../services/notificationService';
+import { fetchLiveTvMazeInfo, TvMazeShowInfo, TvMazeEpisode } from '../services/tvMazeService';
+
+const TvMazeEpisodeCountdown = ({ airstamp }: { airstamp: string }) => {
+  const [timeLeft, setTimeLeft] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
+
+  useEffect(() => {
+    const target = new Date(airstamp).getTime();
+    if (isNaN(target)) return;
+
+    const update = () => {
+      const now = Date.now();
+      const diff = target - now;
+
+      if (diff <= 0) {
+        setTimeLeft(null);
+        return;
+      }
+
+      const d = Math.floor(diff / (24 * 60 * 60 * 1000));
+      const h = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+      const m = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000));
+      const s = Math.floor((diff % (60 * 1000)) / 1000);
+
+      setTimeLeft({ d, h, m, s });
+    };
+
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [airstamp]);
+
+  if (!timeLeft) {
+    return (
+      <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1 animate-pulse">
+        🎉 Airing now or very soon!
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1 font-mono text-[11px] bg-zinc-950/70 py-0.5 px-2 rounded-md border border-zinc-800">
+      <span className="text-zinc-500 font-sans text-[10px] uppercase font-bold tracking-wider mr-1">Starts In:</span>
+      <span className="text-amber-400 font-bold">{timeLeft.d}d</span>
+      <span className="text-zinc-600">:</span>
+      <span className="text-amber-400 font-bold">{timeLeft.h}h</span>
+      <span className="text-zinc-600">:</span>
+      <span className="text-amber-400 font-bold">{timeLeft.m}m</span>
+      <span className="text-zinc-600">:</span>
+      <span className="text-amber-400 font-bold animate-pulse">{timeLeft.s}s</span>
+    </div>
+  );
+};
 
 interface ShowDetailModalProps {
   show: ShowItem | null;
@@ -179,14 +234,32 @@ export default function ShowDetailModal({
     return dateStr;
   };
 
+  const isExpiredRelease = useMemo(() => {
+    if (!show || !show.releaseDate) return false;
+    return !isFutureRelease(show) && !isShowOutNow(show);
+  }, [show]);
+
   const [priority, setPriority] = useState<string>(normalizePriorityLocal(show?.priority));
   const [dateAdded, setDateAdded] = useState<string>(
     parseGoogleSheetsDate(show?.dateAdded || getTodayDDMMYYYY())
   );
-  const [releaseDate, setReleaseDate] = useState<string>(show?.releaseDate || '');
-  const [releaseDateOnly, setReleaseDateOnly] = useState<string>(() => extractDateOnly(show?.releaseDate));
-  const [releaseTime, setReleaseTime] = useState<string>(() => extractTimeOnly(show?.releaseDate));
-  const [releaseNote, setReleaseNote] = useState<string>(show?.releaseNote || '');
+  const [releaseDate, setReleaseDate] = useState<string>(isExpiredRelease ? '' : (show?.releaseDate || ''));
+  const [releaseDateOnly, setReleaseDateOnly] = useState<string>(() => isExpiredRelease ? '' : extractDateOnly(show?.releaseDate));
+  const [releaseTime, setReleaseTime] = useState<string>(() => isExpiredRelease ? '' : extractTimeOnly(show?.releaseDate));
+  const [releaseNote, setReleaseNote] = useState<string>(isExpiredRelease ? '' : (show?.releaseNote || ''));
+  const [isNotifActive, setIsNotifActive] = useState(() => (show ? isNotificationEnabled(show.id) : false));
+
+  useEffect(() => {
+    if (show) {
+      setIsNotifActive(isNotificationEnabled(show.id));
+    }
+  }, [show]);
+
+  const handleToggleNotif = async () => {
+    if (!show) return;
+    const enabled = await toggleShowNotification(show);
+    setIsNotifActive(enabled);
+  };
   const [isWishlistDone, setIsWishlistDone] = useState<boolean>(
     show?.status === '✅ Watched' ||
       String(show?.status || '').toLowerCase().includes('watched') ||
@@ -241,6 +314,57 @@ export default function ShowDetailModal({
       setWho(sheetViewers[0]);
     }
   }, [sheetViewers, who]);
+
+  const [tvMazeInfo, setTvMazeInfo] = useState<TvMazeShowInfo | null>(null);
+  const [isLoadingTvMaze, setIsLoadingTvMaze] = useState(false);
+
+  useEffect(() => {
+    if (!show || show.type !== 'Series') {
+      setTvMazeInfo(null);
+      return;
+    }
+
+    let isMounted = true;
+    const loadTvMazeData = async () => {
+      setIsLoadingTvMaze(true);
+      try {
+        const info = await fetchLiveTvMazeInfo(show.title);
+        if (isMounted) {
+          setTvMazeInfo(info);
+          if (info && info.nextEpisode && !show.releaseDate) {
+            const nextEp = info.nextEpisode;
+            const fullReleaseDate = combineDateAndTime(nextEp.airdate, nextEp.airtime || '00:00');
+            const noteText = `S${nextEp.season} E${nextEp.number}: ${nextEp.name}`;
+            
+            setReleaseDateOnly(nextEp.airdate);
+            setReleaseTime(nextEp.airtime || '00:00');
+            setReleaseNote(noteText);
+            setReleaseDate(fullReleaseDate);
+            enableShowNotificationSilent(show.id);
+
+            const updated: ShowItem = {
+              ...show,
+              releaseDate: fullReleaseDate,
+              releaseNote: noteText,
+            };
+            onSave(updated);
+          }
+        }
+      } catch (err) {
+        console.warn('TVMaze fetch failed:', err);
+      } finally {
+        if (isMounted) {
+          setIsLoadingTvMaze(false);
+        }
+      }
+    };
+
+    loadTvMazeData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [show?.id, show?.title]);
 
   const allViewers = useMemo(() => {
     if (sheetViewers && sheetViewers.length > 0) {
@@ -373,6 +497,9 @@ export default function ShowDetailModal({
       releaseDate: releaseDate ? parseGoogleSheetsDate(releaseDate) : '',
       releaseNote: releaseNote.trim() || '',
     };
+    if (releaseDate && releaseDate.trim()) {
+      enableShowNotificationSilent(show.id);
+    }
     onSave(updated);
     onClose();
   };
@@ -382,14 +509,30 @@ export default function ShowDetailModal({
   return (
     <div
       id="show-detail-modal-backdrop"
-      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 md:p-6 bg-black/90 backdrop-blur-md overflow-y-auto overflow-x-hidden"
       style={{ perspective: '1200px' }}
       onClick={onClose}
     >
+      {/* Cinematic Ambient Glow */}
+      <div 
+        className="absolute inset-0 pointer-events-none overflow-hidden"
+        style={{ zIndex: 0 }}
+      >
+        <div 
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[140%] opacity-[0.38] blur-[100px] saturate-200 pointer-events-none transition-all duration-500 select-none"
+          style={{
+            backgroundImage: `url(${getOptimizedBackdrop(activeBackdrop)})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+      </div>
+
       <div
         id="show-detail-modal-card"
         style={{
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.75)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85), 0 0 40px 4px rgba(0, 0, 0, 0.5)',
+          zIndex: 10,
         }}
         className="relative w-full max-w-3xl max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-[#181818] border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
@@ -410,11 +553,16 @@ export default function ShowDetailModal({
           <div className="absolute inset-0 bg-gradient-to-r from-[#181818]/90 via-transparent to-transparent" />
 
           {/* Action buttons top right */}
-          <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-20">
+          <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-20 flex items-center gap-2 flex-wrap">
             {show.isWishlist && (
               <span className="text-[10px] sm:text-[11px] font-black px-2 sm:px-2.5 py-0.5 sm:py-1 rounded bg-amber-500 text-black border border-amber-400 shadow-xl flex items-center gap-1 sm:gap-1.5 transform -rotate-1">
                 <span>🎁</span>
                 <span>Wishlist</span>
+              </span>
+            )}
+            {(show.releaseDate || show.releaseNote || releaseDate || releaseNote) && (
+              <span className="text-[10px] sm:text-[11px] font-extrabold px-2 sm:px-2.5 py-0.5 sm:py-1 rounded bg-amber-400 text-black border border-amber-300 shadow-md shrink-0 flex items-center gap-1">
+                ⏰ {formatToDDMMYYYY(releaseDate || show.releaseDate || '') || releaseNote || show.releaseNote}
               </span>
             )}
           </div>
@@ -540,6 +688,54 @@ export default function ShowDetailModal({
               </button>
             )}
           </div>
+
+          {/* Release Premiere Info Bar (Identical to Netflix Hover Portal) */}
+          {show && (show.releaseDate || show.releaseNote || releaseDate || releaseNote) && (
+            isShowOutNow(show) ? (
+              <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold shadow">
+                <div className="flex items-center gap-2">
+                  <span className="text-base animate-bounce">🎉</span>
+                  <span className="font-black text-emerald-200">OUT NOW!</span>
+                  <span>— Available to stream on {show.platform || 'TV'}</span>
+                </div>
+                <span className="text-[10px] font-mono uppercase bg-emerald-500/20 px-2 py-0.5 rounded text-emerald-300 border border-emerald-500/30">
+                  RELEASED
+                </span>
+              </div>
+            ) : isFutureRelease(show) || (!show.releaseDate && (show.releaseNote || releaseNote)) ? (
+              <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">⏰</span>
+                  <span>
+                    {releaseDate || show.releaseDate ? `Target Premiere: ${formatToDDMMYYYY(releaseDate || show.releaseDate || '')}` : 'Upcoming Release'}
+                    {releaseNote || show.releaseNote ? ` (${releaseNote || show.releaseNote})` : ''}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleToggleNotif}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer border ${
+                    isNotifActive
+                      ? 'bg-amber-400 text-black border-amber-300 shadow'
+                      : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:text-white hover:bg-zinc-700'
+                  }`}
+                >
+                  {isNotifActive ? (
+                    <>
+                      <BellRing className="w-3.5 h-3.5 text-black animate-pulse" />
+                      <span>24h Alert On</span>
+                    </>
+                  ) : (
+                    <>
+                      <Bell className="w-3.5 h-3.5" />
+                      <span>Notify Me 24h Before</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : null
+          )}
 
           {/* Progress & Watch Status Card */}
           <div className="p-4 sm:p-5 rounded-lg bg-zinc-900/50 border border-zinc-800 space-y-4">
@@ -1023,79 +1219,6 @@ export default function ShowDetailModal({
               )}
             </div>
 
-            {/* Release & Premiere Countdown Setup */}
-            <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-lg space-y-3.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-zinc-300 uppercase tracking-widest flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Live Countdown Premiere Setup</span>
-                </span>
-                {(releaseDateOnly || releaseTime || releaseNote || releaseDate) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setReleaseDateOnly('');
-                      setReleaseTime('');
-                      setReleaseDate('');
-                      setReleaseNote('');
-                    }}
-                    className="text-[11px] font-semibold text-zinc-400 hover:text-red-400 flex items-center gap-1 transition-colors cursor-pointer px-2 py-0.5 rounded bg-zinc-800/80 border border-zinc-700/60 hover:border-red-500/40"
-                    title="Clear and reset countdown date and time"
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                    <span>Clear / Reset</span>
-                  </button>
-                )}
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* Target Premiere Date */}
-                <div className="space-y-1.5">
-                  <label htmlFor="detail-release-date" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
-                    <Calendar className="w-3 h-3 text-zinc-400" />
-                    Target Premiere Date
-                  </label>
-                  <input
-                    id="detail-release-date"
-                    type="date"
-                    value={releaseDateOnly}
-                    onChange={(e) => handleReleaseDateChange(e.target.value)}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white font-mono shadow-inner focus:outline-none focus:border-amber-500 cursor-pointer"
-                  />
-                </div>
-
-                {/* Specific Premiere Time */}
-                <div className="space-y-1.5">
-                  <label htmlFor="detail-release-time" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-zinc-400" />
-                    Specify Time (HH:mm)
-                  </label>
-                  <input
-                    id="detail-release-time"
-                    type="time"
-                    value={releaseTime}
-                    onChange={(e) => handleReleaseTimeChange(e.target.value)}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white font-mono shadow-inner focus:outline-none focus:border-amber-500 cursor-pointer"
-                  />
-                </div>
-
-                {/* Premiere / Countdown Note */}
-                <div className="space-y-1.5">
-                  <label htmlFor="detail-release-note" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5">
-                    Premiere / Countdown Note
-                  </label>
-                  <input
-                    id="detail-release-note"
-                    type="text"
-                    value={releaseNote}
-                    onChange={(e) => setReleaseNote(e.target.value)}
-                    placeholder="e.g. Season 2, Final Movie"
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white shadow-inner focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-              </div>
-            </div>
-
             {/* Notes */}
             <div className="space-y-1">
               <label htmlFor="detail-notes-input" className="text-xs font-semibold text-zinc-300 block">Notes & Thoughts</label>
@@ -1108,6 +1231,155 @@ export default function ShowDetailModal({
                 className="w-full bg-zinc-900 border border-zinc-700 rounded-md p-2.5 text-base text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500 shadow-inner"
               />
             </div>
+
+            {/* Live Episode Tracker (TVMaze) */}
+            {show.type === 'Series' && (isLoadingTvMaze || tvMazeInfo) && (
+              <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-lg space-y-3 relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-[2px] bg-indigo-500/30" />
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-zinc-300 uppercase tracking-widest flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping shrink-0" />
+                    <span>📡 Live Network Schedule Tracker</span>
+                  </span>
+                  {(releaseDateOnly || releaseTime || releaseNote || releaseDate) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReleaseDateOnly('');
+                        setReleaseTime('');
+                        setReleaseDate('');
+                        setReleaseNote('');
+                      }}
+                      className="text-[11px] font-semibold text-zinc-400 hover:text-red-400 flex items-center gap-1 transition-colors cursor-pointer px-2 py-0.5 rounded bg-zinc-800/80 border border-zinc-700/60 hover:border-red-500/40"
+                      title="Clear and reset countdown date and time"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Clear / Reset</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="pt-2">
+                  {isLoadingTvMaze ? (
+                    <div className="flex items-center gap-2 py-2 text-zinc-400 text-xs animate-pulse">
+                      <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+                      <span>Querying official global television databases...</span>
+                    </div>
+                  ) : tvMazeInfo ? (
+                    <div className="space-y-3.5">
+                      {tvMazeInfo.nextEpisode ? (
+                        <div className="p-3 bg-indigo-950/20 border border-indigo-900/40 rounded-lg space-y-2.5">
+                          <div className="flex items-start justify-between gap-3 flex-wrap">
+                            <div>
+                              <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                                S{tvMazeInfo.nextEpisode.season} E{tvMazeInfo.nextEpisode.number} Scheduled
+                              </span>
+                              <h5 className="text-xs font-black text-white mt-1">
+                                &ldquo;{tvMazeInfo.nextEpisode.name}&rdquo;
+                              </h5>
+                            </div>
+                            
+                            {/* Real-time Ticking Live Countdown component */}
+                            {tvMazeInfo.nextEpisode.airstamp && (
+                              <TvMazeEpisodeCountdown airstamp={tvMazeInfo.nextEpisode.airstamp} />
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1.5 border-t border-zinc-800/60 flex-wrap gap-2">
+                            <p className="text-[11px] text-zinc-400">
+                              Airing: <span className="text-zinc-200 font-bold">{new Date(tvMazeInfo.nextEpisode.airdate).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}</span> {tvMazeInfo.nextEpisode.airtime && `at ${tvMazeInfo.nextEpisode.airtime}`}
+                            </p>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!tvMazeInfo.nextEpisode) return;
+                                setReleaseDateOnly(tvMazeInfo.nextEpisode.airdate);
+                                setReleaseTime(tvMazeInfo.nextEpisode.airtime || '00:00');
+                                setReleaseNote(`S${tvMazeInfo.nextEpisode.season} E${tvMazeInfo.nextEpisode.number}: ${tvMazeInfo.nextEpisode.name}`);
+                                setReleaseDate(combineDateAndTime(tvMazeInfo.nextEpisode.airdate, tvMazeInfo.nextEpisode.airtime || '00:00'));
+                              }}
+                              className="text-[10px] font-extrabold bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-1 rounded border border-indigo-500/30 transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-1 shrink-0"
+                              title="Auto-fill these dates into your Premiere Countdown Setup"
+                            >
+                              <Calendar className="w-3 h-3" />
+                              <span>Apply to Countdown Setup</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-zinc-950/40 border border-zinc-800/60 rounded-lg">
+                          <p className="text-xs text-zinc-400 leading-relaxed">
+                            {tvMazeInfo.status === 'Ended' ? (
+                              <span className="flex items-center gap-1.5 text-red-400/90 font-medium">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                                <span>This series is marked as <strong>Ended</strong> by the network. No future episodes are scheduled.</span>
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1.5 text-zinc-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                <span>Series is active/ongoing, but the next episode's premiere date hasn't been officially scheduled yet.</span>
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Release & Premiere Countdown Setup */}
+                <div className="space-y-3.5 pt-3 border-t border-zinc-800/60 mt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Target Premiere Date */}
+                    <div className="space-y-1.5">
+                      <label htmlFor="detail-release-date" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-zinc-400" />
+                        Target Premiere Date
+                      </label>
+                      <input
+                        id="detail-release-date"
+                        type="date"
+                        value={releaseDateOnly}
+                        onChange={(e) => handleReleaseDateChange(e.target.value)}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white font-mono shadow-inner focus:outline-none focus:border-amber-500 cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Specific Premiere Time */}
+                    <div className="space-y-1.5">
+                      <label htmlFor="detail-release-time" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-zinc-400" />
+                        Specify Time (HH:mm)
+                      </label>
+                      <input
+                        id="detail-release-time"
+                        type="time"
+                        value={releaseTime}
+                        onChange={(e) => handleReleaseTimeChange(e.target.value)}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white font-mono shadow-inner focus:outline-none focus:border-amber-500 cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Premiere / Countdown Note */}
+                    <div className="space-y-1.5">
+                      <label htmlFor="detail-release-note" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5">
+                        Premiere / Countdown Note
+                      </label>
+                      <input
+                        id="detail-release-note"
+                        type="text"
+                        value={releaseNote}
+                        onChange={(e) => setReleaseNote(e.target.value)}
+                        placeholder="e.g. Season 2, Final Movie"
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white shadow-inner focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
           </div>
 
           {/* Footer Actions */}

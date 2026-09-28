@@ -52,6 +52,7 @@ export interface ShowItem {
   scheduleStatus?: string; // e.g. "Season 2 Premiere", "Weekly Episode", "Returning Series"
   releaseDate?: string; // Target Premiere/Release date (e.g. DD-MM-YYYY)
   releaseNote?: string; // Premiere/Countdown note (e.g. "Season 5 Premiere")
+  notify24h?: boolean; // Whether 24h release reminder notification is enabled
 }
 
 export interface SheetConfig {

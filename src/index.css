@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+html,
+body {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+  width: 100vw !important;
+}
+
 /* Skeleton Loader Styles */
 .react-loading-skeleton {
   --base-color: #27272a;
