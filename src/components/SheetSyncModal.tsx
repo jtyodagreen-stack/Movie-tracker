@@ -21,12 +21,19 @@ import {
   fetchSpreadsheetDetails,
 } from '../services/sheetsService';
 import { getAccessToken } from '../firebase';
+import {
+  getProfilePicture,
+  getProfileDisplayName,
+  getProfileEmail,
+  GOOGLE_AVATAR_DATA_URI,
+  DEFAULT_PROFILE_USER,
+} from '../utils/userProfile';
 
 interface SheetSyncModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: User | null;
-  onSignIn: () => void;
+  onSignIn: (options?: { forceConsent?: boolean }) => Promise<any>;
   spreadsheetId: string;
   sheetName: string;
   wishlistSheetName?: string;
@@ -73,6 +80,11 @@ export default function SheetSyncModal({
   const [tabsList, setTabsList] = useState<string[]>(availableTabs);
   const [fetchingSheets, setFetchingSheets] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const activeUser = user || DEFAULT_PROFILE_USER;
+  const profilePictureUrl = getProfilePicture(activeUser);
+  const profileDisplayName = getProfileDisplayName(activeUser);
+  const profileEmail = getProfileEmail(activeUser);
 
   useEffect(() => {
     if (isOpen) {
@@ -146,13 +158,13 @@ export default function SheetSyncModal({
       if (!user) {
         await onSignIn();
       }
-      onClose();
-      // Connect to Google Sheets with token and tab names
+      // Connect to Google Sheets with token and tab names (only close on success)
       await onConnect(
         cleanId,
         selectedSheet.trim() || 'MASTER TRACKER',
         selectedWishlist.trim() || detectedWishlist || '📋  WISHLIST'
       );
+      onClose();
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to connect to Google Sheets. Check permissions.');
     } finally {
@@ -189,13 +201,15 @@ export default function SheetSyncModal({
               </p>
             </div>
           </div>
-          <button
-            id="close-sync-modal-btn"
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              id="close-sync-modal-btn"
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -332,60 +346,53 @@ export default function SheetSyncModal({
             </p>
           </div>
 
-          {/* Auth status notice */}
-          {!user ? (
-            <div className="p-4 rounded-lg bg-amber-950/40 border border-amber-800/60 space-y-3">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-amber-200">
-                    One-Time Google Sign-In Required
-                  </h4>
-                  <p className="text-xs text-amber-300/80 leading-relaxed">
-                    Sign in with Google once. Your session will stay authenticated across browser visits so your show updates sync directly to your personal Google Sheet.
-                  </p>
+          {/* User Profile & Google Account Status Card with Profile Picture */}
+          <a
+            id="sync-modal-profile-card"
+            href="https://myaccount.google.com/?pli=1"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-3.5 rounded-xl bg-gradient-to-r from-zinc-900 via-zinc-900 to-zinc-900/90 border border-zinc-800 flex items-center justify-between gap-3 shadow-md hover:border-zinc-700 transition-colors block"
+            title="Manage Google Account"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="relative shrink-0">
+                <img
+                  id="sync-modal-profile-img"
+                  src={profilePictureUrl}
+                  alt={profileDisplayName || 'Google Account Profile Picture'}
+                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover ring-2 ring-emerald-500/80 shadow-md"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    if (e.currentTarget.src !== GOOGLE_AVATAR_DATA_URI) {
+                      e.currentTarget.src = GOOGLE_AVATAR_DATA_URI;
+                    }
+                  }}
+                />
+                <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#181818]" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs sm:text-sm font-bold text-white truncate">
+                    {profileDisplayName}
+                  </span>
+                  <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-700/50 px-2 py-0.5 rounded-full font-semibold">
+                    Google Account
+                  </span>
                 </div>
+                <p className="text-xs text-zinc-400 truncate mt-0.5 font-mono">
+                  {profileEmail}
+                </p>
               </div>
-              <button
-                id="sync-modal-signin-btn"
-                type="button"
-                onClick={onSignIn}
-                className="w-full flex items-center justify-center gap-2 bg-white hover:bg-zinc-100 text-zinc-950 text-xs sm:text-sm font-bold py-2 px-4 rounded-md transition-all shadow-md cursor-pointer"
-              >
-                <svg className="w-4 h-4 shrink-0" viewBox="0 0 48 48">
-                  <path
-                    fill="#EA4335"
-                    d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-                  />
-                  <path
-                    fill="#4285F4"
-                    d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-                  />
-                </svg>
-                <span>Sign in with Google</span>
-              </button>
             </div>
-          ) : (
-            <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-900 border border-zinc-800 text-xs">
-              <div className="flex items-center gap-2">
+
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="flex items-center gap-1.5 text-emerald-400 text-xs font-semibold bg-emerald-950/60 border border-emerald-700/40 px-2.5 py-1.5 rounded-lg">
                 <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span className="text-zinc-300">Signed in as:</span>
-                <span className="font-semibold text-white truncate max-w-[200px]">{user.email}</span>
-              </div>
-              <span className="flex items-center gap-1 text-emerald-400 font-medium">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                Connected
+                <span className="hidden xs:inline">Connected</span>
               </span>
             </div>
-          )}
+          </a>
 
           {/* Current Connection Status */}
           {isConnected && (
@@ -547,9 +554,34 @@ export default function SheetSyncModal({
 
           {/* Error notice */}
           {errorMsg && (
-            <div className="p-3 rounded-lg bg-red-950/50 border border-red-800 text-xs text-red-300 flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-              <span>{errorMsg}</span>
+            <div className="space-y-2">
+              <div className="p-3 rounded-lg bg-red-950/50 border border-red-800 text-xs text-red-300 flex items-start gap-2 max-h-[300px] overflow-y-auto">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <span className="whitespace-pre-line text-left leading-relaxed">{errorMsg}</span>
+              </div>
+              {errorMsg.includes('403 Forbidden') && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setErrorMsg(null);
+                    setFetchingSheets(true);
+                    try {
+                      await onSignIn({ forceConsent: true });
+                      setErrorMsg(
+                        '✅ Re-authorization flow initiated! Please grant Sheets permissions on the Google popup and then click "Connect Google Sheet" again.'
+                      );
+                    } catch (e: any) {
+                      setErrorMsg(`Re-authorization failed: ${e.message || String(e)}`);
+                    } finally {
+                      setFetchingSheets(false);
+                    }
+                  }}
+                  className="w-full bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold py-2 px-3 rounded text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  Re-authorize with Full Google Sheets Permissions
+                </button>
+              )}
             </div>
           )}
 

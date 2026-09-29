@@ -11,11 +11,13 @@ import {
   setCachedAccessToken,
   saveUserSheetConfig,
   loadUserSheetConfig,
+  googleFetch as fetch,
 } from './firebase';
 import { ShowItem, WatchStatus, PRESET_PLATFORMS, AccessibilitySettings } from './types';
+import { DEFAULT_PROFILE_USER } from './utils/userProfile';
 import {
   fetchSpreadsheetDetails,
-  fetchSheetRows,
+  fetchMultipleSheetRows,
   updateSheetRow,
   appendSheetRow,
   deleteSheetRow,
@@ -30,6 +32,7 @@ import {
   normalizePriority,
   findMatchingWishlistSheet,
   findMatchingMasterSheet,
+  findMatchingShowcaseSheet,
   DEFAULT_WISHLIST_HEADERS,
   getSheetTabHeaders,
   extractSpreadsheetId,
@@ -53,7 +56,8 @@ import ShowcaseSection from './components/ShowcaseSection';
 import NetflixHoverPortal from './components/NetflixHoverPortal';
 import { checkAndTrigger24hNotifications, parseReleaseDateToTimestamp } from './services/notificationService';
 import { OfflineIndicator } from './components/OfflineIndicator';
-import { getCachedShows, setCachedShows, queueOfflineAction } from './services/offlineQueue';
+import { getAppDataCache, setAppDataCache, queueOfflineAction } from './services/offlineQueue';
+import { calculateShowProgress } from './utils/showMetrics';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 
 import {
@@ -75,12 +79,12 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => auth.currentUser || DEFAULT_PROFILE_USER);
   const [shows, setShows] = useState<ShowItem[]>(() => {
     try {
-      const cached = getCachedShows();
-      if (cached && cached.length > 0) {
-        return cached;
+      const cache = getAppDataCache();
+      if (cache?.shows && cache.shows.length > 0) {
+        return cache.shows;
       }
     } catch {}
     return [];
@@ -88,7 +92,7 @@ export default function App() {
 
   // Persist shows to local cache whenever they update
   useEffect(() => {
-    setCachedShows(shows);
+    setAppDataCache({ shows });
   }, [shows]);
 
   const showsRef = useRef<ShowItem[]>([]);
@@ -212,23 +216,30 @@ export default function App() {
   // Google Sheets state with localStorage persistence
   const [spreadsheetId, setSpreadsheetId] = useState<string>(() => {
     try {
-      return localStorage.getItem('bingebox_spreadsheet_id') || '';
+      return getAppDataCache()?.spreadsheetId || localStorage.getItem('bingebox_spreadsheet_id') || '';
     } catch {
       return '';
     }
   });
   const [sheetName, setSheetName] = useState<string>(() => {
     try {
-      return localStorage.getItem('bingebox_sheet_name') || 'MASTER TRACKER';
+      return getAppDataCache()?.sheetName || localStorage.getItem('bingebox_sheet_name') || 'MASTER TRACKER';
     } catch {
       return 'MASTER TRACKER';
     }
   });
   const [wishlistSheetName, setWishlistSheetName] = useState<string>(() => {
     try {
-      return localStorage.getItem('bingebox_wishlist_sheet_name') || '📋  WISHLIST';
+      return getAppDataCache()?.wishlistSheetName || localStorage.getItem('bingebox_wishlist_sheet_name') || '📋  WISHLIST';
     } catch {
       return '📋  WISHLIST';
+    }
+  });
+  const [showcaseSheetName, setShowcaseSheetName] = useState<string>(() => {
+    try {
+      return getAppDataCache()?.showcaseSheetName || localStorage.getItem('bingebox_showcase_sheet_name') || 'SHOWCASE';
+    } catch {
+      return 'SHOWCASE';
     }
   });
   const [availableTabs, setAvailableTabs] = useState<string[]>(() => {
@@ -255,6 +266,8 @@ export default function App() {
   });
   const [sheetHeaders, setSheetHeaders] = useState<string[]>(() => {
     try {
+      const cache = getAppDataCache();
+      if (cache?.headers && cache.headers.length > 0) return cache.headers;
       const v = localStorage.getItem('bingebox_sheet_headers');
       if (v) return JSON.parse(v);
     } catch {}
@@ -278,6 +291,8 @@ export default function App() {
   });
   const [customViewers, setCustomViewers] = useState<string[]>(() => {
     try {
+      const cache = getAppDataCache();
+      if (cache?.customViewers && cache.customViewers.length > 0) return cache.customViewers;
       const cached = localStorage.getItem('bingebox_custom_viewers');
       if (cached) return JSON.parse(cached);
     } catch {}
@@ -327,7 +342,7 @@ export default function App() {
     try {
       localStorage.setItem('bingebox_sync_frequency', String(freq));
     } catch {}
-    const activeUid = user?.uid || auth.currentUser?.uid;
+    const activeUid = auth.currentUser?.uid || (user && user.uid !== 'user_jtyodagreen' ? user.uid : undefined);
     if (activeUid) {
       saveUserSheetConfig(activeUid, { syncFrequency: freq }).catch(console.warn);
     }
@@ -360,10 +375,12 @@ export default function App() {
       'bingebox_spreadsheet_id',
       'bingebox_sheet_name',
       'bingebox_wishlist_sheet_name',
+      'bingebox_showcase_sheet_name',
       'bingebox_available_sheet_tabs',
       'bingebox_sheet_tab_id',
       'bingebox_sheet_title',
       'bingebox_sheet_headers',
+      'bingebox_app_data_cache',
       'showflix_cached_shows',
       'showflix_offline_queue',
       'bingebox_auto_sync',
@@ -416,29 +433,58 @@ export default function App() {
       const currentSheetId = spreadsheetId || localStorage.getItem('bingebox_spreadsheet_id');
       const currentSheetName = sheetName || localStorage.getItem('bingebox_sheet_name') || 'MASTER TRACKER';
       const currentWishlistName = wishlistSheetName || localStorage.getItem('bingebox_wishlist_sheet_name') || 'Wishlist';
+      const currentShowcaseName = showcaseSheetName || localStorage.getItem('bingebox_showcase_sheet_name') || 'SHOWCASE';
       if (!currentSheetId) return;
 
-      const token = await getAccessToken();
+      let token = await getAccessToken();
+      if (!token && auth.currentUser) {
+        token = await getAccessToken(true);
+      }
       if (!token) return;
 
       if (!isSilent) setIsSyncing(true);
       try {
-        const masterParsed = await fetchSheetRows(currentSheetId, currentSheetName, token, false);
-        let combinedShows: ShowItem[] = masterParsed.shows || [];
+        const tabConfigs = [
+          { name: currentSheetName, isWishlist: false },
+          { name: currentWishlistName, isWishlist: true },
+          { name: currentShowcaseName, isWishlist: false }
+        ];
+        
+        const results = await fetchMultipleSheetRows(currentSheetId, tabConfigs, token);
+        const masterParsed = results[currentSheetName] || { shows: [], headers: [], headerRowIndex: 0 };
+        const wishlistParsed = results[currentWishlistName] || { shows: [], headers: [], headerRowIndex: 0 };
+        const showcaseParsed = results[currentShowcaseName] || { shows: [], headers: [], headerRowIndex: 0 };
+        
+        let combinedShows: ShowItem[] = [
+          ...(masterParsed.shows || []), 
+          ...(wishlistParsed.shows || []),
+          ...(showcaseParsed.shows || [])
+        ];
 
-        // Check if wishlist sheet exists & fetch
-        try {
-          const wishlistParsed = await fetchSheetRows(currentSheetId, currentWishlistName, token, true);
-          if (wishlistParsed.shows && wishlistParsed.shows.length > 0) {
-            combinedShows = [...combinedShows, ...wishlistParsed.shows];
+        // Deduplicate by ID
+        const uniqueShows = Array.from(new Map(combinedShows.map(s => [s.id, s])).values());
+
+        if (uniqueShows.length > 0) {
+          setShows(uniqueShows);
+          if (masterParsed.headers && masterParsed.headers.length > 0) {
+            setSheetHeaders(masterParsed.headers);
           }
-        } catch {
-          // Wishlist tab may not exist yet or empty
-        }
 
-        setShows(combinedShows);
-        if (masterParsed.headers && masterParsed.headers.length > 0) {
-          setSheetHeaders(masterParsed.headers);
+          // Cache all metadata for instant load next time
+          setAppDataCache({
+            shows: uniqueShows,
+            headers: masterParsed.headers,
+            spreadsheetId: currentSheetId,
+            sheetName: currentSheetName,
+            wishlistSheetName: currentWishlistName,
+            showcaseSheetName: currentShowcaseName,
+            customViewers: uniqueShows.length > 0 ? customViewers : undefined
+          });
+        } else if (!isSilent) {
+          // Explicit user-initiated sync
+          setShows([]);
+        } else {
+          console.log('[Background Auto-Sync] Sync completed, preserving existing loaded show library.');
         }
         
         // Try to sync custom viewers list if a lists tab exists
@@ -476,7 +522,7 @@ export default function App() {
         if (!isSilent) setIsSyncing(false);
       }
     },
-    [spreadsheetId, sheetName, wishlistSheetName, availableTabs]
+    [spreadsheetId, sheetName, wishlistSheetName, showcaseSheetName, availableTabs]
   );
 
   // Handle Firebase sign-in redirect results on load
@@ -495,11 +541,12 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = initAuth(
       async (currentUser, token) => {
-        setUser(currentUser);
+        setUser(currentUser || DEFAULT_PROFILE_USER);
 
-        let activeSheetId = spreadsheetId || localStorage.getItem('bingebox_spreadsheet_id') || '';
-        let activeSheetName = sheetName || localStorage.getItem('bingebox_sheet_name') || 'MASTER TRACKER';
-        let activeWishlistName = wishlistSheetName || localStorage.getItem('bingebox_wishlist_sheet_name') || 'Wishlist';
+        let activeSheetId = localStorage.getItem('bingebox_spreadsheet_id') || '';
+        let activeSheetName = localStorage.getItem('bingebox_sheet_name') || 'MASTER TRACKER';
+        let activeWishlistName = localStorage.getItem('bingebox_wishlist_sheet_name') || '📋  WISHLIST';
+        let activeShowcaseName = localStorage.getItem('bingebox_showcase_sheet_name') || 'SHOWCASE';
 
         // Check Firestore cloud settings for the authenticated user so their connected sheet is permanent
         if (currentUser?.uid) {
@@ -520,6 +567,11 @@ export default function App() {
                 setWishlistSheetName(cloudConfig.wishlistSheetName);
                 localStorage.setItem('bingebox_wishlist_sheet_name', cloudConfig.wishlistSheetName);
               }
+              if (cloudConfig.showcaseSheetName) {
+                activeShowcaseName = cloudConfig.showcaseSheetName;
+                setShowcaseSheetName(cloudConfig.showcaseSheetName);
+                localStorage.setItem('bingebox_showcase_sheet_name', cloudConfig.showcaseSheetName);
+              }
               if (cloudConfig.sheetTitle) {
                 setSheetTitle(cloudConfig.sheetTitle);
                 localStorage.setItem('bingebox_sheet_title', cloudConfig.sheetTitle);
@@ -536,101 +588,24 @@ export default function App() {
                 setSyncFrequency(cloudConfig.syncFrequency);
                 localStorage.setItem('bingebox_sync_frequency', String(cloudConfig.syncFrequency));
               }
-            } else if (activeSheetId) {
-              // Save existing local config to Firestore so it is synced across devices
-              saveUserSheetConfig(currentUser.uid, {
-                spreadsheetId: activeSheetId,
-                sheetName: activeSheetName,
-                wishlistSheetName: activeWishlistName,
-                sheetTitle: sheetTitle || '',
-                sheetTabId: sheetTabId,
-                autoSyncEnabled: autoSyncEnabled,
-                syncFrequency: syncFrequency,
-              }).catch(console.warn);
             }
           } catch (e) {
             console.warn('Error loading cloud sheet configuration:', e);
           }
         }
 
-        // Automatically fetch latest shows from the saved Google Sheet
+        // Automatically fetch latest shows from the saved Google Sheet (Background Refresh)
         if (activeSheetId && token) {
-          try {
-            // First check spreadsheet details to verify and detect exact sheet tabs
-            try {
-              const meta = await fetchSpreadsheetDetails(activeSheetId, token);
-              if (meta?.sheetNames && meta.sheetNames.length > 0) {
-                setAvailableTabs(meta.sheetNames);
-                try {
-                  localStorage.setItem('bingebox_available_sheet_tabs', JSON.stringify(meta.sheetNames));
-                } catch {}
-
-                // Try fetching custom viewers list from "lists" tab
-                const listsTab = meta.sheetNames.find((t) => t.toLowerCase().includes('lists'));
-                if (listsTab) {
-                  try {
-                    const viewers = await fetchCustomViewers(activeSheetId, listsTab, token);
-                    if (viewers && viewers.length > 0) {
-                      setCustomViewers(viewers);
-                      localStorage.setItem('bingebox_custom_viewers', JSON.stringify(viewers));
-                    }
-                  } catch (listsErr) {
-                    console.warn('Initial lists custom viewers fetch notice:', listsErr);
-                  }
-                }
-
-                const detectedWishlist = findMatchingWishlistSheet(meta.sheetNames);
-                if (detectedWishlist && detectedWishlist !== activeWishlistName) {
-                  console.log(`Auto-detected existing wishlist tab: "${detectedWishlist}" (was "${activeWishlistName}")`);
-                  activeWishlistName = detectedWishlist;
-                  setWishlistSheetName(detectedWishlist);
-                  localStorage.setItem('bingebox_wishlist_sheet_name', detectedWishlist);
-                  if (currentUser?.uid) {
-                    saveUserSheetConfig(currentUser.uid, { wishlistSheetName: detectedWishlist }).catch(console.warn);
-                  }
-                }
-
-                const detectedMaster = findMatchingMasterSheet(meta.sheetNames);
-                if (detectedMaster && !meta.sheetNames.includes(activeSheetName)) {
-                  activeSheetName = detectedMaster;
-                  setSheetName(detectedMaster);
-                  localStorage.setItem('bingebox_sheet_name', detectedMaster);
-                }
-              }
-            } catch (metaErr) {
-              console.warn('Initial metadata check notice:', metaErr);
-            }
-
-            const masterParsed = await fetchSheetRows(activeSheetId, activeSheetName, token, false);
-            let combined = masterParsed.shows || [];
-            try {
-              const wishlistParsed = await fetchSheetRows(activeSheetId, activeWishlistName, token, true);
-              if (wishlistParsed.shows && wishlistParsed.shows.length > 0) {
-                combined = [...combined, ...wishlistParsed.shows];
-              }
-            } catch (wErr) {
-              console.warn('Wishlist initial fetch notice:', wErr);
-            }
-
-            if (combined.length > 0) {
-              setShows(combined);
-              if (masterParsed.headers.length > 0) {
-                setSheetHeaders(masterParsed.headers);
-              }
-              const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-              setLastSyncedAt(nowStr);
-            }
-          } catch (e) {
-            console.warn('Initial sheet auto-sync on auth:', e);
-          }
+          console.log('[Background Refresh] Auth ready, revalidating sheet data...');
+          fetchLatestFromSheet(true);
         }
       },
       () => {
-        clearAllUserData();
+        setUser(DEFAULT_PROFILE_USER);
       }
     );
     return () => unsubscribe();
-  }, []);
+  }, [fetchLatestFromSheet]);
 
   // Background Auto-Sync: Poll at configured frequency when tab is active and online
   useEffect(() => {
@@ -645,6 +620,19 @@ export default function App() {
 
     return () => clearInterval(intervalId);
   }, [autoSyncEnabled, spreadsheetId, syncFrequency, isOnline, fetchLatestFromSheet]);
+
+  // Listen for Google Sheets 403 API permission errors
+  useEffect(() => {
+    const handleGoogleSheets403 = () => {
+      toast.error('⚠️ Google Sheets permission error (403). Please reconnect Google Sheets in Settings.');
+      setShowSyncModal(true);
+    };
+
+    window.addEventListener('google-sheets-403', handleGoogleSheets403);
+    return () => {
+      window.removeEventListener('google-sheets-403', handleGoogleSheets403);
+    };
+  }, []);
 
   // Tab Focus & Visibility Change Auto-Sync: Refresh whenever user switches back to this tab
   useEffect(() => {
@@ -689,6 +677,7 @@ export default function App() {
       console.warn('Logout error:', err);
     }
     clearAllUserData();
+    setUser(DEFAULT_PROFILE_USER);
     showToast('Signed out');
   };
 
@@ -702,6 +691,7 @@ export default function App() {
 
     // Immediately set spreadsheet ID and sync state so UI responds without delay
     setSpreadsheetId(cleanId);
+    setIsSyncing(true);
     try {
       localStorage.setItem('bingebox_spreadsheet_id', cleanId);
     } catch {}
@@ -711,142 +701,140 @@ export default function App() {
       const authRes = await handleSignIn();
       token = authRes?.accessToken || null;
       if (!token) {
+        setIsSyncing(false);
         showToast('⚠️ Google sign-in is required to link your Google Sheet');
         return;
       }
     }
 
-    setIsSyncing(true);
     try {
-      // 1. Fetch metadata fast
-      const meta = await fetchSpreadsheetDetails(cleanId, token);
-      setAvailableTabs(meta.sheetNames);
-      setSheetTitle(meta.title);
-      try {
-        localStorage.setItem('bingebox_available_sheet_tabs', JSON.stringify(meta.sheetNames));
-        localStorage.setItem('bingebox_sheet_title', meta.title);
-      } catch {}
-      
-      // Try to find matching sheet name for Master Tracker
-      let chosenSheet = (targetSheetName || '').trim();
-      const detectedMaster = findMatchingMasterSheet(meta.sheetNames);
-      if (chosenSheet) {
-        const found = meta.sheetNames.find(
-          (s) => s.trim().toLowerCase() === chosenSheet.toLowerCase()
-        );
-        if (found) {
-          chosenSheet = found;
-        } else if (detectedMaster) {
-          chosenSheet = detectedMaster;
-        }
-      } else if (detectedMaster) {
-        chosenSheet = detectedMaster;
-      } else {
-        chosenSheet = meta.sheetNames[0] || 'Sheet1';
-      }
+      // 1. Fetch metadata and rows in parallel
+      // We guess common tab names for the ultra-fast first fetch
+      const guessedTabs = [
+        { name: targetSheetName || 'MASTER TRACKER', isWishlist: false },
+        { name: targetWishlistSheet || 'Wishlist', isWishlist: true },
+        { name: 'SHOWCASE', isWishlist: false }
+      ];
 
-      // Check Wishlist sheet tab name (accurately detecting "📋  WISHLIST" or variations)
-      let chosenWishlist = (targetWishlistSheet || '').trim();
-      const detectedWishlist = findMatchingWishlistSheet(meta.sheetNames);
-      if (detectedWishlist) {
-        chosenWishlist = detectedWishlist;
-      } else if (chosenWishlist) {
-        const foundWishlist = meta.sheetNames.find(
-          (s) => s.trim().toLowerCase() === chosenWishlist.toLowerCase()
-        );
-        if (foundWishlist) {
-          chosenWishlist = foundWishlist;
-        }
-      } else {
-        chosenWishlist = '📋  WISHLIST';
-      }
-
-      const hasWishlistTab =
-        meta.sheetNames.includes(chosenWishlist) ||
-        meta.sheetNames.some((s) => s.trim().toLowerCase() === chosenWishlist.toLowerCase()) ||
-        Boolean(detectedWishlist);
-
-      const listsTab = meta.sheetNames.find((t) => t.toLowerCase().includes('lists'));
-
-      // 2. Fetch Master Rows, Wishlist Rows, and Custom Viewers in parallel for instant speed
-      const [masterResult, wishlistResult, customViewersResult] = await Promise.allSettled([
-        fetchSheetRows(cleanId, chosenSheet, token, false),
-        hasWishlistTab
-          ? fetchSheetRows(cleanId, chosenWishlist, token, true)
-          : Promise.resolve({ shows: [], headers: [], headerRowIndex: 0 }),
-        listsTab
-          ? fetchCustomViewers(cleanId, listsTab, token)
-          : Promise.resolve([]),
+      const [metaResult, quickSheetResults] = await Promise.allSettled([
+        fetchSpreadsheetDetails(cleanId, token),
+        fetchMultipleSheetRows(cleanId, guessedTabs, token),
       ]);
 
-      const masterParsed =
-        masterResult.status === 'fulfilled'
-          ? masterResult.value
-          : { shows: [], headers: [], headerRowIndex: 0 };
-
-      const wishlistParsed =
-        wishlistResult.status === 'fulfilled'
-          ? wishlistResult.value
-          : { shows: [], headers: [], headerRowIndex: 0 };
-
-      if (customViewersResult.status === 'fulfilled' && customViewersResult.value.length > 0) {
-        setCustomViewers(customViewersResult.value);
-        try {
-          localStorage.setItem('bingebox_custom_viewers', JSON.stringify(customViewersResult.value));
-        } catch {}
+      const meta = metaResult.status === 'fulfilled' ? metaResult.value : null;
+      const quickResults = quickSheetResults.status === 'fulfilled' ? quickSheetResults.value : {};
+      
+      let viewerList: string[] = [];
+      if (meta) {
+        const listsTabName = meta.sheetNames.find((t) => t.toLowerCase().includes('lists'));
+        if (listsTabName) {
+          viewerList = await fetchCustomViewers(cleanId, listsTabName, token);
+        }
       }
 
-      let combinedShows: ShowItem[] = [...(masterParsed.shows || []), ...(wishlistParsed.shows || [])];
+      if (meta) {
+        setAvailableTabs(meta.sheetNames);
+        setSheetTitle(meta.title);
+        localStorage.setItem('bingebox_available_sheet_tabs', JSON.stringify(meta.sheetNames));
+        localStorage.setItem('bingebox_sheet_title', meta.title);
+      }
 
-      // Find matching numeric sheet tab ID for batchUpdate operations (e.g. delete row)
-      const matchedSheetObj = meta.sheets.find(
+      // If metadata is back, we can refine our tab names
+      let chosenSheet = (targetSheetName || '').trim();
+      let chosenWishlist = (targetWishlistSheet || '').trim();
+      let chosenShowcase = 'SHOWCASE';
+
+      if (meta) {
+        const detectedMaster = findMatchingMasterSheet(meta.sheetNames);
+        chosenSheet = detectedMaster || meta.sheetNames[0] || 'Sheet1';
+        
+        const detectedWishlist = findMatchingWishlistSheet(meta.sheetNames);
+        chosenWishlist = detectedWishlist || '📋  WISHLIST';
+
+        const detectedShowcase = findMatchingShowcaseSheet(meta.sheetNames);
+        chosenShowcase = detectedShowcase || 'SHOWCASE';
+      }
+
+      // Use quick results if they match our refined names, otherwise fetch again (rare fallback)
+      let masterParsed = quickResults[chosenSheet] || { shows: [], headers: [], headerRowIndex: 0 };
+      let wishlistParsed = quickResults[chosenWishlist] || { shows: [], headers: [], headerRowIndex: 0 };
+      let showcaseParsed = quickResults[chosenShowcase] || { shows: [], headers: [], headerRowIndex: 0 };
+
+      // If we missed any due to bad guessing, fetch them specifically
+      if (meta && (!quickResults[chosenSheet] || !quickResults[chosenWishlist])) {
+        console.log('[Connection Optimization] Guessed tabs missed, fetching refined tabs...');
+        const refinedTabs = [];
+        if (!quickResults[chosenSheet]) refinedTabs.push({ name: chosenSheet, isWishlist: false });
+        if (!quickResults[chosenWishlist]) refinedTabs.push({ name: chosenWishlist, isWishlist: true });
+        
+        const refinedResults = await fetchMultipleSheetRows(cleanId, refinedTabs, token);
+        if (refinedResults[chosenSheet]) masterParsed = refinedResults[chosenSheet];
+        if (refinedResults[chosenWishlist]) wishlistParsed = refinedResults[chosenWishlist];
+      }
+
+      if (viewerList.length > 0) {
+        setCustomViewers(viewerList);
+        localStorage.setItem('bingebox_custom_viewers', JSON.stringify(viewerList));
+      }
+
+      let combinedShows: ShowItem[] = [
+        ...(masterParsed.shows || []), 
+        ...(wishlistParsed.shows || []),
+        ...(showcaseParsed.shows || [])
+      ];
+      // Deduplicate
+      const finalShows = Array.from(new Map(combinedShows.map(s => [s.id, s])).values());
+
+      const matchedSheetObj = meta?.sheets.find(
         (s) => s.title.trim().toLowerCase() === chosenSheet.trim().toLowerCase()
       );
 
       setSheetName(chosenSheet);
       setWishlistSheetName(chosenWishlist);
+      setShowcaseSheetName(chosenShowcase);
       setSheetTabId(matchedSheetObj?.id);
       if (masterParsed.headers.length > 0) {
         setSheetHeaders(masterParsed.headers);
       }
 
-      // Update shows immediately
-      setShows(combinedShows);
+      setShows(finalShows);
 
-      // Persist configuration in localStorage
-      try {
-        localStorage.setItem('bingebox_spreadsheet_id', cleanId);
-        localStorage.setItem('bingebox_sheet_name', chosenSheet);
-        localStorage.setItem('bingebox_wishlist_sheet_name', chosenWishlist);
-        localStorage.setItem('bingebox_sheet_title', meta.title);
-        if (matchedSheetObj?.id !== undefined) {
-          localStorage.setItem('bingebox_sheet_tab_id', String(matchedSheetObj.id));
-        }
-        if (masterParsed.headers.length > 0) {
-          localStorage.setItem('bingebox_sheet_headers', JSON.stringify(masterParsed.headers));
-        }
-      } catch (e) {
-        console.warn('Could not save to localStorage:', e);
-      }
+      // Persist configuration & app data cache for instant initial render
+      setAppDataCache({
+        shows: finalShows,
+        headers: masterParsed.headers,
+        spreadsheetId: cleanId,
+        sheetName: chosenSheet,
+        wishlistSheetName: chosenWishlist,
+        showcaseSheetName: chosenShowcase,
+        customViewers: viewerList.length > 0 ? viewerList : undefined,
+      });
 
-      // Save permanently to Firestore cloud database
-      const activeUid = user?.uid || auth.currentUser?.uid;
+      localStorage.setItem('bingebox_spreadsheet_id', cleanId);
+      localStorage.setItem('bingebox_sheet_name', chosenSheet);
+      localStorage.setItem('bingebox_wishlist_sheet_name', chosenWishlist);
+      localStorage.setItem('bingebox_showcase_sheet_name', chosenShowcase);
+      if (meta) localStorage.setItem('bingebox_sheet_title', meta.title);
+      if (matchedSheetObj?.id !== undefined) localStorage.setItem('bingebox_sheet_tab_id', String(matchedSheetObj.id));
+
+      const activeUid = auth.currentUser?.uid || (user && user.uid !== 'user_jtyodagreen' ? user.uid : undefined);
       if (activeUid) {
         saveUserSheetConfig(activeUid, {
           spreadsheetId: cleanId,
           sheetName: chosenSheet,
           wishlistSheetName: chosenWishlist,
-          sheetTitle: meta.title,
+          sheetTitle: meta?.title || '',
           sheetTabId: matchedSheetObj?.id,
           autoSyncEnabled: autoSyncEnabled,
           syncFrequency: syncFrequency,
-        }).catch((e) => console.warn('Could not persist to Firestore:', e));
+          // Add custom field to Firestore for showcase
+          ...({ showcaseSheetName: chosenShowcase })
+        } as any).catch(console.warn);
       }
 
       const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       setLastSyncedAt(nowStr);
-      const wCount = combinedShows.filter((s) => s.isWishlist).length;
-      showToast(`Successfully connected "${meta.title}" (${chosenSheet}) - ${combinedShows.length} shows loaded (${combinedShows.length - wCount} Master, ${wCount} Wishlist)`);
+      showToast(`✨ Instant Sync: ${finalShows.length} titles connected!`);
     } catch (err: any) {
       console.error('Sheets sync error:', err);
       const msg = err?.message || String(err);
@@ -861,7 +849,7 @@ export default function App() {
   };
 
   const handleDisconnectSheets = () => {
-    const activeUid = user?.uid || auth.currentUser?.uid;
+    const activeUid = auth.currentUser?.uid || (user && user.uid !== 'user_jtyodagreen' ? user.uid : undefined);
     if (activeUid) {
       saveUserSheetConfig(activeUid, {
         spreadsheetId: '',
@@ -1149,7 +1137,7 @@ export default function App() {
   }, [shows, checkAndTrigger24hNotifications, checkAndResetExpiredReleases]);
 
   // Quick increment episode with season advancement & auto-click Google Sheets sync
-  const handleIncrementEpisode = async (show: ShowItem) => {
+  const handleIncrementEpisode = useCallback(async (show: ShowItem) => {
     const currentEpNum = parseInt(show.episodes.replace(/[^0-9]/g, '')) || 1;
     const maxEpNum = parseInt(show.maxEp.replace(/[^0-9]/g, '')) || 8;
     const currentSsnNum = parseInt(show.seasons.replace(/[^0-9]/g, '')) || 1;
@@ -1182,9 +1170,7 @@ export default function App() {
 
     // Immediate optimistic local update
     setShows((prev) => prev.map((s) => (s.id === show.id ? updatedShow : s)));
-    if (selectedShow?.id === show.id) {
-      setSelectedShow(updatedShow);
-    }
+    setSelectedShow((prev) => (prev?.id === show.id ? updatedShow : prev));
 
     showToast(`Advanced "${show.title}" to ${nextSsnStr} ${nextEpStr}`);
 
@@ -1195,10 +1181,10 @@ export default function App() {
       setShowSyncModal(true);
       showToast('⚠️ Connect your Google Sheet to auto-sync episode progress!');
     }
-  };
+  }, [spreadsheetId, syncShowToSheet, showToast]);
 
   // Quick increment season
-  const handleIncrementSeason = async (show: ShowItem) => {
+  const handleIncrementSeason = useCallback(async (show: ShowItem) => {
     const currentSsnNum = parseInt(show.seasons.replace(/[^0-9]/g, '')) || 1;
     const nextSsnNum = currentSsnNum + 1;
     const nextSsnStr = `S${nextSsnNum}`;
@@ -1213,9 +1199,7 @@ export default function App() {
     };
 
     setShows((prev) => prev.map((s) => (s.id === show.id ? updatedShow : s)));
-    if (selectedShow?.id === show.id) {
-      setSelectedShow(updatedShow);
-    }
+    setSelectedShow((prev) => (prev?.id === show.id ? updatedShow : prev));
 
     showToast(`Advanced "${show.title}" to ${nextSsnStr} ${nextEpStr}`);
 
@@ -1225,17 +1209,15 @@ export default function App() {
       setShowSyncModal(true);
       showToast('⚠️ Connect your Google Sheet to auto-sync season progress!');
     }
-  };
+  }, [spreadsheetId, syncShowToSheet, showToast]);
 
   // Toggle watch status with auto-sync
-  const handleToggleStatus = async (show: ShowItem) => {
+  const handleToggleStatus = useCallback(async (show: ShowItem) => {
     const nextStatus: WatchStatus = show.status === '✅ Watched' ? '⏳ Watching' : '✅ Watched';
     const updatedShow: ShowItem = { ...show, status: nextStatus };
 
     setShows((prev) => prev.map((s) => (s.id === show.id ? updatedShow : s)));
-    if (selectedShow?.id === show.id) {
-      setSelectedShow(updatedShow);
-    }
+    setSelectedShow((prev) => (prev?.id === show.id ? updatedShow : prev));
 
     showToast(`Set "${show.title}" to ${nextStatus}`);
 
@@ -1245,7 +1227,7 @@ export default function App() {
       setShowSyncModal(true);
       showToast('⚠️ Connect your Google Sheet to auto-sync status!');
     }
-  };
+  }, [spreadsheetId, syncShowToSheet, showToast]);
 
   // Quick update rating with auto-sync
   const handleUpdateRating = async (show: ShowItem, ratingNum: number) => {
@@ -1705,6 +1687,12 @@ export default function App() {
       if (sortOrder === 'rating') {
         return (b.ratingNum || 0) - (a.ratingNum || 0);
       }
+      if (sortOrder === 'progress' || sortOrder === 'progress-desc') {
+        return calculateShowProgress(b) - calculateShowProgress(a);
+      }
+      if (sortOrder === 'progress-asc') {
+        return calculateShowProgress(a) - calculateShowProgress(b);
+      }
       return 0;
     });
   }, [baseFilteredList, selectedPlatform, sortOrder]);
@@ -1804,15 +1792,7 @@ export default function App() {
   const continueWatching = useMemo(
     () => shows
       .filter((s) => s.status === '⏳ Watching')
-      .sort((a, b) => {
-        const curA = parseInt(String(a.episodes).replace(/[^0-9]/g, '')) || 1;
-        const maxA = parseInt(String(a.maxEp).replace(/[^0-9]/g, '')) || 8;
-        const progressA = (curA / maxA);
-        const curB = parseInt(String(b.episodes).replace(/[^0-9]/g, '')) || 1;
-        const maxB = parseInt(String(b.maxEp).replace(/[^0-9]/g, '')) || 8;
-        const progressB = (curB / maxB);
-        return progressB - progressA;
-      }),
+      .sort((a, b) => calculateShowProgress(b) - calculateShowProgress(a)),
     [shows]
   );
   const topRated = useMemo(
@@ -1861,10 +1841,22 @@ export default function App() {
     () => shows.filter((s) => s.isWishlist),
     [shows]
   );
-  const comingSoonShows = useMemo(
-    () => shows.filter((s) => Boolean(s.releaseDate || s.releaseNote)),
-    [shows]
-  );
+  const comingSoonShows = useMemo(() => {
+    const list = shows.filter((s) => Boolean(s.releaseDate || s.releaseNote));
+    return [...list].sort((a, b) => {
+      const tsA = a.releaseDate ? parseReleaseDateToTimestamp(a.releaseDate) : null;
+      const tsB = b.releaseDate ? parseReleaseDateToTimestamp(b.releaseDate) : null;
+
+      // Earliest / closest upcoming premiere dates first, later future dates last
+      if (tsA !== null && tsB !== null) {
+        return tsA - tsB;
+      }
+      if (tsA !== null) return -1;
+      if (tsB !== null) return 1;
+
+      return (a.releaseNote || a.title).localeCompare(b.releaseNote || b.title);
+    });
+  }, [shows]);
 
   const renderMasterTrackerOverviewBar = (position: 'top' | 'bottom' = 'top') => (
     <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${position === 'top' ? 'pt-2 sm:pt-3 pb-2' : 'pt-6 pb-4'}`}>
@@ -2221,7 +2213,8 @@ export default function App() {
     }
 
     // State B: Google Sheet has been added, but they need to authenticate & sync
-    if (!user || !sheetTitle) {
+    // ENHANCEMENT: If we have cached shows, or if currently syncing, we skip this screen to provide an "instant" experience.
+    if (!isSyncing && (!user || !sheetTitle) && shows.length === 0) {
       return (
         <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-6 animate-fadeIn">
           <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center mx-auto text-amber-500 shadow-xl shadow-amber-950/20 animate-pulse">
@@ -2259,6 +2252,7 @@ export default function App() {
                     localStorage.removeItem('bingebox_spreadsheet_id');
                     localStorage.removeItem('bingebox_sheet_title');
                     localStorage.removeItem('bingebox_available_sheet_tabs');
+                    localStorage.removeItem('bingebox_app_data_cache');
                   } catch {}
                 }}
                 className="text-red-400 hover:text-red-300 text-[11px] font-bold underline shrink-0 cursor-pointer"
@@ -2306,25 +2300,42 @@ export default function App() {
     return (
       <div className="w-full">
         {shows.length === 0 ? (
-          <div className="max-w-md mx-auto px-4 py-20 text-center space-y-6">
-            <div className="w-16 h-16 bg-[#E50914]/10 border border-[#E50914]/30 rounded-full flex items-center justify-center mx-auto text-[#E50914] shadow-xl animate-pulse">
-              <Plus className="w-8 h-8" />
+          isSyncing ? (
+            <div className="max-w-md mx-auto px-4 py-32 text-center space-y-6">
+              <div className="relative">
+                <div className="w-16 h-16 border-4 border-red-600/10 border-t-red-600 rounded-full animate-spin mx-auto"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Tv className="w-6 h-6 text-red-600 animate-pulse" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-bold text-white">Syncing your library...</h3>
+                <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                  Fetching your movie and series collection from Google Sheets.
+                </p>
+              </div>
             </div>
-            <div className="space-y-2">
-              <h3 className="text-xl font-bold text-white">Your Show Tracker is Empty</h3>
-              <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
-                You have successfully connected your Google Sheet! Now you can start adding movies and series to your personal list.
-              </p>
+          ) : (
+            <div className="max-w-md mx-auto px-4 py-20 text-center space-y-6">
+              <div className="w-16 h-16 bg-[#E50914]/10 border border-[#E50914]/30 rounded-full flex items-center justify-center mx-auto text-[#E50914] shadow-xl animate-pulse">
+                <Plus className="w-8 h-8" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-white">Your Show Tracker is Empty</h3>
+                <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                  You have successfully connected your Google Sheet! Now you can start adding movies and series to your personal list.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(true)}
+                className="inline-flex items-center gap-2 bg-[#E50914] hover:bg-[#B80710] text-white text-xs font-bold px-5 py-3 rounded-md shadow-lg shadow-red-900/30 transition-all uppercase tracking-wider cursor-pointer hover:scale-105"
+              >
+                <Plus className="w-4 h-4" />
+                Add Your First Show
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center gap-2 bg-[#E50914] hover:bg-[#B80710] text-white text-xs font-bold px-5 py-3 rounded-md shadow-lg shadow-red-900/30 transition-all uppercase tracking-wider cursor-pointer hover:scale-105"
-            >
-              <Plus className="w-4 h-4" />
-              Add Your First Show
-            </button>
-          </div>
+          )
         ) : (
           <>
             {/* If user is not searching or filtering, show Netflix Hero Billboard */}
@@ -2484,6 +2495,8 @@ export default function App() {
                         <option value="year-newest">Year (Newest)</option>
                         <option value="year-oldest">Year (Oldest)</option>
                         <option value="rating">Top Rated</option>
+                        <option value="progress-desc">Progress % (High to Low)</option>
+                        <option value="progress-asc">Progress % (Low to High)</option>
                       </select>
                       <div className="absolute inset-y-0 right-2.5 flex items-center pointer-events-none text-zinc-500">
                         <svg className="w-2.5 h-2.5 fill-current" viewBox="0 0 20 20">
@@ -2972,6 +2985,7 @@ export default function App() {
           sheetGenres={availableGenres}
           masterSheetName={sheetName}
           wishlistSheetName={wishlistSheetName}
+          shows={shows}
         />
       )}
 

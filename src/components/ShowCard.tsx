@@ -3,6 +3,7 @@ import { Bell, BellRing } from 'lucide-react';
 import { ShowItem } from '../types';
 import { getOptimizedPoster } from '../utils/imageOptimizer';
 import { formatToDDMMYYYY } from '../utils/dateUtils';
+import { calculateShowProgress } from '../utils/showMetrics';
 import { isNotificationEnabled, toggleShowNotification, isShowOutNow, isFutureRelease } from '../services/notificationService';
 
 interface ShowCardProps {
@@ -154,7 +155,7 @@ export default function ShowCard({
   const currentEpNum = parseInt(show.episodes.replace(/[^0-9]/g, '')) || 1;
   const maxEpNum = parseInt(show.maxEp.replace(/[^0-9]/g, '')) || 8;
   const currentSsnNum = parseInt(show.seasons.replace(/[^0-9]/g, '')) || 1;
-  const progress = Math.min(100, Math.round((currentEpNum / maxEpNum) * 100));
+  const progress = calculateShowProgress(show);
 
   const isWatched = show.status === '✅ Watched';
   const isWatching = show.status === '⏳ Watching';
@@ -222,8 +223,8 @@ export default function ShowCard({
           </span>
         </div>
 
-        {/* Bottom Progress Bar (Series only) */}
-        {!isMovie && isWatching && (
+        {/* Bottom Progress Bar */}
+        {isWatching && (
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-zinc-800">
             <div
               className="h-full bg-[#E50914] transition-all"

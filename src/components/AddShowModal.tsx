@@ -21,6 +21,7 @@ interface AddShowModalProps {
   initialIsWishlist?: boolean;
   masterSheetName?: string;
   wishlistSheetName?: string;
+  shows?: ShowItem[];
 }
 
 const DEFAULT_PLATFORMS = PRESET_PLATFORMS;
@@ -82,8 +83,8 @@ const TvMazeEpisodeCountdown = ({ airstamp }: { airstamp: string }) => {
   }
 
   return (
-    <div className="flex items-center gap-1 font-mono text-[11px] bg-zinc-950/70 py-0.5 px-2 rounded-md border border-zinc-800">
-      <span className="text-zinc-500 font-sans text-[10px] uppercase font-bold tracking-wider mr-1">Starts In:</span>
+    <div className="flex items-center gap-1.5 font-mono text-xs bg-zinc-950/70 py-1 px-3 rounded-md border border-zinc-800">
+      <span className="text-zinc-500 font-sans text-xs uppercase font-bold tracking-wider mr-1">Starts In:</span>
       <span className="text-amber-400 font-bold">{timeLeft.d}d</span>
       <span className="text-zinc-600">:</span>
       <span className="text-amber-400 font-bold">{timeLeft.h}h</span>
@@ -107,11 +108,26 @@ export default function AddShowModal({
   initialIsWishlist = false,
   masterSheetName = 'MASTER TRACKER',
   wishlistSheetName = 'Wishlist',
+  shows = [],
 }: AddShowModalProps) {
   const [destination, setDestination] = useState<'master' | 'wishlist'>(
     initialIsWishlist ? 'wishlist' : 'master'
   );
   const [title, setTitle] = useState('');
+
+  // Dynamic Library Counter & Live Matches Calculation
+  const totalLibraryShows = shows.length;
+  const matchingLibraryShows = useMemo(() => {
+    if (!shows || !title.trim()) return [];
+    const query = title.trim().toLowerCase();
+    return shows.filter((s) => s.title.toLowerCase().includes(query));
+  }, [shows, title]);
+
+  const exactMatch = useMemo(() => {
+    if (!shows || !title.trim()) return null;
+    const query = title.trim().toLowerCase();
+    return shows.find((s) => s.title.trim().toLowerCase() === query);
+  }, [shows, title]);
   const [type, setType] = useState<ShowType>('Series');
   const [platform, setPlatform] = useState<string>(
     sheetPlatforms.length > 0 ? normalizePlatform(sheetPlatforms[0]) : '📺 Netflix'
@@ -271,6 +287,9 @@ export default function AddShowModal({
       setReleaseDateOnly('');
       setReleaseTime('');
       setReleaseNote('');
+      setNotes('');
+      setTvMazeInfo(null);
+      setIsLoadingTvMaze(false);
       return;
     }
 
@@ -281,7 +300,8 @@ export default function AddShowModal({
     setIsFetchingPoster(true);
     setIsLoadingTvMaze(true);
     
-    // Clear release countdown setup fields on new search
+    // Clear notes & release countdown setup fields on new search
+    setNotes('');
     setReleaseDate('');
     setReleaseDateOnly('');
     setReleaseTime('');
@@ -301,6 +321,21 @@ export default function AddShowModal({
         setPosterResult(result);
         setPosterCandidates(candidates);
         setTvMazeInfo(tvMazeSchedule);
+
+        if (result && result.matchedTitle && (trimmedTitle.includes('imdb.com') || trimmedTitle.match(/tt\d+/i))) {
+          setTitle(result.matchedTitle);
+        }
+
+        if (result && result.type && (trimmedTitle.includes('imdb.com') || trimmedTitle.match(/tt\d+/i))) {
+          setType(result.type);
+          if (result.type === 'Movie') {
+            setTvMazeInfo(null);
+            setReleaseDate('');
+            setReleaseDateOnly('');
+            setReleaseTime('');
+            setReleaseNote('');
+          }
+        }
 
         if (result && result.posterUrl) {
           setSelectedPosterUrl(result.posterUrl);
@@ -374,7 +409,8 @@ export default function AddShowModal({
     setTitle(item.title);
     setType(item.type);
 
-    // Clear release countdown setup fields before potential new data
+    // Clear notes & release countdown setup fields before potential new data
+    setNotes(item.synopsis || '');
     setReleaseDate('');
     setReleaseDateOnly('');
     setReleaseTime('');
@@ -522,9 +558,8 @@ export default function AddShowModal({
       releaseNote: releaseNote.trim() || undefined,
     };
 
-    if (releaseDate && releaseDate.trim()) {
-      enableShowNotificationSilent(id);
-    }
+    // Auto-enable release notification bell by default for newly added titles
+    enableShowNotificationSilent(id);
 
     onAdd(newShow);
     setTitle('');
@@ -556,17 +591,64 @@ export default function AddShowModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded bg-[#E50914] flex items-center justify-center text-white font-bold shrink-0">
+        <div className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between shrink-0 gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded bg-[#E50914] flex items-center justify-center text-white font-bold shrink-0 shadow-md">
               <Plus className="w-5 h-5" />
             </div>
-            <div>
-              <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
-                Add New Show or Movie
-              </h2>
-              <p className="text-xs text-zinc-400">
-                Type the title — official poster & metadata auto-fetch instantly {sheetConnected ? '& sync with Google Sheets' : ''}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+                  Add New Show or Movie
+                </h2>
+
+                {/* Dynamic Library Counter Pill */}
+                <div
+                  id="add-modal-library-counter"
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold transition-all duration-200 shadow-sm border ${
+                    exactMatch
+                      ? 'bg-amber-950/80 text-amber-300 border-amber-600/70 shadow-amber-900/20'
+                      : matchingLibraryShows.length > 0
+                      ? 'bg-blue-950/80 text-blue-300 border-blue-600/70 shadow-blue-900/20'
+                      : 'bg-zinc-850 bg-zinc-800/90 text-zinc-300 border-zinc-700/80'
+                  }`}
+                  title={`Your library currently has ${totalLibraryShows} ${totalLibraryShows === 1 ? 'show' : 'shows'}`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      exactMatch
+                        ? 'bg-amber-400 animate-ping'
+                        : matchingLibraryShows.length > 0
+                        ? 'bg-blue-400 animate-pulse'
+                        : 'bg-emerald-400'
+                    }`}
+                  />
+                  {title.trim().length > 0 ? (
+                    <span>
+                      <strong className="text-white font-mono">{matchingLibraryShows.length}</strong> {matchingLibraryShows.length === 1 ? 'match' : 'matches'} / <span className="font-mono text-zinc-400">{totalLibraryShows}</span> in library
+                    </span>
+                  ) : (
+                    <span>
+                      <strong className="text-white font-mono">{totalLibraryShows}</strong> {totalLibraryShows === 1 ? 'show' : 'shows'} in library
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <p className="text-xs text-zinc-400 truncate mt-0.5">
+                {exactMatch ? (
+                  <span className="text-amber-300 font-medium">
+                    ⚠️ Already in your library ({exactMatch.status} • {exactMatch.type || 'Series'})
+                  </span>
+                ) : title.trim().length > 0 && matchingLibraryShows.length > 0 ? (
+                  <span className="text-blue-300 font-medium">
+                    Found {matchingLibraryShows.length} existing {matchingLibraryShows.length === 1 ? 'title' : 'titles'} matching "{title.trim()}"
+                  </span>
+                ) : (
+                  <span>
+                    Official poster & metadata auto-fetch instantly {sheetConnected ? '& sync with Google Sheets' : ''}
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -747,7 +829,17 @@ export default function AddShowModal({
               <select
                 id="new-show-type"
                 value={type}
-                onChange={(e) => setType(e.target.value as ShowType)}
+                onChange={(e) => {
+                  const newType = e.target.value as ShowType;
+                  setType(newType);
+                  if (newType === 'Movie') {
+                    setTvMazeInfo(null);
+                    setReleaseDate('');
+                    setReleaseDateOnly('');
+                    setReleaseTime('');
+                    setReleaseNote('');
+                  }
+                }}
                 className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-4 py-3 text-base text-white focus:outline-none focus:border-red-500 shadow-inner appearance-none"
               >
                 <option value="Series">Series (TV)</option>
@@ -1091,156 +1183,144 @@ export default function AddShowModal({
             />
           </div>
 
-          {/* Live Network Schedule Tracker (Consolidated) */}
-          <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-lg space-y-3.5 relative overflow-hidden transition-all duration-300">
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-indigo-500/30" />
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-zinc-300 uppercase tracking-widest flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping shrink-0" />
-                <span>📡 Live Network Schedule Tracker</span>
-              </span>
-              {(releaseDateOnly || releaseTime || releaseNote || releaseDate) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReleaseDateOnly('');
-                    setReleaseTime('');
-                    setReleaseDate('');
-                    setReleaseNote('');
-                  }}
-                  className="text-[11px] font-semibold text-zinc-400 hover:text-red-400 flex items-center gap-1 transition-colors cursor-pointer px-2 py-0.5 rounded bg-zinc-800/80 border border-zinc-700/60 hover:border-red-500/40"
-                  title="Clear and reset countdown date and time"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>Clear / Reset</span>
-                </button>
+          {/* Live Network Schedule Tracker (TV Series Only) */}
+          {type === 'Series' && title.trim() && (
+            <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-lg space-y-3.5 relative overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-top-2">
+              <div className="absolute top-0 left-0 right-0 h-[2px] bg-indigo-500/30" />
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-zinc-300 uppercase tracking-widest flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping shrink-0" />
+                  <span>📡 Live Network Schedule Tracker</span>
+                </span>
+                {(releaseDateOnly || releaseTime || releaseNote || releaseDate) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReleaseDateOnly('');
+                      setReleaseTime('');
+                      setReleaseDate('');
+                      setReleaseNote('');
+                    }}
+                    className="text-[11px] font-semibold text-zinc-400 hover:text-red-400 flex items-center gap-1 transition-colors cursor-pointer px-2 py-0.5 rounded bg-zinc-800/80 border border-zinc-700/60 hover:border-red-500/40"
+                    title="Clear and reset countdown date and time"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Clear / Reset</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Live Network Results (Top) */}
+              {title.trim() && (isLoadingTvMaze || tvMazeInfo) && (
+                <div className="pt-2">
+                  {isLoadingTvMaze ? (
+                    <div className="flex items-center gap-2 py-2 text-zinc-400 text-xs animate-pulse">
+                      <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+                      <span>Querying official global television databases...</span>
+                    </div>
+                  ) : tvMazeInfo ? (
+                    <div className="space-y-3.5">
+                      {tvMazeInfo.nextEpisode ? (
+                        <div className="p-3 bg-indigo-950/20 border border-indigo-900/40 rounded-lg space-y-2.5">
+                          <div className="flex items-start justify-between gap-3 flex-wrap">
+                            <div>
+                              <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                                S{tvMazeInfo.nextEpisode.season} E{tvMazeInfo.nextEpisode.number} Scheduled
+                              </span>
+                              <h5 className="text-xs font-black text-white mt-1">
+                                &ldquo;{tvMazeInfo.nextEpisode.name}&rdquo;
+                              </h5>
+                            </div>
+                            
+                            {/* Real-time Ticking Live Countdown component */}
+                            {tvMazeInfo.nextEpisode.airstamp && (
+                              <TvMazeEpisodeCountdown airstamp={tvMazeInfo.nextEpisode.airstamp} />
+                            )}
+                          </div>
+
+                          <div className="pt-1.5 border-t border-zinc-800/60">
+                            <p className="text-[11px] text-zinc-400">
+                              Airing: <span className="text-zinc-200 font-bold">{new Date(tvMazeInfo.nextEpisode.airdate).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}</span> {tvMazeInfo.nextEpisode.airtime && `at ${tvMazeInfo.nextEpisode.airtime}`}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-zinc-950/40 border border-zinc-800/60 rounded-lg">
+                          <p className="text-xs text-zinc-400 leading-relaxed">
+                            {tvMazeInfo.status === 'Ended' ? (
+                              <span className="flex items-center gap-1.5 text-red-400/90 font-medium">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                                <span>This series is marked as <strong>Ended</strong> by the network. No future episodes are scheduled.</span>
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1.5 text-zinc-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                <span>Series is active/ongoing, but the next episode's premiere date hasn't been officially scheduled yet.</span>
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              {/* Manual Personal Countdown Setup (Bottom) */}
+              {title.trim() && (
+                <div className="space-y-3.5 pt-3 border-t border-zinc-800/60 mt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Target Premiere Date & Time (Coupled side-by-side) */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label htmlFor="new-show-release-date" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-zinc-400" />
+                          Target Date
+                        </label>
+                        <input
+                          id="new-show-release-date"
+                          type="date"
+                          value={releaseDateOnly}
+                          onChange={(e) => handleReleaseDateChange(e.target.value)}
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white font-mono shadow-inner focus:outline-none focus:border-amber-500 cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label htmlFor="new-show-release-time" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-zinc-400" />
+                          Specify Time
+                        </label>
+                        <input
+                          id="new-show-release-time"
+                          type="time"
+                          value={releaseTime}
+                          onChange={(e) => handleReleaseTimeChange(e.target.value)}
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white font-mono shadow-inner focus:outline-none focus:border-amber-500 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Premiere / Countdown Note */}
+                    <div className="space-y-1.5 flex flex-col justify-end">
+                      <label htmlFor="new-show-release-note" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
+                        <Tag className="w-3 h-3 text-zinc-400" />
+                        Premiere / Countdown Note
+                      </label>
+                      <input
+                        id="new-show-release-note"
+                        type="text"
+                        value={releaseNote}
+                        onChange={(e) => setReleaseNote(e.target.value)}
+                        placeholder="e.g. Season 2, Final Movie, Special..."
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white shadow-inner focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
-
-            {/* Live Network Results (Top) */}
-            {type === 'Series' && (isLoadingTvMaze || tvMazeInfo) && (
-              <div className="pt-2">
-                {isLoadingTvMaze ? (
-                  <div className="flex items-center gap-2 py-2 text-zinc-400 text-xs animate-pulse">
-                    <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
-                    <span>Querying official global television databases...</span>
-                  </div>
-                ) : tvMazeInfo ? (
-                  <div className="space-y-3.5">
-                    {tvMazeInfo.nextEpisode ? (
-                      <div className="p-3 bg-indigo-950/20 border border-indigo-900/40 rounded-lg space-y-2.5">
-                        <div className="flex items-start justify-between gap-3 flex-wrap">
-                          <div>
-                            <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                              S{tvMazeInfo.nextEpisode.season} E{tvMazeInfo.nextEpisode.number} Scheduled
-                            </span>
-                            <h5 className="text-xs font-black text-white mt-1">
-                              &ldquo;{tvMazeInfo.nextEpisode.name}&rdquo;
-                            </h5>
-                          </div>
-                          
-                          {/* Real-time Ticking Live Countdown component */}
-                          {tvMazeInfo.nextEpisode.airstamp && (
-                            <TvMazeEpisodeCountdown airstamp={tvMazeInfo.nextEpisode.airstamp} />
-                          )}
-                        </div>
-
-                        <div className="flex items-center justify-between pt-1.5 border-t border-zinc-800/60 flex-wrap gap-2">
-                          <p className="text-[11px] text-zinc-400">
-                            Airing: <span className="text-zinc-200 font-bold">{new Date(tvMazeInfo.nextEpisode.airdate).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}</span> {tvMazeInfo.nextEpisode.airtime && `at ${tvMazeInfo.nextEpisode.airtime}`}
-                          </p>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!tvMazeInfo.nextEpisode) return;
-                              setReleaseDateOnly(tvMazeInfo.nextEpisode.airdate);
-                              setReleaseTime(tvMazeInfo.nextEpisode.airtime || '00:00');
-                              setReleaseNote(`S${tvMazeInfo.nextEpisode.season} E${tvMazeInfo.nextEpisode.number}: ${tvMazeInfo.nextEpisode.name}`);
-                              setReleaseDate(combineDateAndTime(tvMazeInfo.nextEpisode.airdate, tvMazeInfo.nextEpisode.airtime || '00:00'));
-                            }}
-                            className="text-[10px] font-extrabold bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-1 rounded border border-indigo-500/30 transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-1 shrink-0"
-                            title="Auto-fill these dates into your Premiere Countdown Setup"
-                          >
-                            <Calendar className="w-3 h-3" />
-                            <span>Apply to Countdown Setup</span>
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="p-3 bg-zinc-950/40 border border-zinc-800/60 rounded-lg">
-                        <p className="text-xs text-zinc-400 leading-relaxed">
-                          {tvMazeInfo.status === 'Ended' ? (
-                            <span className="flex items-center gap-1.5 text-red-400/90 font-medium">
-                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-                              <span>This series is marked as <strong>Ended</strong> by the network. No future episodes are scheduled.</span>
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1.5 text-zinc-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                              <span>Series is active/ongoing, but the next episode's premiere date hasn't been officially scheduled yet.</span>
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            )}
-
-            {/* Manual Personal Countdown Setup (Bottom) */}
-            <div className="space-y-3.5 pt-3 border-t border-zinc-800/60 mt-2">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Target Premiere Date & Time (Coupled side-by-side) */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label htmlFor="new-show-release-date" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-zinc-400" />
-                      Target Date
-                    </label>
-                    <input
-                      id="new-show-release-date"
-                      type="date"
-                      value={releaseDateOnly}
-                      onChange={(e) => handleReleaseDateChange(e.target.value)}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white font-mono shadow-inner focus:outline-none focus:border-amber-500 cursor-pointer"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label htmlFor="new-show-release-time" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-zinc-400" />
-                      Specify Time
-                    </label>
-                    <input
-                      id="new-show-release-time"
-                      type="time"
-                      value={releaseTime}
-                      onChange={(e) => handleReleaseTimeChange(e.target.value)}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white font-mono shadow-inner focus:outline-none focus:border-amber-500 cursor-pointer"
-                    />
-                  </div>
-                </div>
-
-                {/* Premiere / Countdown Note */}
-                <div className="space-y-1.5">
-                  <label htmlFor="new-show-release-note" className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider ml-0.5 flex items-center gap-1">
-                    <Tag className="w-3 h-3 text-zinc-400" />
-                    Premiere / Countdown Note
-                  </label>
-                  <input
-                    id="new-show-release-note"
-                    type="text"
-                    value={releaseNote}
-                    onChange={(e) => setReleaseNote(e.target.value)}
-                    placeholder="e.g. Season 2, Final Movie, Special..."
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white shadow-inner focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
 
           {/* Submit */}
           <div className="pt-2 flex items-center justify-end gap-3 border-t border-zinc-800">

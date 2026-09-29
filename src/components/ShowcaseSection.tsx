@@ -2,16 +2,19 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Play, Star, ChevronRight, Info, Calendar, Clock, Bell, BellRing } from 'lucide-react';
 import { ShowItem } from '../types';
 import { getOptimizedPoster } from '../utils/imageOptimizer';
+import { calculateShowProgress } from '../utils/showMetrics';
 import { isNotificationEnabled, toggleShowNotification, isShowOutNow, parseReleaseDateToTimestamp } from '../services/notificationService';
 
 interface ShowcaseSectionProps {
   shows: ShowItem[];
   onOpenDetails: (show: ShowItem) => void;
+  isLoading?: boolean;
 }
 
 export default function ShowcaseSection({
   shows,
   onOpenDetails,
+  isLoading = false,
 }: ShowcaseSectionProps) {
   const [notifState, setNotifState] = useState<Record<string, boolean>>({});
 
@@ -29,21 +32,11 @@ export default function ShowcaseSection({
     const enabled = await toggleShowNotification(show);
     setNotifState((prev) => ({ ...prev, [show.id]: enabled }));
   };
-  // Currently Watching in-progress titles
+  // Currently Watching in-progress titles sorted High to Low by %
   const inProgressList = useMemo(() => {
     return shows
       .filter((s) => s.status === '⏳ Watching')
-      .sort((a, b) => {
-        const curA = parseInt(String(a.episodes).replace(/[^0-9]/g, '')) || 1;
-        const maxA = parseInt(String(a.maxEp).replace(/[^0-9]/g, '')) || 8;
-        const progressA = (curA / maxA);
-
-        const curB = parseInt(String(b.episodes).replace(/[^0-9]/g, '')) || 1;
-        const maxB = parseInt(String(b.maxEp).replace(/[^0-9]/g, '')) || 8;
-        const progressB = (curB / maxB);
-
-        return progressB - progressA;
-      })
+      .sort((a, b) => calculateShowProgress(b) - calculateShowProgress(a))
       .slice(0, 6);
   }, [shows]);
 
@@ -88,7 +81,7 @@ export default function ShowcaseSection({
       .slice(0, 6);
   }, [shows]);
 
-  if (shows.length === 0) return null;
+  if (!isLoading && shows.length === 0) return null;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
@@ -102,16 +95,28 @@ export default function ShowcaseSection({
                 <h3 className="text-sm font-bold text-white tracking-tight">Currently In-Progress Shows</h3>
               </div>
               <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-mono font-bold">
-                {inProgressList.length} titles
+                {isLoading ? '...' : inProgressList.length} titles
               </span>
             </div>
 
-            {inProgressList.length > 0 ? (
+            {isLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex gap-3 items-center">
+                    <div className="w-10 h-14 bg-zinc-800 rounded animate-pulse" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 bg-zinc-800 rounded w-3/4 animate-pulse" />
+                      <div className="h-2 bg-zinc-800 rounded w-1/2 animate-pulse" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : inProgressList.length > 0 ? (
               <div className="space-y-2.5">
                 {inProgressList.map((show) => {
                   const cur = parseInt(String(show.episodes).replace(/[^0-9]/g, '')) || 1;
                   const max = parseInt(String(show.maxEp).replace(/[^0-9]/g, '')) || 8;
-                  const progress = Math.min(100, Math.round((cur / max) * 100));
+                  const progress = calculateShowProgress(show);
 
                   return (
                     <div
@@ -143,14 +148,12 @@ export default function ShowcaseSection({
                             )}
                             <span>{show.type === 'Movie' ? 'Movie' : `${show.seasons} • Ep ${cur}/${max}`}</span>
                           </div>
-                          {show.type === 'Series' && (
-                            <div className="w-32 bg-zinc-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
-                              <div
-                                className="bg-amber-500 h-full rounded-full"
-                                style={{ width: `${progress}%` }}
-                              />
-                            </div>
-                          )}
+                          <div className="w-32 bg-zinc-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
+                            <div
+                              className="bg-amber-500 h-full rounded-full transition-all"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
                         </div>
                       </div>
 

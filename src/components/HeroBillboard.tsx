@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react';
-import { Play, Info, Sparkles, ChevronRight, Check, Star } from 'lucide-react';
+import { useRef } from 'react';
+import { Play, Info, ChevronRight, Star } from 'lucide-react';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import { ShowItem } from '../types';
 import { getOptimizedBackdrop, getOptimizedPoster } from '../utils/imageOptimizer';
+import { calculateShowProgress } from '../utils/showMetrics';
 
 interface HeroBillboardProps {
   show: ShowItem | null;
@@ -62,10 +63,8 @@ export default function HeroBillboard({
     const dt = Date.now() - touchStartRef.current.time;
     touchStartRef.current = null;
 
-    // Direct intentional tap (less than 12px movement, under 500ms)
     if (dx < 12 && dy < 12 && dt < 500) {
       const target = e.target as HTMLElement;
-      // Do not open details if tapping the play or cycle button
       if (target.closest('#hero-play-btn, #hero-cycle-btn')) {
         return;
       }
@@ -98,11 +97,10 @@ export default function HeroBillboard({
     return str.startsWith('E') || str.startsWith('e') ? str.toUpperCase() : `E${str}`;
   };
 
-  // Calculate episode progress
   const currentEpNum = parseInt(show.episodes.replace(/[^0-9]/g, '')) || 1;
   const maxEpNum = parseInt(show.maxEp.replace(/[^0-9]/g, '')) || 8;
   const currentSsnNum = parseInt(show.seasons.replace(/[^0-9]/g, '')) || 1;
-  const progressPercent = Math.min(100, Math.round((currentEpNum / maxEpNum) * 100));
+  const progressPercent = calculateShowProgress(show);
 
   const isWatched = show.status === '✅ Watched';
   const isMovie = show.type === 'Movie';
@@ -127,7 +125,6 @@ export default function HeroBillboard({
           key={show.id}
           className="relative sm:absolute sm:inset-0 w-full h-full"
         >
-          {/* Backdrop image */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <img
               src={getOptimizedBackdrop(show.backdropUrl)}
@@ -144,27 +141,18 @@ export default function HeroBillboard({
                   'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?q=80&w=2500&auto=format&fit=crop';
               }}
             />
-            {/* Cinematic Vignette & Sharpness Overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/70 sm:via-transparent to-transparent" />
             <div className="absolute inset-0 bg-gradient-to-r from-[#141414] via-[#141414]/80 to-transparent w-full md:w-3/4" />
           </div>
 
-          {/* Content Container */}
           <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full h-full flex flex-col md:flex-row items-start md:items-center justify-end md:justify-between pb-6 sm:pb-12 lg:pb-16 z-10 pt-20 sm:pt-28 gap-4 sm:gap-8">
-            <div 
-              className="max-w-2xl space-y-3 sm:space-y-4"
-            >
-              {/* Top Tag & Platform */}
+            <div className="max-w-2xl space-y-3 sm:space-y-4">
               <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-                <div 
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-bold uppercase tracking-wider bg-red-600 text-white shadow-md"
-                >
+                <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-bold uppercase tracking-wider bg-red-600 text-white shadow-md">
                   Featured {show.type}
                 </div>
                 {show.isWishlist && (
-                  <span
-                    className="text-[10px] sm:text-[11px] font-black px-2 py-0.5 rounded bg-amber-500 text-black border border-amber-400 shadow-lg flex items-center gap-1"
-                  >
+                  <span className="text-[10px] sm:text-[11px] font-black px-2 py-0.5 rounded bg-amber-500 text-black border border-amber-400 shadow-lg flex items-center gap-1">
                     🎁 Wishlist
                   </span>
                 )}
@@ -177,14 +165,10 @@ export default function HeroBillboard({
                 <span className="text-xs text-zinc-400 font-medium">{show.year}</span>
               </div>
 
-              {/* Title */}
-              <h1 
-                className="text-3xl sm:text-5xl lg:text-7xl font-black text-white tracking-tighter drop-shadow-2xl uppercase leading-[0.95]"
-              >
+              <h1 className="text-3xl sm:text-5xl lg:text-7xl font-black text-white tracking-tighter drop-shadow-2xl uppercase leading-[0.95]">
                 {show.title}
               </h1>
 
-              {/* Quick Metrics Bar */}
               <div className="flex items-center gap-4 text-sm font-medium text-zinc-300 flex-wrap">
                 {(() => {
                   let stars = show.ratingNum || 0;
@@ -199,21 +183,20 @@ export default function HeroBillboard({
                     }
                   }
                   if (!stars) stars = 4;
-                  const label = stars === 5 ? 'Excellent' : stars === 4 ? 'Great' : stars === 3 ? 'Good' : stars === 2 ? 'Fair' : 'Poor';
 
                   return (
-                  <div className="flex items-center gap-0.5">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                          <Star
-                            key={i}
-                            className={`w-3.5 h-3.5 ${
-                              i <= stars
-                                ? 'fill-amber-400 text-amber-400'
-                                : 'fill-zinc-800 text-zinc-700'
-                            }`}
-                          />
-                        ))}
-                      </div>
+                    <div className="flex items-center gap-0.5">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <Star
+                          key={i}
+                          className={`w-3.5 h-3.5 ${
+                            i <= stars
+                              ? 'fill-amber-400 text-amber-400'
+                              : 'fill-zinc-800 text-zinc-700'
+                          }`}
+                        />
+                      ))}
+                    </div>
                   );
                 })()}
                 <span className="text-zinc-500">•</span>
@@ -228,8 +211,7 @@ export default function HeroBillboard({
                 )}
               </div>
 
-              {/* Progress Bar if Watching (Series only) */}
-              {!isMovie && (
+              {progressPercent > 0 && (
                 <div className="w-full max-w-md bg-zinc-800/90 rounded-full h-1.5 overflow-hidden border border-zinc-700/50">
                   <div
                     style={{ width: `${progressPercent}%` }}
@@ -238,12 +220,10 @@ export default function HeroBillboard({
                 </div>
               )}
 
-              {/* Synopsis */}
               <p className="text-sm sm:text-base text-zinc-300 line-clamp-3 leading-relaxed drop-shadow max-w-xl font-normal">
                 {show.synopsis || show.notes || 'No overview synopsis has been entered. Custom details may be added directly to your Google Sheet or within the detail panel.'}
               </p>
 
-              {/* Action Buttons */}
               <div className="flex items-center gap-3 pt-2 flex-wrap">
                 {!isMovie && (
                   <button
@@ -306,10 +286,7 @@ export default function HeroBillboard({
               </div>
             </div>
 
-            {/* Right Side Small Poster */}
-            <div 
-              className="hidden md:block w-32 lg:w-40 xl:w-48 aspect-[2/3] rounded-lg overflow-hidden border-4 border-white/10 shadow-2xl transition-all duration-500 shrink-0 mt-auto hover:rotate-0 hover:scale-105"
-            >
+            <div className="hidden md:block w-32 lg:w-40 xl:w-48 aspect-[2/3] rounded-lg overflow-hidden border-4 border-white/10 shadow-2xl transition-all duration-500 shrink-0 mt-auto hover:rotate-0 hover:scale-105">
               <img 
                  src={getOptimizedPoster(show.posterUrl || show.backdropUrl)} 
                  alt={`${show.title} poster`}

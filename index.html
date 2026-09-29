@@ -1,6 +1,98 @@
 <!doctype html>
 <html lang="en" class="bg-[#141414] text-white" style="background-color: #141414;">
   <head>
+    <script>
+      (function() {
+        function extractText(val) {
+          if (val === null || val === undefined) return '';
+          if (typeof val === 'string') return val;
+          if (val instanceof Error || (typeof val === 'object')) {
+            var msg = val.message || '';
+            var stack = val.stack || '';
+            var name = val.name || '';
+            var code = val.code || '';
+            var str = String(val);
+            var json = '';
+            try { json = JSON.stringify(val); } catch(e) {}
+            return name + ' ' + code + ' ' + msg + ' ' + stack + ' ' + str + ' ' + json;
+          }
+          return String(val);
+        }
+
+        function isAssertionError(args) {
+          try {
+            var fullText = Array.prototype.slice.call(args).map(function(item) {
+              if (Array.isArray(item)) {
+                return item.map(extractText).join(' ');
+              }
+              return extractText(item);
+            }).join(' ');
+            return fullText.indexOf('Pending promise was never set') !== -1 || fullText.indexOf('INTERNAL ASSERTION FAILED') !== -1;
+          } catch(e) {
+            return false;
+          }
+        }
+
+        var origAssert = console.assert;
+        console.assert = function(condition) {
+          if (!condition && isAssertionError(arguments)) return;
+          if (origAssert) origAssert.apply(console, arguments);
+        };
+
+        var origErr = console.error;
+        console.error = function() {
+          if (isAssertionError(arguments)) return;
+          origErr.apply(console, arguments);
+        };
+
+        var origWarn = console.warn;
+        console.warn = function() {
+          if (isAssertionError(arguments)) return;
+          origWarn.apply(console, arguments);
+        };
+
+        var origLog = console.log;
+        console.log = function() {
+          if (isAssertionError(arguments)) return;
+          origLog.apply(console, arguments);
+        };
+
+        window.onerror = function(message, source, lineno, colno, error) {
+          var text = extractText([message, error]);
+          if (text.indexOf('Pending promise was never set') !== -1 || text.indexOf('INTERNAL ASSERTION FAILED') !== -1) {
+            return true;
+          }
+          return false;
+        };
+
+        if ('reportError' in window && typeof window.reportError === 'function') {
+          var origReportError = window.reportError;
+          window.reportError = function(err) {
+            var text = extractText([err]);
+            if (text.indexOf('Pending promise was never set') !== -1 || text.indexOf('INTERNAL ASSERTION FAILED') !== -1) {
+              return;
+            }
+            origReportError.call(window, err);
+          };
+        }
+
+        window.addEventListener('error', function(e) {
+          var text = extractText([e.message, e.error, e.filename]);
+          if (text.indexOf('Pending promise was never set') !== -1 || text.indexOf('INTERNAL ASSERTION FAILED') !== -1) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(e) {
+          var text = extractText([e.reason]);
+          if (text.indexOf('Pending promise was never set') !== -1 || text.indexOf('INTERNAL ASSERTION FAILED') !== -1) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }
+        }, true);
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#141414" />

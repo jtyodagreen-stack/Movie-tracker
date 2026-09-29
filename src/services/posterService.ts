@@ -194,11 +194,17 @@ export function detectPlatformFromTitle(title?: string): string | undefined {
 /**
  * Queries OMDb API for high-resolution official IMDb posters and metadata (supports both titles and IMDb IDs/URLs)
  */
-async function searchOMDb(query: string): Promise<{ posterUrl?: string; synopsis?: string; year?: string; genre?: string; title?: string; type?: ShowType; imdbId?: string }> {
+async function searchOMDb(
+  query: string,
+  preferredType?: ShowType
+): Promise<{ posterUrl?: string; synopsis?: string; year?: string; genre?: string; title?: string; type?: ShowType; imdbId?: string }> {
   try {
     const trimmed = query.trim();
     const idMatch = trimmed.match(/(tt\d+)/i);
-    const param = idMatch ? `i=${idMatch[1]}` : `t=${encodeURIComponent(trimmed)}`;
+    let param = idMatch ? `i=${idMatch[1]}` : `t=${encodeURIComponent(trimmed)}`;
+    if (!idMatch && preferredType) {
+      param += `&type=${preferredType === 'Movie' ? 'movie' : 'series'}`;
+    }
 
     const res = await fetch(`https://www.omdbapi.com/?${param}&apikey=trilogy`, {
       signal: AbortSignal.timeout(3500),
@@ -224,7 +230,10 @@ async function searchOMDb(query: string): Promise<{ posterUrl?: string; synopsis
 /**
  * Searches IMDb's official suggestion engine for ultra-accurate movie & TV metadata and high-res posters
  */
-export async function searchIMDb(query: string): Promise<{ result: PosterSearchResult | null; candidates: PosterCandidate[]; liveItems: LiveSearchItem[] }> {
+export async function searchIMDb(
+  query: string,
+  preferredType?: ShowType
+): Promise<{ result: PosterSearchResult | null; candidates: PosterCandidate[]; liveItems: LiveSearchItem[] }> {
   try {
     const trimmed = query.trim();
     if (!trimmed || trimmed.length < 2) return { result: null, candidates: [], liveItems: [] };
@@ -234,7 +243,8 @@ export async function searchIMDb(query: string): Promise<{ result: PosterSearchR
     let bestMatch: PosterSearchResult | null = null;
 
     // 1. Check OMDb first (handles direct IMDb IDs like tt27675583 and exact title lookups reliably)
-    const omdbData = await searchOMDb(trimmed);
+    const idMatch = trimmed.match(/(tt\d+)/i);
+    const omdbData = await searchOMDb(trimmed, preferredType);
     if (omdbData.posterUrl || omdbData.title) {
       const matchTitle = omdbData.title || trimmed;
       const detectedPlatform = detectPlatformFromTitle(matchTitle);
@@ -274,6 +284,11 @@ export async function searchIMDb(query: string): Promise<{ result: PosterSearchR
         source: 'IMDb',
         detectedPlatform,
       });
+
+      // If query was a direct IMDb URL or ID, return exact official match immediately!
+      if (idMatch) {
+        return { result: bestMatch, candidates, liveItems };
+      }
     }
 
     const clean = cleanString(trimmed);
@@ -380,7 +395,7 @@ export async function searchIMDb(query: string): Promise<{ result: PosterSearchR
 
         if (!bestMatch) {
           bestMatch = matchObj;
-        } else if (cleanTitle === cleanQuery) {
+        } else if (cleanTitle === cleanQuery && (!preferredType || matchObj.type === preferredType)) {
           bestMatch = matchObj;
         }
       }
@@ -408,12 +423,12 @@ export async function searchLiveSuggestions(
   }
 
   try {
-    const imdbRes = await searchIMDb(trimmed);
+    const imdbRes = await searchIMDb(trimmed, preferredType);
     let items = imdbRes.liveItems.slice(0, 8);
 
     if (items.length === 0) {
       // Fallback OMDb direct suggestion if IMDb v3 suggestions return empty
-      const omdb = await searchOMDb(trimmed);
+      const omdb = await searchOMDb(trimmed, preferredType);
       if (omdb.posterUrl) {
         items = [{
           id: 'omdb-fallback-1',
@@ -470,7 +485,7 @@ export async function autoFetchPoster(
     }
   }
 
-  const imdbRes = await searchIMDb(trimmed);
+  const imdbRes = await searchIMDb(trimmed, preferredType);
   let finalResult: PosterSearchResult | null = imdbRes.result;
 
   if (finalResult) {

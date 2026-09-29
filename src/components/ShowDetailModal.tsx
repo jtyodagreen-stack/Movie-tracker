@@ -22,8 +22,10 @@ import {
   Loader2,
   Bell,
   BellRing,
+  Film,
 } from 'lucide-react';
 import { ShowItem, WatchStatus, ShowType, PRESET_PLATFORMS } from '../types';
+import { calculateShowProgress } from '../utils/showMetrics';
 import ImageUploader from './ImageUploader';
 import { normalizeSeasonStr, normalizeEpisodeStr, normalizePlatform, parseGoogleSheetsDate } from '../services/sheetsService';
 import { getOptimizedBackdrop } from '../utils/imageOptimizer';
@@ -70,8 +72,8 @@ const TvMazeEpisodeCountdown = ({ airstamp }: { airstamp: string }) => {
   }
 
   return (
-    <div className="flex items-center gap-1 font-mono text-[11px] bg-zinc-950/70 py-0.5 px-2 rounded-md border border-zinc-800">
-      <span className="text-zinc-500 font-sans text-[10px] uppercase font-bold tracking-wider mr-1">Starts In:</span>
+    <div className="flex items-center gap-1.5 font-mono text-xs bg-zinc-950/70 py-1 px-3 rounded-md border border-zinc-800">
+      <span className="text-zinc-500 font-sans text-xs uppercase font-bold tracking-wider mr-1">Starts In:</span>
       <span className="text-amber-400 font-bold">{timeLeft.d}d</span>
       <span className="text-zinc-600">:</span>
       <span className="text-amber-400 font-bold">{timeLeft.h}h</span>
@@ -413,7 +415,17 @@ export default function ShowDetailModal({
   const epCurrentNum = parseInt(String(episodes).replace(/[^0-9]/g, '')) || 1;
   const epMaxNum = Math.max(1, parseInt(String(maxEp).replace(/[^0-9]/g, '')) || (type === 'Movie' ? 1 : 8));
   const ssnCurrentNum = parseInt(String(seasons).replace(/[^0-9]/g, '')) || 1;
-  const progressPercent = Math.min(100, Math.round((epCurrentNum / epMaxNum) * 100));
+
+  const progressPercent = useMemo(() => {
+    return calculateShowProgress({
+      ...show,
+      type,
+      status,
+      episodes,
+      maxEp,
+      seasons,
+    });
+  }, [show, type, status, episodes, maxEp, seasons]);
 
   const handleStatusChange = (newStatus: WatchStatus) => {
     setStatus(newStatus);
@@ -497,7 +509,7 @@ export default function ShowDetailModal({
       releaseDate: releaseDate ? parseGoogleSheetsDate(releaseDate) : '',
       releaseNote: releaseNote.trim() || '',
     };
-    if (releaseDate && releaseDate.trim()) {
+    if ((releaseDate && releaseDate.trim()) || (releaseNote && releaseNote.trim()) || tvMazeInfo?.nextEpisode) {
       enableShowNotificationSilent(show.id);
     }
     onSave(updated);
@@ -785,7 +797,25 @@ export default function ShowDetailModal({
             </div>
 
             {/* Steppers Grid & Progress Bar (Series only) */}
-            {type === 'Series' && (
+            {type === 'Movie' ? (
+              <div className="space-y-2 pt-1">
+                <div className="flex justify-between text-xs font-bold text-zinc-400 uppercase tracking-wider ml-0.5">
+                  <span>Movie Watch Progress</span>
+                  <span className="font-mono text-amber-400 font-bold">{progressPercent}%</span>
+                </div>
+                <div
+                  id="detail-progress-bar-movie"
+                  className="w-full bg-zinc-800 rounded-full h-2.5 overflow-hidden border border-zinc-700 shadow-inner"
+                >
+                  <div
+                    className={`h-full transition-all duration-300 ${
+                      status === '✅ Watched' ? 'bg-emerald-500' : 'bg-[#E50914]'
+                    }`}
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              </div>
+            ) : (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Season Stepper */}
@@ -1289,22 +1319,6 @@ export default function ShowDetailModal({
                             <p className="text-[11px] text-zinc-400">
                               Airing: <span className="text-zinc-200 font-bold">{new Date(tvMazeInfo.nextEpisode.airdate).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}</span> {tvMazeInfo.nextEpisode.airtime && `at ${tvMazeInfo.nextEpisode.airtime}`}
                             </p>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!tvMazeInfo.nextEpisode) return;
-                                setReleaseDateOnly(tvMazeInfo.nextEpisode.airdate);
-                                setReleaseTime(tvMazeInfo.nextEpisode.airtime || '00:00');
-                                setReleaseNote(`S${tvMazeInfo.nextEpisode.season} E${tvMazeInfo.nextEpisode.number}: ${tvMazeInfo.nextEpisode.name}`);
-                                setReleaseDate(combineDateAndTime(tvMazeInfo.nextEpisode.airdate, tvMazeInfo.nextEpisode.airtime || '00:00'));
-                              }}
-                              className="text-[10px] font-extrabold bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-1 rounded border border-indigo-500/30 transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-1 shrink-0"
-                              title="Auto-fill these dates into your Premiere Countdown Setup"
-                            >
-                              <Calendar className="w-3 h-3" />
-                              <span>Apply to Countdown Setup</span>
-                            </button>
                           </div>
                         </div>
                       ) : (

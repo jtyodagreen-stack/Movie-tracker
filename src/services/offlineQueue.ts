@@ -6,7 +6,18 @@ export interface OfflineAction {
 }
 
 const QUEUE_KEY = 'bingebox_offline_queue';
-const CACHED_SHOWS_KEY = 'bingebox_cached_shows';
+const CACHED_DATA_KEY = 'bingebox_app_data_cache';
+
+export interface AppDataCache {
+  shows: any[];
+  headers: string[];
+  customViewers: string[];
+  lastUpdated: number;
+  spreadsheetId: string;
+  sheetName: string;
+  wishlistSheetName: string;
+  showcaseSheetName: string;
+}
 
 export function getOfflineQueue(): OfflineAction[] {
   try {
@@ -40,17 +51,37 @@ export function clearOfflineQueue() {
   } catch {}
 }
 
-export function getCachedShows(): any[] {
+export function getAppDataCache(): AppDataCache | null {
   try {
-    const raw = localStorage.getItem(CACHED_SHOWS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const raw = localStorage.getItem(CACHED_DATA_KEY);
+    return raw ? JSON.parse(raw) : null;
   } catch {
-    return [];
+    return null;
   }
 }
 
-export function setCachedShows(shows: any[]) {
+export function setAppDataCache(data: Partial<AppDataCache>) {
   try {
-    localStorage.setItem(CACHED_SHOWS_KEY, JSON.stringify(shows));
+    const existing = getAppDataCache() || {
+      shows: [],
+      headers: [],
+      customViewers: [],
+      lastUpdated: 0,
+      spreadsheetId: '',
+      sheetName: '',
+      wishlistSheetName: ''
+    };
+    const updated = { ...existing, ...data, lastUpdated: Date.now() };
+    localStorage.setItem(CACHED_DATA_KEY, JSON.stringify(updated));
   } catch {}
+}
+
+// Deprecated - use getAppDataCache().shows instead
+export function getCachedShows(): any[] {
+  return getAppDataCache()?.shows || [];
+}
+
+// Deprecated - use setAppDataCache({ shows }) instead
+export function setCachedShows(shows: any[]) {
+  setAppDataCache({ shows });
 }

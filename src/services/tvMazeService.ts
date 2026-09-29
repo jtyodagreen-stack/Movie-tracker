@@ -28,15 +28,38 @@ export async function fetchLiveTvMazeInfo(title: string): Promise<TvMazeShowInfo
   if (!title || title.trim().length < 2) return null;
 
   try {
-    // TVMaze single search with nextepisode and previousepisode embedded
-    const url = `https://api.tvmaze.com/singlesearch/shows?q=${encodeURIComponent(title.trim())}&embed[]=nextepisode&embed[]=previousepisode`;
-    const res = await fetch(url);
-    if (!res.ok) {
-      if (res.status === 404) return null;
-      throw new Error(`TVMaze API responded with status ${res.status}`);
+    const trimmed = title.trim();
+    const idMatch = trimmed.match(/(tt\d+)/i);
+    let data: any = null;
+
+    if (idMatch) {
+      // Direct IMDb ID lookup on TVMaze
+      const lookupRes = await fetch(`https://api.tvmaze.com/lookup/shows?imdb=${idMatch[1]}`);
+      if (lookupRes.ok) {
+        const lookupData = await lookupRes.json();
+        if (lookupData && lookupData.id) {
+          const detailRes = await fetch(`https://api.tvmaze.com/shows/${lookupData.id}?embed[]=nextepisode&embed[]=previousepisode`);
+          if (detailRes.ok) {
+            data = await detailRes.json();
+          } else {
+            data = lookupData;
+          }
+        }
+      }
     }
 
-    const data = await res.json();
+    if (!data) {
+      // Clean URL if present and query TVMaze single search
+      const cleanTitle = trimmed.replace(/https?:\/\/[^\s]+/gi, '').trim() || trimmed;
+      const url = `https://api.tvmaze.com/singlesearch/shows?q=${encodeURIComponent(cleanTitle)}&embed[]=nextepisode&embed[]=previousepisode`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        if (res.status === 404) return null;
+        throw new Error(`TVMaze API responded with status ${res.status}`);
+      }
+      data = await res.json();
+    }
+
     if (!data) return null;
 
     const showInfo: TvMazeShowInfo = {

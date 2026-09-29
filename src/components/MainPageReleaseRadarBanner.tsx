@@ -151,7 +151,7 @@ export default function MainPageReleaseRadarBanner({
           </div>
 
           {/* Right Live Countdown Ticker */}
-          <div className="flex items-center w-full lg:w-auto justify-end">
+          <div className="flex items-center w-full md:w-auto justify-center md:justify-end">
             {featuredShow.parsedDate ? (
               (() => {
                 const clock = getCountdownClock(featuredShow.parsedDate);
@@ -169,31 +169,31 @@ export default function MainPageReleaseRadarBanner({
                 return (
                   <div className="flex items-center gap-2 sm:gap-3 md:gap-4 bg-zinc-950/90 px-3 sm:px-5 py-3 sm:py-3.5 rounded-2xl border border-amber-500/30 shadow-xl">
                     <div className="flex flex-col items-center px-1.5 sm:px-3">
-                      <span className="text-2xl sm:text-3xl md:text-4xl font-black text-amber-400 font-mono tracking-tight">
+                      <span className="text-3xl sm:text-4xl md:text-5xl font-black text-amber-400 font-mono tracking-tight">
                         {String(clock.days).padStart(2, '0')}
                       </span>
-                      <span className="text-[10px] sm:text-xs uppercase font-extrabold text-zinc-400 tracking-wider">Days</span>
+                      <span className="text-[11px] sm:text-xs uppercase font-extrabold text-zinc-400 tracking-wider">Days</span>
                     </div>
-                    <span className="text-xl sm:text-2xl md:text-3xl font-black text-zinc-600 pb-3">:</span>
+                    <span className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-600 pb-3">:</span>
                     <div className="flex flex-col items-center px-1.5 sm:px-3">
-                      <span className="text-2xl sm:text-3xl md:text-4xl font-black text-white font-mono tracking-tight">
+                      <span className="text-3xl sm:text-4xl md:text-5xl font-black text-white font-mono tracking-tight">
                         {String(clock.hours).padStart(2, '0')}
                       </span>
-                      <span className="text-[10px] sm:text-xs uppercase font-extrabold text-zinc-400 tracking-wider">Hours</span>
+                      <span className="text-[11px] sm:text-xs uppercase font-extrabold text-zinc-400 tracking-wider">Hours</span>
                     </div>
-                    <span className="text-xl sm:text-2xl md:text-3xl font-black text-zinc-600 pb-3">:</span>
+                    <span className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-600 pb-3">:</span>
                     <div className="flex flex-col items-center px-1.5 sm:px-3">
-                      <span className="text-2xl sm:text-3xl md:text-4xl font-black text-white font-mono tracking-tight">
+                      <span className="text-3xl sm:text-4xl md:text-5xl font-black text-white font-mono tracking-tight">
                         {String(clock.minutes).padStart(2, '0')}
                       </span>
-                      <span className="text-[10px] sm:text-xs uppercase font-extrabold text-zinc-400 tracking-wider">Mins</span>
+                      <span className="text-[11px] sm:text-xs uppercase font-extrabold text-zinc-400 tracking-wider">Mins</span>
                     </div>
-                    <span className="text-xl sm:text-2xl md:text-3xl font-black text-zinc-600 pb-3">:</span>
+                    <span className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-600 pb-3">:</span>
                     <div className="flex flex-col items-center px-1.5 sm:px-3">
-                      <span className="text-2xl sm:text-3xl md:text-4xl font-black text-red-400 font-mono tracking-tight">
+                      <span className="text-3xl sm:text-4xl md:text-5xl font-black text-red-400 font-mono tracking-tight">
                         {String(clock.seconds).padStart(2, '0')}
                       </span>
-                      <span className="text-[10px] sm:text-xs uppercase font-extrabold text-zinc-400 tracking-wider">Secs</span>
+                      <span className="text-[11px] sm:text-xs uppercase font-extrabold text-zinc-400 tracking-wider">Secs</span>
                     </div>
                   </div>
                 );

@@ -6,6 +6,7 @@ import { ShowItem } from '../types';
 import { getOptimizedPoster } from '../utils/imageOptimizer';
 import { getOrFetchImdbUrl } from '../services/posterService';
 import { formatToDDMMYYYY } from '../utils/dateUtils';
+import { calculateShowProgress } from '../utils/showMetrics';
 import { isNotificationEnabled, toggleShowNotification, isShowOutNow, isFutureRelease, parseReleaseDateToTimestamp } from '../services/notificationService';
 import { fetchLiveTvMazeInfo } from '../services/tvMazeService';
 
@@ -239,7 +240,7 @@ export default function NetflixHoverPortal({
 
   const currentEpNum = parseInt(show.episodes.replace(/[^0-9]/g, '')) || 1;
   const maxEpNum = parseInt(show.maxEp.replace(/[^0-9]/g, '')) || 8;
-  const progress = Math.min(100, Math.round((currentEpNum / maxEpNum) * 100));
+  const progress = calculateShowProgress(show);
 
   const isWatched = show.status === '✅ Watched';
   const isWatching = show.status === '⏳ Watching';
@@ -408,8 +409,8 @@ export default function NetflixHoverPortal({
           </div>
         </div>
 
-        {/* Dynamic Series Progress Bar */}
-        {!isMovie && isWatching && (
+        {/* Dynamic Progress Bar */}
+        {isWatching && (
           <div className="w-full h-1.5 bg-zinc-800">
             <div
               className="h-full bg-[#E50914] transition-all duration-300"

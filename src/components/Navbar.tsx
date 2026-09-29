@@ -29,6 +29,13 @@ import type { User } from 'firebase/auth';
 import { ShowItem, PRESET_PLATFORMS, AccessibilitySettings } from '../types';
 import { normalizePlatform } from '../services/sheetsService';
 import { getOptimizedPoster } from '../utils/imageOptimizer';
+import {
+  getProfilePicture,
+  getProfileDisplayName,
+  getProfileEmail,
+  GOOGLE_AVATAR_DATA_URI,
+  DEFAULT_PROFILE_USER,
+} from '../utils/userProfile';
 
 interface NavbarProps {
   user: User | null;
@@ -57,7 +64,19 @@ interface NavbarProps {
   onUpdateSyncFrequency?: (freq: number) => void;
   onOpenDetails?: (show: ShowItem) => void;
   onOpenRandomPicker?: () => void;
+  activeProfile?: string;
+  onSwitchProfile?: (profile: string) => void;
 }
+
+const AVATAR_COLORS = [
+  'bg-blue-500',
+  'bg-red-500',
+  'bg-emerald-500',
+  'bg-amber-500',
+  'bg-purple-500',
+  'bg-pink-500',
+  'bg-indigo-500',
+];
 
 export default function Navbar({
   user,
@@ -86,6 +105,8 @@ export default function Navbar({
   onUpdateSyncFrequency,
   onOpenDetails,
   onOpenRandomPicker,
+  activeProfile,
+  onSwitchProfile,
 }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
   const [showSearch, setShowSearch] = useState(Boolean(searchQuery));
@@ -109,6 +130,11 @@ export default function Navbar({
   }, []);
 
   const online = isOnline !== undefined ? isOnline : isOnlineState;
+  const isSignedIn = Boolean(user && user.uid);
+  const activeUser = user || DEFAULT_PROFILE_USER;
+  const profilePictureUrl = getProfilePicture(activeUser);
+  const profileDisplayName = getProfileDisplayName(activeUser);
+  const profileEmail = getProfileEmail(activeUser);
 
   // Global Keyboard shortcut Ctrl+K or Cmd+K or / to focus search
   useEffect(() => {
@@ -1105,132 +1131,135 @@ export default function Navbar({
             </div>
 
             {/* Desktop Auth / User Menu */}
-            {user ? (
+            {isSignedIn ? (
               <div className="relative shrink-0" ref={userDropdownRef}>
                 <button
                   id="user-profile-btn"
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className={`flex items-center gap-2 transition-all cursor-pointer shadow-sm ${
+                  className={`flex items-center gap-2 transition-all cursor-pointer group ${
                     !online
-                      ? 'px-2.5 py-1 rounded-lg bg-amber-950/70 border border-amber-500/50 text-amber-300 hover:bg-amber-900/60 shadow-amber-950/40'
-                      : sheetConnected
-                      ? 'px-2.5 py-1 rounded-lg bg-emerald-950/70 border border-emerald-600/50 text-emerald-300 hover:bg-emerald-900/60 shadow-emerald-950/40'
-                      : 'p-1 rounded-md hover:bg-white/10'
+                      ? 'px-2 py-1 rounded bg-amber-950/40 border border-amber-500/30'
+                      : 'p-0.5 rounded hover:bg-white/5'
                   }`}
-                  title={!online ? 'Offline Mode Active' : sheetConnected ? `Auto-Synced: ${sheetTitle || 'Google Sheet'} • Click for profile & sync settings` : 'Account & Profile'}
+                  title="Account & Sync Settings"
+                  aria-label="Account Profile and Settings"
                 >
-                  {user.photoURL ? (
-                    <img
-                      src={user.photoURL}
-                      alt={user.displayName || 'User'}
-                      className={!online || sheetConnected ? 'w-6 h-6 rounded-full object-cover ring-1 ring-amber-400 shrink-0' : 'w-8 h-8 rounded-full object-cover ring-2 ring-red-600 shrink-0'}
-                      referrerPolicy="no-referrer"
+                <div className="relative">
+                  <img
+                    id="user-profile-btn-avatar"
+                    src={profilePictureUrl}
+                    alt={profileDisplayName || 'User Profile Picture'}
+                    className="w-8 h-8 rounded-full sm:w-9 sm:h-9 object-cover ring-2 ring-white/20 group-hover:ring-red-500 transition-all shadow-sm"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      if (e.currentTarget.src !== GOOGLE_AVATAR_DATA_URI) {
+                        e.currentTarget.src = GOOGLE_AVATAR_DATA_URI;
+                      }
+                    }}
+                  />
+                  
+                  {/* Tiny Status Dot / Sync Light with Ping & Blink */}
+                  <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                    {sheetConnected && online && (
+                      <span
+                        className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                          isSyncing ? 'bg-emerald-400' : 'bg-emerald-400'
+                        } ${accessibilitySettings.reduceMotion ? 'hidden' : ''}`}
+                      />
+                    )}
+                    {!online && (
+                      <span
+                        className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75 ${
+                          accessibilitySettings.reduceMotion ? 'hidden' : ''
+                        }`}
+                      />
+                    )}
+                    <span
+                      className={`relative inline-flex rounded-full h-2.5 w-2.5 border-2 border-[#141414] ${
+                        !online
+                          ? 'bg-amber-500'
+                          : sheetConnected
+                          ? isSyncing
+                            ? 'bg-emerald-400 animate-pulse'
+                            : 'bg-emerald-500 animate-pulse'
+                          : 'bg-zinc-500'
+                      }`}
                     />
-                  ) : (
-                    <div className={!online ? 'w-6 h-6 rounded-full bg-amber-700 text-white font-bold text-xs flex items-center justify-center shrink-0' : sheetConnected ? 'w-6 h-6 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shrink-0' : 'w-8 h-8 rounded-full bg-red-600 text-white font-bold text-sm flex items-center justify-center shrink-0'}>
-                      {(user.displayName || user.email || 'U').charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  {!online ? (
-                    <>
-                      <span className="hidden sm:inline text-xs font-semibold text-amber-300">Offline Mode</span>
-                      <span className="relative flex h-2 w-2 ml-0.5 shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                      </span>
-                    </>
-                  ) : sheetConnected ? (
-                    <>
-                      <span className="hidden sm:inline text-xs font-semibold text-emerald-300">Auto-Synced</span>
-                      <span className="relative flex h-2 w-2 ml-0.5 shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                      </span>
-                    </>
-                  ) : null}
-                </button>
+                  </span>
+                </div>
+                
+                <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform hidden sm:block ${showUserMenu ? 'rotate-180' : ''}`} />
+              </button>
 
-                {showUserMenu && (
-                  <div
-                    id="user-dropdown-menu"
-                    className="absolute right-0 mt-2 w-64 bg-[#181818] border border-zinc-700 rounded-lg shadow-2xl py-2 text-sm z-50 animate-in fade-in zoom-in-95 duration-150"
-                  >
-                    <div className="px-3 py-2 border-b border-zinc-800">
-                      <p className="text-white font-medium truncate">{user.displayName || 'Account'}</p>
-                      <p className="text-xs text-zinc-400 truncate">{user.email}</p>
-                      {online ? (
-                        <div className="mt-1 flex items-center gap-1 text-[11px] text-emerald-400 font-medium">
-                          <Zap className="w-3 h-3 text-emerald-400 shrink-0" />
-                          <span>Auto-Sync Active ({syncFrequency}s)</span>
-                        </div>
-                      ) : (
-                        <div className="mt-1 flex items-center gap-1 text-[11px] text-amber-400 font-medium">
-                          <WifiOff className="w-3 h-3 text-amber-400 shrink-0 animate-pulse" />
-                          <span>Offline Mode Active</span>
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false);
-                        onOpenSync();
-                      }}
-                      className="w-full text-left px-3 py-2 text-zinc-300 hover:text-white hover:bg-zinc-800/80 flex items-center justify-between cursor-pointer"
+              {showUserMenu && (
+                <div
+                  id="user-dropdown-menu"
+                  className="absolute right-0 mt-2 w-72 bg-[#181818] border border-zinc-700 rounded-xl shadow-2xl py-2 text-sm z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden"
+                >
+                  <div className="border-t border-zinc-800/80 pt-2 mt-1 space-y-2">
+                    {/* Profile Picture & Account Header inside dropdown */}
+                    <div
+                      id="account-dropdown-profile-header"
+                      className="p-3.5 border border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-900/60 flex flex-col gap-3 mx-2 rounded-xl"
                     >
-                      <div className="flex items-center gap-2">
-                        <Table className="w-4 h-4 text-emerald-400" />
-                        <span>Google Sheets Sync</span>
-                      </div>
-                      {lastSyncedAt && (
-                        <span className="text-[10px] text-zinc-400">{lastSyncedAt}</span>
-                      )}
-                    </button>
-
-                    {/* Background Sync Frequency Setting in User Dropdown */}
-                    <div className="px-3 py-2 space-y-1.5 border-t border-zinc-800/80">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-zinc-300 font-medium flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Sync Frequency</span>
-                        </span>
-                        <span className="text-[10px] text-emerald-400 font-mono font-medium">
-                          {syncFrequency >= 60 ? `${syncFrequency / 60}m` : `${syncFrequency}s`}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-1">
-                        {[
-                          { label: '15s', value: 15 },
-                          { label: '30s', value: 30 },
-                          { label: '45s', value: 45 },
-                          { label: '1m', value: 60 },
-                          { label: '2m', value: 120 },
-                          { label: '5m', value: 300 },
-                        ].map((p) => {
-                          const isSel = syncFrequency === p.value;
-                          return (
-                            <button
-                              key={p.value}
-                              type="button"
-                              onClick={() => onUpdateSyncFrequency && onUpdateSyncFrequency(p.value)}
-                              className={`py-1 rounded text-[11px] font-medium border text-center transition-colors cursor-pointer ${
-                                isSel
-                                  ? 'bg-emerald-600 text-white border-emerald-400 font-bold'
-                                  : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700 hover:text-white'
-                              }`}
-                            >
-                              {p.label}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <a
+                        href="https://myaccount.google.com/?pli=1"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 min-w-0 group hover:opacity-90 transition-opacity block"
+                        title="Manage Google Account"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="relative shrink-0">
+                            <img
+                              id="account-dropdown-profile-pic"
+                              src={profilePictureUrl}
+                              alt={profileDisplayName || 'Account Profile Picture'}
+                              className="w-10 h-10 rounded-full object-cover ring-2 ring-red-500/70 shadow-md"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                if (e.currentTarget.src !== GOOGLE_AVATAR_DATA_URI) {
+                                  e.currentTarget.src = GOOGLE_AVATAR_DATA_URI;
+                                }
+                              }}
+                            />
+                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-[#181818]" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-xs font-bold text-white truncate">
+                                {profileDisplayName}
+                              </p>
+                              <span className="text-[9px] font-semibold text-emerald-400 bg-emerald-950/80 border border-emerald-700/40 px-1.5 py-0.5 rounded">
+                                Google
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-zinc-400 truncate mt-0.5 font-mono">
+                              {profileEmail}
+                            </p>
+                          </div>
+                        </div>
+                      </a>
+                      
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          onOpenSync();
+                        }}
+                        className="w-full text-center text-xs text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 py-2 rounded-lg transition-colors font-medium cursor-pointer"
+                      >
+                        Sync Settings
+                      </button>
                     </div>
+
                     <button
                       id="user-profile-stats-btn"
                       onClick={() => {
                         setShowUserMenu(false);
                         if (onOpenDashboard) onOpenDashboard();
                       }}
-                      className="w-full text-left px-3 py-2 text-zinc-300 hover:text-white hover:bg-zinc-800/80 flex items-center justify-between cursor-pointer"
+                      className="w-full text-left px-3.5 py-2.5 text-zinc-300 hover:text-white hover:bg-zinc-800/80 flex items-center justify-between cursor-pointer font-medium"
                     >
                       <div className="flex items-center gap-2">
                         <BarChart3 className="w-4 h-4 text-red-500" />
@@ -1238,48 +1267,23 @@ export default function Navbar({
                       </div>
                       <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
                     </button>
-                    <div className="my-1 border-t border-zinc-800" />
+
                     <button
+                      id="account-dropdown-signout-btn"
                       onClick={() => {
                         setShowUserMenu(false);
                         onSignOut();
                       }}
-                      className="w-full text-left px-3 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 flex items-center gap-2 cursor-pointer"
+                      className="w-full text-left px-3.5 py-2.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 flex items-center gap-2 cursor-pointer transition-colors"
                     >
                       <LogOut className="w-4 h-4" />
-                      Sign Out
+                      <span>Sign Out</span>
                     </button>
                   </div>
-                )}
-              </div>
-            ) : sheetConnected ? (
-              <button
-                id="google-signin-btn"
-                onClick={onSignIn}
-                className="flex items-center gap-2 bg-white text-zinc-900 hover:bg-zinc-100 text-xs font-semibold px-3 py-1.5 rounded transition-all shadow-sm cursor-pointer shrink-0"
-                title="Sign in with Google once to auto-sync your sheets"
-              >
-                <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 48 48">
-                  <path
-                    fill="#EA4335"
-                    d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-                  />
-                  <path
-                    fill="#4285F4"
-                    d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-                  />
-                </svg>
-                <span>Sign In</span>
-              </button>
-            ) : null}
+                </div>
+              )}
+            </div>
+          ) : null}
           </div>
 
           {/* MOBILE & TABLET (< xl): Quick Accessibility + Quick Add + Hamburger Toggle */}
@@ -1832,192 +1836,75 @@ export default function Navbar({
             </div>
           </div>
 
-          {/* 3. Actions & Integrations */}
-          <div className="space-y-2 pt-2 border-t border-zinc-800">
-            <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-2">
-              Actions & Tools
-            </p>
-
-            <div className="grid grid-cols-1 gap-2">
-              {/* Surprise Me / Random Picker */}
-              {sheetConnected && shows.length > 0 && onOpenRandomPicker && (
-                <button
-                  id="mobile-dropdown-random-btn"
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    onOpenRandomPicker();
-                  }}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-md text-xs font-medium border bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-2">
-                    <Shuffle className="w-4 h-4 text-amber-400" />
-                    <span>Surprise Me (Random Picker)</span>
+          {/* 5. Account / User Profile Section */}
+          <div className="pt-2 border-t border-zinc-800 space-y-3">
+            {/* Mobile Navigation Drawer Profile Card with Profile Picture */}
+            <div
+              id="mobile-drawer-profile-card"
+              className="p-3 rounded-xl bg-gradient-to-r from-zinc-900 via-zinc-900 to-zinc-900/90 border border-zinc-800 flex items-center justify-between gap-3 shadow-lg"
+            >
+              <a
+                href="https://myaccount.google.com/?pli=1"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 min-w-0 group hover:opacity-90 transition-opacity block flex-1"
+                title="Manage Google Account"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="relative shrink-0">
+                    <img
+                      id="mobile-drawer-profile-pic"
+                      src={profilePictureUrl}
+                      alt={profileDisplayName || 'Mobile Profile Picture'}
+                      className="w-10 h-10 rounded-full object-cover ring-2 ring-red-500/70 shadow-sm"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        if (e.currentTarget.src !== GOOGLE_AVATAR_DATA_URI) {
+                          e.currentTarget.src = GOOGLE_AVATAR_DATA_URI;
+                        }
+                      }}
+                    />
+                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#141414]" />
                   </div>
-                  <span className="text-[10px] text-amber-400 bg-amber-950/60 border border-amber-800/40 px-2 py-0.5 rounded font-bold">
-                    🎲 Pick
-                  </span>
-                </button>
-              )}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="text-xs sm:text-sm font-bold text-white truncate">
+                        {profileDisplayName}
+                      </h4>
+                      <span className="text-[9px] bg-emerald-950 text-emerald-300 font-semibold px-1.5 py-0.5 rounded border border-emerald-700/50">
+                        Google
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400 truncate mt-0.5 font-mono">
+                      {profileEmail}
+                    </p>
+                  </div>
+                </div>
+              </a>
 
-              {/* Google Sheets Sync Button */}
               <button
-                id="mobile-dropdown-sync-btn"
+                type="button"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
                   onOpenSync();
                 }}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-md text-xs font-medium border transition-colors ${
-                  sheetConnected
-                    ? 'bg-emerald-950/60 border-emerald-600/50 text-emerald-300'
-                    : 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800'
-                }`}
+                className="text-[11px] text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-2.5 py-1.5 rounded-lg transition-colors font-medium shrink-0 cursor-pointer"
               >
-                <div className="flex items-center gap-2">
-                  <RefreshCw
-                    className={`w-4 h-4 ${sheetConnected ? 'text-emerald-400' : 'text-zinc-400'} ${
-                      isSyncing ? 'animate-spin' : ''
-                    }`}
-                  />
-                  <span>{sheetConnected ? 'Auto-Sync Active' : 'Google Sheets Sync'}</span>
-                </div>
-                {sheetConnected ? (
-                  <span
-                    className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-semibold ${
-                      online
-                        ? 'bg-emerald-900/80 text-emerald-200'
-                        : 'bg-amber-900/80 text-amber-200'
-                    }`}
-                  >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full animate-ping ${
-                        online ? 'bg-emerald-400' : 'bg-amber-400'
-                      }`}
-                    ></span>
-                    {online
-                      ? syncFrequency >= 60
-                        ? `${syncFrequency / 60}m`
-                        : `${syncFrequency}s`
-                      : 'Offline'}
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">
-                    Connect
-                  </span>
-                )}
+                Sync Settings
               </button>
-
-              {/* Background Sync Frequency Setting in Mobile Menu */}
-              {sheetConnected && (
-                <div className="p-3 rounded-lg bg-zinc-900/90 border border-zinc-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs text-zinc-300 font-medium">
-                      <Clock className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Sync Frequency</span>
-                    </div>
-                    <span className="text-[10px] text-emerald-400 font-mono font-semibold">
-                      Every {syncFrequency >= 60 ? `${syncFrequency / 60}m` : `${syncFrequency}s`}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-6 gap-1 pt-0.5">
-                    {[
-                      { label: '15s', value: 15 },
-                      { label: '30s', value: 30 },
-                      { label: '45s', value: 45 },
-                      { label: '1m', value: 60 },
-                      { label: '2m', value: 120 },
-                      { label: '5m', value: 300 },
-                    ].map((p) => {
-                      const isSel = syncFrequency === p.value;
-                      return (
-                        <button
-                          key={p.value}
-                          type="button"
-                          onClick={() => onUpdateSyncFrequency && onUpdateSyncFrequency(p.value)}
-                          className={`py-1.5 px-0.5 rounded text-[11px] font-medium border text-center transition-colors cursor-pointer ${
-                            isSel
-                              ? 'bg-emerald-600 text-white border-emerald-400 font-bold'
-                              : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700 hover:text-white'
-                          }`}
-                        >
-                          {p.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
-          </div>
 
-
-
-          {/* 5. Account / User Sign-in Section */}
-          <div className="pt-2 border-t border-zinc-800">
-            {user ? (
-              <div className="flex items-center justify-between p-2 rounded-lg bg-zinc-900/90 border border-zinc-800">
-                <div className="flex items-center gap-2 min-w-0">
-                  {user.photoURL ? (
-                    <img
-                      src={user.photoURL}
-                      alt={user.displayName || 'User'}
-                      className="w-7 h-7 rounded-full object-cover ring-1 ring-red-500 shrink-0"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="w-7 h-7 rounded-full bg-red-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
-                      {(user.displayName || user.email || 'U').charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-white truncate">
-                      {user.displayName || 'Account'}
-                    </p>
-                    <p className="text-[10px] text-zinc-400 truncate">{user.email}</p>
-                  </div>
-                </div>
-
-                <button
-                  id="mobile-signout-btn"
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    onSignOut();
-                  }}
-                  className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 bg-red-950/40 hover:bg-red-900/40 border border-red-800/40 px-2.5 py-1.5 rounded transition-colors shrink-0"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
-            ) : (
-              <button
-                id="mobile-signin-btn"
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
-                  onSignIn();
-                }}
-                className="w-full flex items-center justify-center gap-2 bg-white text-zinc-900 hover:bg-zinc-100 text-xs font-semibold py-2.5 px-3 rounded-md shadow transition-colors"
-              >
-                <svg className="w-4 h-4 shrink-0" viewBox="0 0 48 48">
-                  <path
-                    fill="#EA4335"
-                    d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-                  />
-                  <path
-                    fill="#4285F4"
-                    d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-                  />
-                </svg>
-                <span>Sign in with Google</span>
-              </button>
-            )}
+            <button
+              id="mobile-signout-btn"
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                onSignOut();
+              }}
+              className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-red-400 hover:text-red-300 bg-red-950/40 hover:bg-red-900/40 border border-red-800/40 py-2.5 rounded-lg transition-colors cursor-pointer"
+            >
+              <LogOut className="w-4 h-4 shrink-0" />
+              <span>Sign Out</span>
+            </button>
           </div>
         </div>
       )}

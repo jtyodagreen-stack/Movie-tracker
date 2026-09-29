@@ -39,6 +39,56 @@ export function isTopRatedShow(show: ShowItem): boolean {
 }
 
 /**
+ * Calculates standardized progress percentage (0 - 100) for a show or movie.
+ * - For Movies (type === 'Movie'):
+ *   - Watched -> 100%
+ *   - Watching / In Progress / Paused -> 50%
+ *   - Not Started / Wishlist -> 0%
+ * - For TV Series:
+ *   - Watched -> 100%
+ *   - Watching -> calculated (episodes / maxEp) * 100 (min 10% when watching)
+ */
+export function calculateShowProgress(show: ShowItem): number {
+  if (!show) return 0;
+
+  const isMovie =
+    show.type === 'Movie' ||
+    String(show.maxEp || '').toLowerCase().includes('movie') ||
+    String(show.episodes || '').toLowerCase().includes('movie') ||
+    (parseInt(String(show.maxEp || '').replace(/[^0-9]/g, '')) === 1 &&
+      parseInt(String(show.seasons || '').replace(/[^0-9]/g, '')) <= 1);
+
+  const statusStr = String(show.status || '').toLowerCase();
+  const isWatched = statusStr.includes('watched') || statusStr.includes('completed') || statusStr.includes('✅');
+  const isWatching = statusStr.includes('watching') || statusStr.includes('in progress') || statusStr.includes('⏳');
+  const isPaused = statusStr.includes('paused') || statusStr.includes('⏸️');
+
+  if (isMovie) {
+    if (isWatched) return 100;
+    if (isWatching || isPaused) return 50;
+
+    const curEp = parseInt(String(show.episodes || '').replace(/[^0-9]/g, '')) || 0;
+    if (curEp >= 1) return 100;
+
+    return 0;
+  }
+
+  // TV Series
+  if (isWatched) return 100;
+
+  const currentEpNum = parseInt(String(show.episodes || '').replace(/[^0-9]/g, '')) || 0;
+  const maxEpNum = Math.max(1, parseInt(String(show.maxEp || '').replace(/[^0-9]/g, '')) || 8);
+
+  let progress = Math.min(100, Math.max(0, Math.round((currentEpNum / maxEpNum) * 100)));
+
+  if (isWatching && progress === 0) {
+    progress = 10;
+  }
+
+  return progress;
+}
+
+/**
  * Calculates standardized stats across the app.
  */
 export function calculateStandardStats(shows: ShowItem[]) {

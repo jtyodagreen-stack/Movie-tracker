@@ -53,6 +53,8 @@ export interface ShowItem {
   releaseDate?: string; // Target Premiere/Release date (e.g. DD-MM-YYYY)
   releaseNote?: string; // Premiere/Countdown note (e.g. "Season 5 Premiere")
   notify24h?: boolean; // Whether 24h release reminder notification is enabled
+  trailerUrl?: string; // Custom YouTube trailer URL or share link
+  trailerYoutubeId?: string; // Extracted 11-char YouTube Video ID
 }
 
 export interface SheetConfig {

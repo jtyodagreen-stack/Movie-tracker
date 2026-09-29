@@ -17,6 +17,14 @@
           "type": "string",
           "description": "Tab name in the spreadsheet"
         },
+        "wishlistSheetName": {
+          "type": "string",
+          "description": "Wishlist tab name in the spreadsheet"
+        },
+        "showcaseSheetName": {
+          "type": "string",
+          "description": "Showcase tab name in the spreadsheet"
+        },
         "sheetTitle": {
           "type": "string",
           "description": "User-friendly title of the spreadsheet"
@@ -29,12 +37,24 @@
           "type": "boolean",
           "description": "Whether continuous background auto-sync is active"
         },
+        "syncFrequency": {
+          "type": "number",
+          "description": "Background auto sync interval frequency in seconds"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "User profile avatar photo URL"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name"
+        },
         "updatedAt": {
           "type": "string",
           "description": "Last updated timestamp"
         }
       },
-      "required": ["userId", "spreadsheetId"]
+      "required": ["userId"]
     },
     "custom_filter": {
       "title": "CustomFilter",

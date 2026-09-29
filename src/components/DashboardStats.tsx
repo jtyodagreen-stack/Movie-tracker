@@ -35,6 +35,7 @@ import {
 } from 'recharts';
 import { ShowItem } from '../types';
 import { getOptimizedPoster } from '../utils/imageOptimizer';
+import { calculateShowProgress } from '../utils/showMetrics';
 
 interface DashboardStatsProps {
   shows: ShowItem[];
@@ -286,10 +287,11 @@ export default function DashboardStats({
       .sort((a, b) => a.year.localeCompare(b.year));
   }, [filteredShows]);
 
-  // Currently Watching in-progress titles
+  // Currently Watching in-progress titles sorted High to Low by %
   const inProgressList = useMemo(() => {
     return filteredShows
       .filter((s) => s.status === '⏳ Watching')
+      .sort((a, b) => calculateShowProgress(b) - calculateShowProgress(a))
       .slice(0, 8);
   }, [filteredShows]);
 
@@ -764,7 +766,7 @@ export default function DashboardStats({
                 {inProgressList.map((show) => {
                   const cur = parseInt(String(show.episodes).replace(/[^0-9]/g, '')) || 1;
                   const max = parseInt(String(show.maxEp).replace(/[^0-9]/g, '')) || 8;
-                  const progress = Math.min(100, Math.round((cur / max) * 100));
+                  const progress = calculateShowProgress(show);
 
                   return (
                     <div
@@ -794,14 +796,12 @@ export default function DashboardStats({
                             </span>
                             <span>{show.type === 'Movie' ? 'Movie' : `${show.seasons} • Ep ${cur}/${max}`}</span>
                           </div>
-                          {show.type === 'Series' && (
-                            <div className="w-36 bg-zinc-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
-                              <div
-                                className="bg-amber-500 h-full rounded-full"
-                                style={{ width: `${progress}%` }}
-                              />
-                            </div>
-                          )}
+                          <div className="w-36 bg-zinc-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
+                            <div
+                              className="bg-amber-500 h-full rounded-full transition-all"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
                         </div>
                       </div>
 
