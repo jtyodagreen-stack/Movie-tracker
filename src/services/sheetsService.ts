@@ -1814,6 +1814,16 @@ export async function findRowNumberByTitle(
     const data = await res.json();
     const rawRows: string[][] = data.values || [];
 
+    // Find header row (the row containing 'Title' or 'title') to skip it
+    let headerIndex = -1;
+    for (let i = 0; i < Math.min(10, rawRows.length); i++) {
+      const row = rawRows[i];
+      if (row && row.some((col) => String(col).trim().toLowerCase() === 'title')) {
+        headerIndex = i;
+        break;
+      }
+    }
+
     const normalize = (s: string) =>
       s
         .toLowerCase()
@@ -1827,6 +1837,7 @@ export async function findRowNumberByTitle(
 
     // First pass: exact normalized match on Column A (standard title column)
     for (let r = 0; r < rawRows.length; r++) {
+      if (r === headerIndex) continue; // Skip header row
       const row = rawRows[r];
       if (row && row.length > 0) {
         const col0Norm = normalize(String(row[0] || ''));

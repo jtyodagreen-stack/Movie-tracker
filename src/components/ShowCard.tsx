@@ -33,6 +33,14 @@ export default function ShowCard({
 
   useEffect(() => {
     setIsNotifActive(isNotificationEnabled(show.id));
+    
+    const handleNotifChange = (e: any) => {
+      if (e.detail.showId === show.id) {
+        setIsNotifActive(e.detail.enabled);
+      }
+    };
+    window.addEventListener('notification-changed', handleNotifChange);
+    return () => window.removeEventListener('notification-changed', handleNotifChange);
   }, [show.id]);
 
   const handleToggleNotif = async (e: React.MouseEvent | React.TouchEvent) => {

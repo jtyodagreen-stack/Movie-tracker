@@ -7,7 +7,8 @@ import { getOptimizedPoster } from '../utils/imageOptimizer';
 import { getOrFetchImdbUrl } from '../services/posterService';
 import { formatToDDMMYYYY } from '../utils/dateUtils';
 import { calculateShowProgress } from '../utils/showMetrics';
-import { isNotificationEnabled, toggleShowNotification, isShowOutNow, isFutureRelease, parseReleaseDateToTimestamp } from '../services/notificationService';
+import { isShowOutNow, isFutureRelease, parseReleaseDateToTimestamp } from '../services/notificationService';
+import { useNotificationContext } from '../context/NotificationContext';
 import { fetchLiveTvMazeInfo } from '../services/tvMazeService';
 
 interface NetflixHoverPortalProps {
@@ -41,11 +42,8 @@ export default function NetflixHoverPortal({
   });
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [isResolvingImdb, setIsResolvingImdb] = useState(false);
-  const [isNotifActive, setIsNotifActive] = useState(() => isNotificationEnabled(show.id));
-
-  useEffect(() => {
-    setIsNotifActive(isNotificationEnabled(show.id));
-  }, [show.id]);
+  const { isNotificationEnabled, toggleNotification } = useNotificationContext();
+  const isNotifActive = isNotificationEnabled(show.id);
 
   const [liveAirstamp, setLiveAirstamp] = useState<string | null>(null);
   const [liveEpisodeNote, setLiveEpisodeNote] = useState<string | null>(null);
@@ -114,8 +112,7 @@ export default function NetflixHoverPortal({
 
   const handleToggleNotif = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const enabled = await toggleShowNotification(show);
-    setIsNotifActive(enabled);
+    await toggleNotification(show);
   };
 
   const handleOpenImdb = async (e: React.MouseEvent) => {

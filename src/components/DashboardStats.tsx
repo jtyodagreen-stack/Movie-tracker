@@ -509,7 +509,7 @@ export default function DashboardStats({
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-zinc-800/80 mt-auto text-center">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-3 border-t border-zinc-800/80 mt-auto text-center">
               <div className="bg-zinc-900/60 rounded-lg p-2 border border-zinc-800">
                 <span className="text-[10px] text-emerald-400 block font-bold">Watched</span>
                 <span className="text-sm font-extrabold text-white">{stats.watched}</span>

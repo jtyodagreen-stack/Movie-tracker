@@ -102,6 +102,7 @@ export default function App() {
 
   const isResetCheckInProgressRef = useRef(false);
   const lastResetCheckTimeRef = useRef(0);
+  const connectingSheetIdRef = useRef<string | null>(null);
 
   const handleSyncOfflineQueue = async (queue: any[]) => {
     for (const action of queue) {
@@ -156,14 +157,25 @@ export default function App() {
     return shows.find((s) => s.id === hoveredShowId) || null;
   }, [shows, hoveredShowId]);
 
+  const handleOpenDetails = useCallback((show: ShowItem) => {
+    if (hoverGraceTimeoutRef.current) {
+      clearTimeout(hoverGraceTimeoutRef.current);
+      hoverGraceTimeoutRef.current = null;
+    }
+    setHoveredShowId(null);
+    setHoveredRect(null);
+    setSelectedShow(show);
+  }, []);
+
   const handleHoverEnter = useCallback((show: ShowItem, rect: { top: number; left: number; width: number; height: number }) => {
+    if (selectedShow) return;
     if (hoverGraceTimeoutRef.current) {
       clearTimeout(hoverGraceTimeoutRef.current);
       hoverGraceTimeoutRef.current = null;
     }
     setHoveredShowId(show.id);
     setHoveredRect(rect);
-  }, []);
+  }, [selectedShow]);
 
   const handleHoverPortalEnter = useCallback(() => {
     if (hoverGraceTimeoutRef.current) {
@@ -480,11 +492,18 @@ export default function App() {
             showcaseSheetName: currentShowcaseName,
             customViewers: uniqueShows.length > 0 ? customViewers : undefined
           });
-        } else if (!isSilent) {
-          // Explicit user-initiated sync
-          setShows([]);
         } else {
-          console.log('[Background Auto-Sync] Sync completed, preserving existing loaded show library.');
+          // Connected sheet is blank (0 shows): faithfully reflect empty state
+          setShows([]);
+          setAppDataCache({
+            shows: [],
+            headers: masterParsed.headers || [],
+            spreadsheetId: currentSheetId,
+            sheetName: currentSheetName,
+            wishlistSheetName: currentWishlistName,
+            showcaseSheetName: currentShowcaseName,
+            customViewers: undefined
+          });
         }
         
         // Try to sync custom viewers list if a lists tab exists
@@ -548,8 +567,15 @@ export default function App() {
         let activeWishlistName = localStorage.getItem('bingebox_wishlist_sheet_name') || '📋  WISHLIST';
         let activeShowcaseName = localStorage.getItem('bingebox_showcase_sheet_name') || 'SHOWCASE';
 
-        // Check Firestore cloud settings for the authenticated user so their connected sheet is permanent
-        if (currentUser?.uid) {
+        // If user is actively connecting a specific new sheet, do not overwrite it with old Firestore settings
+        if (connectingSheetIdRef.current) {
+          console.log('[Auth] Active sheet connection in progress, skipping Firestore overwrite:', connectingSheetIdRef.current);
+          return;
+        }
+
+        // Check Firestore cloud settings only if there is no active local spreadsheet configured
+        const localActiveId = localStorage.getItem('bingebox_spreadsheet_id') || '';
+        if (currentUser?.uid && !localActiveId) {
           try {
             const cloudConfig = await loadUserSheetConfig(currentUser.uid);
             if (cloudConfig?.spreadsheetId) {
@@ -689,11 +715,16 @@ export default function App() {
       return;
     }
 
-    // Immediately set spreadsheet ID and sync state so UI responds without delay
+    connectingSheetIdRef.current = cleanId;
+
+    // Immediately clear out old shows, old headers, and old cache so data from a previous sheet never lingers
+    setShows([]);
+    setSheetHeaders([]);
     setSpreadsheetId(cleanId);
     setIsSyncing(true);
     try {
       localStorage.setItem('bingebox_spreadsheet_id', cleanId);
+      setAppDataCache({ shows: [], spreadsheetId: cleanId });
     } catch {}
 
     let token = await getAccessToken();
@@ -845,6 +876,7 @@ export default function App() {
       throw err;
     } finally {
       setIsSyncing(false);
+      connectingSheetIdRef.current = null;
     }
   };
 
@@ -863,13 +895,18 @@ export default function App() {
     setSheetTitle(undefined);
     setSheetTabId(undefined);
     setLastSyncedAt(undefined);
+    setShows([]);
+    setSheetHeaders([]);
     try {
       localStorage.removeItem('bingebox_spreadsheet_id');
       localStorage.removeItem('bingebox_sheet_name');
       localStorage.removeItem('bingebox_wishlist_sheet_name');
+      localStorage.removeItem('bingebox_showcase_sheet_name');
       localStorage.removeItem('bingebox_sheet_title');
       localStorage.removeItem('bingebox_sheet_tab_id');
       localStorage.removeItem('bingebox_sheet_headers');
+      localStorage.removeItem('bingebox_app_data_cache');
+      setAppDataCache({ shows: [], spreadsheetId: '' });
     } catch {}
     showToast('Disconnected Google Sheets');
   };
@@ -1052,89 +1089,28 @@ export default function App() {
     }
   };
 
-  // Check and auto-reset expired release dates (more than 24 hours in the past)
-  const checkAndResetExpiredReleases = useCallback(async (currentShows: ShowItem[]) => {
-    if (isResetCheckInProgressRef.current) return;
+  // Release date check - preserve all user premiere dates and notes permanently
+  const checkAndResetExpiredReleases = useCallback(async (_currentShows: ShowItem[]) => {
+    // No-op: Never auto-delete or clear release dates entered by the user
+  }, []);
 
-    const now = Date.now();
-    const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-
-    // Find shows that have an expired release date (more than 24h past)
-    const showsToReset = currentShows.filter((s) => {
-      if (!s.releaseDate) return false;
-      const ts = parseReleaseDateToTimestamp(s.releaseDate);
-      return ts !== null && (now - ts) > TWENTY_FOUR_HOURS_MS;
-    });
-
-    if (showsToReset.length === 0) {
-      return;
-    }
-
-    // Cooldown check (30 seconds) ONLY when there are actually shows to reset to prevent hammering Sheets API
-    if (now - lastResetCheckTimeRef.current < 30 * 1000) {
-      return;
-    }
-
-    isResetCheckInProgressRef.current = true;
-    lastResetCheckTimeRef.current = now;
-
-    console.log(`[Auto Reset] Resetting expired release dates for: ${showsToReset.map(s => s.title).join(', ')}`);
-
-    // Update local state first (optimistic)
-    setShows((prev) =>
-      prev.map((s) => {
-        const found = showsToReset.some((r) => r.id === s.id);
-        if (found) {
-          return { ...s, releaseDate: '', releaseNote: '' };
-        }
-        return s;
-      })
-    );
-
-    // Sync each reset to Google Sheet with throttling (2.0 seconds between requests) to prevent Sheets write quota limits
-    for (let i = 0; i < showsToReset.length; i++) {
-      const s = showsToReset[i];
-      if (spreadsheetId) {
-        try {
-          const updated = { ...s, releaseDate: '', releaseNote: '' };
-          await syncShowToSheet(updated, true);
-          if (i < showsToReset.length - 1) {
-            // Sleep 2000ms before next sync to honor Sheets API quotas
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-          }
-        } catch (e) {
-          console.warn(`[Auto Reset] Failed to sync reset for "${s.title}":`, e);
-        }
-      }
-    }
-
-    toast('🔄 Archived expired premieres so you can enter future release dates!', {
-      icon: '🔄',
-      style: { background: '#1c1917', color: '#fff', border: '1px solid #44403c' },
-    });
-
-    isResetCheckInProgressRef.current = false;
-  }, [spreadsheetId]);
-
-  // Periodic 24-Hour Release Notification Check & Auto-Reset of Expired Premieres
+  // Periodic 24-Hour Release Notification Check
   useEffect(() => {
     if (!shows || shows.length === 0) return;
 
     // Run checks immediately on mount or when shows are loaded/changed
     checkAndTrigger24hNotifications(shows);
-    checkAndResetExpiredReleases(shows);
 
     // Re-check periodically every 5 minutes in case the tab stays open
     const interval = setInterval(() => {
       const current = showsRef.current;
       if (current && current.length > 0) {
         checkAndTrigger24hNotifications(current);
-        checkAndResetExpiredReleases(current);
       }
     }, 5 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [shows, checkAndTrigger24hNotifications, checkAndResetExpiredReleases]);
+  }, [shows]);
 
   // Quick increment episode with season advancement & auto-click Google Sheets sync
   const handleIncrementEpisode = useCallback(async (show: ShowItem) => {
@@ -1842,10 +1818,10 @@ export default function App() {
     [shows]
   );
   const comingSoonShows = useMemo(() => {
-    const list = shows.filter((s) => Boolean(s.releaseDate || s.releaseNote));
+    const list = shows.filter((s) => Boolean(s.releaseDate || s.releaseNote || s.nextAirDate || s.nextAirTimestamp));
     return [...list].sort((a, b) => {
-      const tsA = a.releaseDate ? parseReleaseDateToTimestamp(a.releaseDate) : null;
-      const tsB = b.releaseDate ? parseReleaseDateToTimestamp(b.releaseDate) : null;
+      const tsA = a.releaseDate ? parseReleaseDateToTimestamp(a.releaseDate) : a.nextAirTimestamp || null;
+      const tsB = b.releaseDate ? parseReleaseDateToTimestamp(b.releaseDate) : b.nextAirTimestamp || null;
 
       // Earliest / closest upcoming premiere dates first, later future dates last
       if (tsA !== null && tsB !== null) {
@@ -2289,9 +2265,7 @@ export default function App() {
           <DashboardStats
             shows={shows}
             onClose={() => setShowStatsModal(false)}
-            onOpenDetails={(show) => {
-              setSelectedShow(show);
-            }}
+            onOpenDetails={handleOpenDetails}
           />
         </div>
       );
@@ -2343,7 +2317,7 @@ export default function App() {
               <HeroBillboard
                 show={featuredShow}
                 isLoading={isSyncing}
-                onOpenDetails={(s) => setSelectedShow(s)}
+                onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
                 onSelectNextFeatured={() => setFeaturedIndex((prev) => prev + 1)}
               />
@@ -2612,7 +2586,7 @@ export default function App() {
                     key={show.id}
                     show={show}
                     className="w-full"
-                    onOpenDetails={(s) => setSelectedShow(s)}
+                    onOpenDetails={handleOpenDetails}
                     onIncrementEpisode={handleIncrementEpisode}
                     onToggleStatus={handleToggleStatus}
                     onHoverEnter={handleHoverEnter}
@@ -2634,7 +2608,7 @@ export default function App() {
               subtitle="Pick up right where you left off"
               shows={continueWatching}
               isLoading={isSyncing}
-              onOpenDetails={(s) => setSelectedShow(s)}
+              onOpenDetails={handleOpenDetails}
               onIncrementEpisode={handleIncrementEpisode}
               onToggleStatus={handleToggleStatus}
               onTitleClick={() => setActiveFilter('⏳ Watching')}
@@ -2649,7 +2623,7 @@ export default function App() {
                 title="🎁 Your Wishlist"
                 shows={wishlistShows}
                 isLoading={isSyncing}
-                onOpenDetails={(s) => setSelectedShow(s)}
+                onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
                 onToggleStatus={handleToggleStatus}
                 onTitleClick={() => setActiveFilter('🎁 Wishlist')}
@@ -2666,7 +2640,7 @@ export default function App() {
                 subtitle="Shows with upcoming release dates"
                 shows={comingSoonShows}
                 isLoading={isSyncing}
-                onOpenDetails={(s) => setSelectedShow(s)}
+                onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
                 onToggleStatus={handleToggleStatus}
                 onTitleClick={() => setActiveFilter('⏰ Coming Soon')}
@@ -2681,7 +2655,7 @@ export default function App() {
               title="Top Rated &amp; Great Picks"
               shows={topRated}
               isLoading={isSyncing}
-              onOpenDetails={(s) => setSelectedShow(s)}
+              onOpenDetails={handleOpenDetails}
               onIncrementEpisode={handleIncrementEpisode}
               onToggleStatus={handleToggleStatus}
               onHoverEnter={handleHoverEnter}
@@ -2694,7 +2668,7 @@ export default function App() {
               title="On Netflix"
               shows={netflixShows}
               isLoading={isSyncing}
-              onOpenDetails={(s) => setSelectedShow(s)}
+              onOpenDetails={handleOpenDetails}
               onIncrementEpisode={handleIncrementEpisode}
               onToggleStatus={handleToggleStatus}
               onTitleClick={() => setSelectedPlatform('Netflix')}
@@ -2708,7 +2682,7 @@ export default function App() {
               title="On Prime Video"
               shows={primeShows}
               isLoading={isSyncing}
-              onOpenDetails={(s) => setSelectedShow(s)}
+              onOpenDetails={handleOpenDetails}
               onIncrementEpisode={handleIncrementEpisode}
               onToggleStatus={handleToggleStatus}
               onTitleClick={() => setSelectedPlatform('Prime Video')}
@@ -2723,7 +2697,7 @@ export default function App() {
                 title="On Disney+"
                 shows={disneyShows}
                 isLoading={isSyncing}
-                onOpenDetails={(s) => setSelectedShow(s)}
+                onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
                 onToggleStatus={handleToggleStatus}
                 onTitleClick={() => setSelectedPlatform('Disney+')}
@@ -2737,7 +2711,7 @@ export default function App() {
                 title="On Apple TV+"
                 shows={appleShows}
                 isLoading={isSyncing}
-                onOpenDetails={(s) => setSelectedShow(s)}
+                onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
                 onToggleStatus={handleToggleStatus}
                 onTitleClick={() => setSelectedPlatform('Apple TV+')}
@@ -2751,7 +2725,7 @@ export default function App() {
                 title="On Paramount+"
                 shows={paramountShows}
                 isLoading={isSyncing}
-                onOpenDetails={(s) => setSelectedShow(s)}
+                onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
                 onToggleStatus={handleToggleStatus}
                 onTitleClick={() => setSelectedPlatform('Paramount+')}
@@ -2765,7 +2739,7 @@ export default function App() {
                 title="On Max / HBO"
                 shows={maxShows}
                 isLoading={isSyncing}
-                onOpenDetails={(s) => setSelectedShow(s)}
+                onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
                 onToggleStatus={handleToggleStatus}
                 onTitleClick={() => setSelectedPlatform('Max')}
@@ -2779,7 +2753,7 @@ export default function App() {
                 title="On Sky / Now"
                 shows={skyShows}
                 isLoading={isSyncing}
-                onOpenDetails={(s) => setSelectedShow(s)}
+                onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
                 onToggleStatus={handleToggleStatus}
                 onTitleClick={() => setSelectedPlatform('Sky')}
@@ -2795,7 +2769,7 @@ export default function App() {
               subtitle="Everything you've finished"
               shows={watchedShows}
               isLoading={isSyncing}
-              onOpenDetails={(s) => setSelectedShow(s)}
+              onOpenDetails={handleOpenDetails}
               onIncrementEpisode={handleIncrementEpisode}
               onToggleStatus={handleToggleStatus}
               onTitleClick={() => setActiveFilter('✅ Watched')}
@@ -2811,7 +2785,7 @@ export default function App() {
                 subtitle="Titles currently on hold or dropped"
                 shows={pausedShows}
                 isLoading={isSyncing}
-                onOpenDetails={(s) => setSelectedShow(s)}
+                onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
                 onToggleStatus={handleToggleStatus}
                 onTitleClick={() => setActiveFilter('⏸️ Paused / ❌ Dropped')}
@@ -2825,7 +2799,7 @@ export default function App() {
             {/* Currently In-Progress & Top Rated Showcase at Main Page Bottom */}
             <ShowcaseSection
               shows={shows}
-              onOpenDetails={(s) => setSelectedShow(s)}
+              onOpenDetails={handleOpenDetails}
             />
           </>
         )}
@@ -2914,7 +2888,7 @@ export default function App() {
         isOnline={isOnline}
         syncFrequency={syncFrequency}
         onUpdateSyncFrequency={handleUpdateSyncFrequency}
-        onOpenDetails={(show) => setSelectedShow(show)}
+        onOpenDetails={handleOpenDetails}
       />
 
       <main className={`flex-1 pb-16 ${!isAnyFilterActive && !showStatsModal ? 'pt-0' : 'pt-16'}`}>
@@ -2956,7 +2930,7 @@ export default function App() {
       {/* Modals */}
       {selectedShow && (
         <ShowDetailModal
-          key={`${selectedShow.id}-${selectedShow.rowNumber || 0}`}
+          key={selectedShow.id}
           show={selectedShow}
           isOpen={true}
           onClose={() => setSelectedShow(null)}
@@ -3028,7 +3002,7 @@ export default function App() {
       )}
 
       {/* Netflix True Hover Expansion Card */}
-      {hoveredShow && hoveredRect && (
+      {hoveredShow && hoveredRect && !selectedShow && (
         <NetflixHoverPortal
           key={`hover-portal-${hoveredShow.id}`}
           show={hoveredShow}
@@ -3043,11 +3017,7 @@ export default function App() {
             setHoveredRect(null);
           }}
           onMouseLeave={handleHoverLeave}
-          onOpenDetails={(s) => {
-            setHoveredShowId(null);
-            setHoveredRect(null);
-            setSelectedShow(s);
-          }}
+          onOpenDetails={handleOpenDetails}
           onIncrementEpisode={(s) => {
             handleIncrementEpisode(s);
           }}

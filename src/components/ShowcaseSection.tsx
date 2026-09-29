@@ -1,9 +1,10 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Play, Star, ChevronRight, Info, Calendar, Clock, Bell, BellRing } from 'lucide-react';
 import { ShowItem } from '../types';
+import { useNotificationContext } from '../context/NotificationContext';
 import { getOptimizedPoster } from '../utils/imageOptimizer';
 import { calculateShowProgress } from '../utils/showMetrics';
-import { isNotificationEnabled, toggleShowNotification, isShowOutNow, parseReleaseDateToTimestamp } from '../services/notificationService';
+import { isShowOutNow, parseReleaseDateToTimestamp } from '../services/notificationService';
 
 interface ShowcaseSectionProps {
   shows: ShowItem[];
@@ -16,21 +17,12 @@ export default function ShowcaseSection({
   onOpenDetails,
   isLoading = false,
 }: ShowcaseSectionProps) {
-  const [notifState, setNotifState] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    const map: Record<string, boolean> = {};
-    shows.forEach((s) => {
-      map[s.id] = isNotificationEnabled(s.id);
-    });
-    setNotifState(map);
-  }, [shows]);
+  const { isNotificationEnabled, toggleNotification } = useNotificationContext();
 
   const handleToggleNotif = async (e: React.MouseEvent, show: ShowItem) => {
     e.stopPropagation();
     e.preventDefault();
-    const enabled = await toggleShowNotification(show);
-    setNotifState((prev) => ({ ...prev, [show.id]: enabled }));
+    await toggleNotification(show);
   };
   // Currently Watching in-progress titles sorted High to Low by %
   const inProgressList = useMemo(() => {
@@ -51,34 +43,28 @@ export default function ShowcaseSection({
       .slice(0, 6);
   }, [shows]);
 
-  // Coming Soon titles with upcoming release dates or active 24h OUT NOW status
+  // Coming Soon titles with release dates or premiere notes
   const comingSoonList = useMemo(() => {
-    const now = Date.now();
-    const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-
     return shows
-      .filter((s) => {
-        if (!s.releaseDate && !s.releaseNote) return false;
-        if (s.releaseDate) {
-          const ts = parseReleaseDateToTimestamp(s.releaseDate);
-          if (ts && now - ts > TWENTY_FOUR_HOURS_MS) {
-            // Expired (more than 24h past release)
-            return false;
-          }
-        }
-        return true;
-      })
+      .filter((s) => Boolean(s.releaseDate || s.releaseNote || s.nextAirDate || s.nextAirTimestamp))
       .sort((a, b) => {
-        if (a.releaseDate && b.releaseDate) {
-          const tsA = parseReleaseDateToTimestamp(a.releaseDate) || 0;
-          const tsB = parseReleaseDateToTimestamp(b.releaseDate) || 0;
-          return tsA - tsB;
-        }
-        if (a.releaseDate) return -1;
-        if (b.releaseDate) return 1;
-        return 0;
+        const now = Date.now();
+        const tsA = (a.releaseDate ? parseReleaseDateToTimestamp(a.releaseDate) : a.nextAirTimestamp) || 0;
+        const tsB = (b.releaseDate ? parseReleaseDateToTimestamp(b.releaseDate) : b.nextAirTimestamp) || 0;
+
+        // Future upcoming dates first
+        const aIsFuture = tsA > now;
+        const bIsFuture = tsB > now;
+
+        if (aIsFuture && !bIsFuture) return -1;
+        if (!aIsFuture && bIsFuture) return 1;
+
+        if (tsA && tsB) return tsA - tsB;
+        if (tsA) return -1;
+        if (tsB) return 1;
+        return (a.releaseNote || a.title).localeCompare(b.releaseNote || b.title);
       })
-      .slice(0, 6);
+      .slice(0, 10);
   }, [shows]);
 
   if (!isLoading && shows.length === 0) return null;
@@ -323,13 +309,13 @@ export default function ShowcaseSection({
                             type="button"
                             onClick={(e) => handleToggleNotif(e, show)}
                             className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                              notifState[show.id]
+                              isNotificationEnabled(show.id)
                                 ? 'bg-amber-500/20 text-amber-400 border-amber-500/50 hover:bg-amber-500/30 shadow'
                                 : 'bg-zinc-800/80 text-zinc-400 border-zinc-700/60 hover:text-white hover:bg-zinc-700'
                             }`}
-                            title={notifState[show.id] ? '24h Release Alert Active (Click to disable)' : 'Alert me 24 hours before release'}
+                            title={isNotificationEnabled(show.id) ? '24h Release Alert Active (Click to disable)' : 'Alert me 24 hours before release'}
                           >
-                            {notifState[show.id] ? (
+                            {isNotificationEnabled(show.id) ? (
                               <BellRing className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
                             ) : (
                               <Bell className="w-3.5 h-3.5" />

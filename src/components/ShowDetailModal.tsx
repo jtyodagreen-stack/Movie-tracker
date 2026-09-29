@@ -33,6 +33,7 @@ import { autoFetchPoster, getOrFetchImdbUrl } from '../services/posterService';
 import { extractDateOnly, extractTimeOnly, combineDateAndTime } from '../utils/dateUtils';
 import { isNotificationEnabled, toggleShowNotification, isShowOutNow, isFutureRelease, enableShowNotificationSilent } from '../services/notificationService';
 import { fetchLiveTvMazeInfo, TvMazeShowInfo, TvMazeEpisode } from '../services/tvMazeService';
+import { useNotificationContext } from '../context/NotificationContext';
 
 const TvMazeEpisodeCountdown = ({ airstamp }: { airstamp: string }) => {
   const [timeLeft, setTimeLeft] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
@@ -245,22 +246,16 @@ export default function ShowDetailModal({
   const [dateAdded, setDateAdded] = useState<string>(
     parseGoogleSheetsDate(show?.dateAdded || getTodayDDMMYYYY())
   );
-  const [releaseDate, setReleaseDate] = useState<string>(isExpiredRelease ? '' : (show?.releaseDate || ''));
-  const [releaseDateOnly, setReleaseDateOnly] = useState<string>(() => isExpiredRelease ? '' : extractDateOnly(show?.releaseDate));
-  const [releaseTime, setReleaseTime] = useState<string>(() => isExpiredRelease ? '' : extractTimeOnly(show?.releaseDate));
-  const [releaseNote, setReleaseNote] = useState<string>(isExpiredRelease ? '' : (show?.releaseNote || ''));
-  const [isNotifActive, setIsNotifActive] = useState(() => (show ? isNotificationEnabled(show.id) : false));
-
-  useEffect(() => {
-    if (show) {
-      setIsNotifActive(isNotificationEnabled(show.id));
-    }
-  }, [show]);
+  const [releaseDate, setReleaseDate] = useState<string>(show?.releaseDate || '');
+  const [releaseDateOnly, setReleaseDateOnly] = useState<string>(() => extractDateOnly(show?.releaseDate));
+  const [releaseTime, setReleaseTime] = useState<string>(() => extractTimeOnly(show?.releaseDate));
+  const [releaseNote, setReleaseNote] = useState<string>(show?.releaseNote || '');
+  const { isNotificationEnabled, toggleNotification } = useNotificationContext();
+  const isNotifActive = show ? isNotificationEnabled(show.id) : false;
 
   const handleToggleNotif = async () => {
     if (!show) return;
-    const enabled = await toggleShowNotification(show);
-    setIsNotifActive(enabled);
+    await toggleNotification(show);
   };
   const [isWishlistDone, setIsWishlistDone] = useState<boolean>(
     show?.status === '✅ Watched' ||
@@ -342,14 +337,6 @@ export default function ShowDetailModal({
             setReleaseTime(nextEp.airtime || '00:00');
             setReleaseNote(noteText);
             setReleaseDate(fullReleaseDate);
-            enableShowNotificationSilent(show.id);
-
-            const updated: ShowItem = {
-              ...show,
-              releaseDate: fullReleaseDate,
-              releaseNote: noteText,
-            };
-            onSave(updated);
           }
         }
       } catch (err) {
@@ -367,6 +354,27 @@ export default function ShowDetailModal({
       isMounted = false;
     };
   }, [show?.id, show?.title]);
+
+  // Lock body scroll and listen for Escape key while modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
 
   const allViewers = useMemo(() => {
     if (sheetViewers && sheetViewers.length > 0) {
@@ -521,7 +529,7 @@ export default function ShowDetailModal({
   return (
     <div
       id="show-detail-modal-backdrop"
-      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 md:p-6 bg-black/90 backdrop-blur-md overflow-y-auto overflow-x-hidden"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/90 backdrop-blur-md overflow-y-auto overflow-x-hidden"
       style={{ perspective: '1200px' }}
       onClick={onClose}
     >
@@ -546,7 +554,7 @@ export default function ShowDetailModal({
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85), 0 0 40px 4px rgba(0, 0, 0, 0.5)',
           zIndex: 10,
         }}
-        className="relative w-full max-w-3xl max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-[#181818] border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-3xl max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-[#181818] border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Hero Backdrop Banner */}

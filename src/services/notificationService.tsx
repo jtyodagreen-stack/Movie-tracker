@@ -164,32 +164,23 @@ export async function toggleShowNotification(show: ShowItem): Promise<boolean> {
   const ids = getNotificationShowIds();
   const exists = ids.includes(show.id);
 
+  let newValue: boolean;
   if (exists) {
     // Disable notification
     const updated = ids.filter((id) => id !== show.id);
     localStorage.setItem(NOTIF_KEY, JSON.stringify(updated));
-    toast(`🔕 Release notification turned off for ${show.title}`, {
-      icon: '🔕',
-      style: { background: '#27272a', color: '#fff', border: '1px solid #3f3f46' },
-    });
-    return false;
+    newValue = false;
   } else {
     // Enable notification
     const updated = [...ids, show.id];
     localStorage.setItem(NOTIF_KEY, JSON.stringify(updated));
-
-    // Check release time to send immediate appropriate alert confirmation
-    const targetTime = parseReleaseDateToTimestamp(show.releaseDate);
-    const now = Date.now();
-
-    if (targetTime && targetTime - now <= 0) {
-      sendOutNowNotificationAlert(show);
-    } else {
-      send24hNotificationAlert(show);
-    }
-
-    return true;
+    newValue = true;
   }
+  
+  // Dispatch custom event to notify components in the same window
+  window.dispatchEvent(new CustomEvent('notification-changed', { detail: { showId: show.id, enabled: newValue } }));
+  
+  return newValue;
 }
 
 export function enableShowNotificationSilent(showId: string) {
@@ -197,6 +188,7 @@ export function enableShowNotificationSilent(showId: string) {
   if (!ids.includes(showId)) {
     const updated = [...ids, showId];
     localStorage.setItem(NOTIF_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('notification-changed', { detail: { showId, enabled: true } }));
   }
 }
 

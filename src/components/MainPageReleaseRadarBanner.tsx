@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Sparkles, Clock, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Clock, CheckCircle2, ChevronLeft, ChevronRight, Bell } from 'lucide-react';
 import { ShowItem } from '../types';
 import { getOptimizedPoster, getOptimizedBackdrop } from '../utils/imageOptimizer';
 import { parseAnyDate, formatToDDMMYYYY } from '../utils/dateUtils';
@@ -15,6 +15,7 @@ export default function MainPageReleaseRadarBanner({
   onOpenDetails,
 }: MainPageReleaseRadarBannerProps) {
   const [now, setNow] = useState<Date>(new Date());
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
     // Check notifications on tick
@@ -32,40 +33,37 @@ export default function MainPageReleaseRadarBanner({
     return parseAnyDate(dateStr);
   };
 
-  // Find the single closest upcoming show
-  const featuredShow = useMemo(() => {
-    if (!shows || shows.length === 0) return null;
+  // Compile all upcoming shows with release dates or premiere notes
+  const upcomingList = useMemo(() => {
+    if (!shows || shows.length === 0) return [];
 
-    const showsWithParsedDates = shows
+    const parsed = shows
+      .filter((s) => Boolean(s.releaseDate || s.releaseNote || s.nextAirDate))
       .map((s) => ({
         ...s,
         parsedDate: parseShowDate(s.releaseDate || s.nextAirDate),
-      }))
-      .filter((s) => s.parsedDate !== null) as (ShowItem & { parsedDate: Date })[];
+      }));
 
-    if (showsWithParsedDates.length > 0) {
-      // Sort by future release date
-      const future = showsWithParsedDates
-        .filter((s) => s.parsedDate.getTime() >= now.getTime() - 24 * 60 * 60 * 1000)
-        .sort((a, b) => a.parsedDate.getTime() - b.parsedDate.getTime());
+    return parsed.sort((a, b) => {
+      const nowMs = now.getTime();
+      const timeA = a.parsedDate ? a.parsedDate.getTime() : nowMs + 86400000 * 365;
+      const timeB = b.parsedDate ? b.parsedDate.getTime() : nowMs + 86400000 * 365;
 
-      if (future.length > 0) return future[0];
+      // Future dates first, closest date first
+      const aIsFuture = timeA >= nowMs - 24 * 60 * 60 * 1000;
+      const bIsFuture = timeB >= nowMs - 24 * 60 * 60 * 1000;
 
-      // Fallback to the most recent date
-      return showsWithParsedDates[0];
-    }
+      if (aIsFuture && !bIsFuture) return -1;
+      if (!aIsFuture && bIsFuture) return 1;
 
-    // Check if any show has a releaseNote or premiere note (e.g. Season 2 Premiere, 2026, etc.)
-    const showWithNote = shows.find((s) => Boolean(s.releaseNote?.trim()));
-    if (showWithNote) {
-      return {
-        ...showWithNote,
-        parsedDate: null,
-      };
-    }
-
-    return null;
+      return timeA - timeB;
+    });
   }, [shows, now]);
+
+  const activeShow = useMemo(() => {
+    if (upcomingList.length === 0) return null;
+    return upcomingList[currentIndex % upcomingList.length];
+  }, [upcomingList, currentIndex]);
 
   // Countdown clock calculation
   const getCountdownClock = (targetDate: Date) => {
@@ -81,11 +79,21 @@ export default function MainPageReleaseRadarBanner({
   };
 
   const isFeaturedShowReleased = useMemo(() => {
-    if (!featuredShow || !featuredShow.parsedDate) return false;
-    return featuredShow.parsedDate.getTime() - now.getTime() <= 0;
-  }, [featuredShow, now]);
+    if (!activeShow || !activeShow.parsedDate) return false;
+    return activeShow.parsedDate.getTime() - now.getTime() <= 0;
+  }, [activeShow, now]);
 
-  if (!featuredShow) return null;
+  if (!activeShow) return null;
+
+  const handlePrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : upcomingList.length - 1));
+  };
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentIndex((prev) => (prev + 1) % upcomingList.length);
+  };
 
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 my-6">
@@ -99,7 +107,7 @@ export default function MainPageReleaseRadarBanner({
           className="absolute inset-0 opacity-15 bg-cover bg-center blur-lg pointer-events-none"
           style={{
             backgroundImage: `url(${getOptimizedBackdrop(
-              featuredShow.backdropUrl || featuredShow.posterUrl
+              activeShow.backdropUrl || activeShow.posterUrl
             )})`,
           }}
         />
@@ -108,10 +116,10 @@ export default function MainPageReleaseRadarBanner({
           {/* Left Title & Info */}
           <div className="flex items-center gap-4 sm:gap-5 w-full lg:w-auto">
             <img
-              src={getOptimizedPoster(featuredShow.posterUrl)}
-              alt={featuredShow.title}
+              src={getOptimizedPoster(activeShow.posterUrl)}
+              alt={activeShow.title}
               className="w-16 sm:w-20 aspect-[2/3] object-cover rounded-xl border border-zinc-700 shadow-xl shrink-0 cursor-pointer hover:scale-105 transition-transform"
-              onClick={() => onOpenDetails(featuredShow)}
+              onClick={() => onOpenDetails(activeShow)}
             />
 
             <div className="space-y-1.5 min-w-0">
@@ -119,28 +127,53 @@ export default function MainPageReleaseRadarBanner({
                 <span className="text-[10px] font-black px-2 py-0.5 rounded bg-amber-500 text-black uppercase tracking-wider flex items-center gap-1 shadow">
                   <Clock className="w-3 h-3" /> Live Premiere Countdown
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
-                  {featuredShow.platform}
-                </span>
+                {upcomingList.length > 1 && (
+                  <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-700 px-1.5 py-0.5 rounded text-[10px] text-zinc-300 font-bold">
+                    <button
+                      type="button"
+                      onClick={handlePrev}
+                      className="hover:text-white p-0.5 rounded hover:bg-zinc-800 transition-colors"
+                      title="Previous upcoming premiere"
+                    >
+                      <ChevronLeft className="w-3 h-3" />
+                    </button>
+                    <span>
+                      {(currentIndex % upcomingList.length) + 1} of {upcomingList.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleNext}
+                      className="hover:text-white p-0.5 rounded hover:bg-zinc-800 transition-colors"
+                      title="Next upcoming premiere"
+                    >
+                      <ChevronRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+                {activeShow.platform && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+                    {activeShow.platform}
+                  </span>
+                )}
               </div>
 
               <h3
-                onClick={() => onOpenDetails(featuredShow)}
+                onClick={() => onOpenDetails(activeShow)}
                 className="text-lg sm:text-2xl font-black text-white tracking-tight line-clamp-1 hover:text-amber-400 transition-colors cursor-pointer"
               >
-                {featuredShow.title}
+                {activeShow.title}
               </h3>
 
               <p className="text-xs text-amber-300/90 font-medium flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                 <span>
-                  {featuredShow.releaseNote ||
-                    (featuredShow.parsedDate
-                      ? `Target Premiere: ${formatToDDMMYYYY(featuredShow.parsedDate)}${
-                          featuredShow.parsedDate.getHours() !== 0 ||
-                          featuredShow.parsedDate.getMinutes() !== 0
-                            ? ` at ${String(featuredShow.parsedDate.getHours()).padStart(2, '0')}:${String(
-                                featuredShow.parsedDate.getMinutes()
+                  {activeShow.releaseNote ||
+                    (activeShow.parsedDate
+                      ? `Target Premiere: ${formatToDDMMYYYY(activeShow.parsedDate)}${
+                          activeShow.parsedDate.getHours() !== 0 ||
+                          activeShow.parsedDate.getMinutes() !== 0
+                            ? ` at ${String(activeShow.parsedDate.getHours()).padStart(2, '0')}:${String(
+                                activeShow.parsedDate.getMinutes()
                               ).padStart(2, '0')}`
                             : ''
                         }`
@@ -152,15 +185,15 @@ export default function MainPageReleaseRadarBanner({
 
           {/* Right Live Countdown Ticker */}
           <div className="flex items-center w-full md:w-auto justify-center md:justify-end">
-            {featuredShow.parsedDate ? (
+            {activeShow.parsedDate ? (
               (() => {
-                const clock = getCountdownClock(featuredShow.parsedDate);
+                const clock = getCountdownClock(activeShow.parsedDate);
                 if (clock.isPast) {
                   return (
                     <div className="flex items-center gap-2.5 bg-zinc-950/90 px-5 py-3.5 rounded-2xl border border-emerald-500/50 animate-out-now-flash shadow-xl">
                       <CheckCircle2 className="w-6 h-6 text-emerald-400 animate-pulse" />
                       <span className="text-base sm:text-xl font-black text-emerald-300 uppercase tracking-wider drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]">
-                        OUT NOW ON {featuredShow.platform}!
+                        OUT NOW ON {activeShow.platform || 'Streaming'}!
                       </span>
                     </div>
                   );
@@ -198,7 +231,15 @@ export default function MainPageReleaseRadarBanner({
                   </div>
                 );
               })()
-            ) : null}
+            ) : (
+              <button
+                type="button"
+                onClick={() => onOpenDetails(activeShow)}
+                className="bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-lg transition-all"
+              >
+                View Premiere Details
+              </button>
+            )}
           </div>
         </div>
       </div>
