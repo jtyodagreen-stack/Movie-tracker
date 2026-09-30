@@ -9,6 +9,7 @@ import {
   getAdditionalUserInfo,
   updateProfile,
   reauthenticateWithPopup,
+  getRedirectResult,
   type User,
 } from 'firebase/auth';
 import {
@@ -320,6 +321,13 @@ export const initAuth = (
 };
 
 export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+  if (isSigningIn) {
+    console.warn('[Google Auth] Sign-in is already in progress, ignoring duplicate call.');
+    return null;
+  }
+  if (typeof window !== 'undefined') {
+    sessionStorage.setItem('showflix_auth_redirect_active', 'sync');
+  }
   try {
     isSigningIn = true;
 
@@ -403,6 +411,21 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
 export const handleRedirectResultOnLoad = async (): Promise<{ user: User; accessToken: string } | null> => {
   if (typeof window !== 'undefined') {
     sessionStorage.removeItem('firebase_redirect_active');
+  }
+  try {
+    const result = await getRedirectResult(auth);
+    if (result) {
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        cachedAccessToken = credential.accessToken;
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('bingebox_google_access_token', credential.accessToken);
+        }
+        return { user: result.user, accessToken: credential.accessToken };
+      }
+    }
+  } catch (error) {
+    console.error('Redirect sign in error:', error);
   }
   return null;
 };

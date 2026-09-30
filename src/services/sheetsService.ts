@@ -1165,12 +1165,18 @@ export async function fetchSheetRows(
   };
 }
 
+export interface FetchViewersResult {
+  viewers: string[];
+  colors: Record<string, string>;
+}
+
 export async function fetchCustomViewers(
   spreadsheetId: string,
   listsTabName: string,
   accessToken: string
-): Promise<string[]> {
-  const safeRange = formatA1Range(listsTabName, 'D3:D900');
+): Promise<FetchViewersResult> {
+  // Read D2:E900 (Column D is Profile / Viewer Name, Column E is Color Tag)
+  const safeRange = formatA1Range(listsTabName, 'D2:E900');
   const encodedRange = encodeURIComponent(safeRange);
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedRange}`,
@@ -1182,21 +1188,111 @@ export async function fetchCustomViewers(
   );
 
   if (!res.ok) {
-    return [];
+    return { viewers: [], colors: {} };
   }
 
   const data = await res.json();
   if (!data.values || !Array.isArray(data.values)) {
-    return [];
+    return { viewers: [], colors: {} };
   }
 
-  // Extract non-empty trimmed strings from Column D (D3:D900), filtering out headers
-  return data.values
-    .map((row: any) => (Array.isArray(row) && row[0] ? String(row[0]).trim() : ''))
-    .filter((name: string) => {
-      const lower = name.toLowerCase();
-      return name.length > 0 && lower !== 'who' && lower !== 'viewer' && lower !== 'viewers' && lower !== 'name' && lower !== 'profile' && lower !== 'profiles';
-    });
+  const viewers: string[] = [];
+  const colors: Record<string, string> = {};
+
+  // Extract non-empty trimmed strings from Column D (name) & Column E (color tag)
+  data.values.forEach((row: any) => {
+    if (!Array.isArray(row) || !row[0]) return;
+    const name = String(row[0]).trim();
+    const lower = name.toLowerCase();
+    if (
+      name.length > 0 &&
+      lower !== 'who' &&
+      lower !== 'viewer' &&
+      lower !== 'viewers' &&
+      lower !== 'name' &&
+      lower !== 'profile' &&
+      lower !== 'profiles' &&
+      lower !== 'color' &&
+      lower !== 'color tag' &&
+      lower !== 'color tags'
+    ) {
+      if (!viewers.includes(name)) {
+        viewers.push(name);
+      }
+      if (row[1]) {
+        const color = String(row[1]).trim();
+        if (color) {
+          colors[name] = color;
+        }
+      }
+    }
+  });
+
+  return { viewers, colors };
+}
+
+export async function updateCustomViewers(
+  spreadsheetId: string,
+  listsTabName: string,
+  viewers: string[],
+  accessToken: string,
+  colors?: Record<string, string>
+): Promise<boolean> {
+  // Safe range D3:E300 stores Profile Name in Column D and Color Tag in Column E
+  const safeRange = formatA1Range(listsTabName, 'D3:E300');
+  const encodedRange = encodeURIComponent(safeRange);
+
+  const values: string[][] = Array(298).fill(["", ""]);
+  viewers.forEach((v, idx) => {
+    if (idx < values.length) {
+      values[idx] = [v, (colors && colors[v]) ? colors[v] : ''];
+    }
+  });
+
+  try {
+    const res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedRange}?valueInputOption=USER_ENTERED`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          range: safeRange,
+          majorDimension: 'ROWS',
+          values,
+        }),
+      }
+    );
+
+    // Also update Column E header "Color Tag" in cell E2 if possible
+    try {
+      const headerRange = formatA1Range(listsTabName, 'E2');
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(headerRange)}?valueInputOption=USER_ENTERED`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            range: headerRange,
+            majorDimension: 'ROWS',
+            values: [['Color Tag']],
+          }),
+        }
+      );
+    } catch {
+      // Header write optional
+    }
+
+    return res.ok;
+  } catch (err) {
+    console.warn('Google Sheets updateCustomViewers API error:', err);
+    return false;
+  }
 }
 
 export function normalizeSeasonStr(val: string | number | undefined): string {

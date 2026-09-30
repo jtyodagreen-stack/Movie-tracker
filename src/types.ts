@@ -81,6 +81,14 @@ export interface AccessibilitySettings {
   reduceMotion: boolean; // WCAG vestibular accessibility
 }
 
+export interface AlertIntervals {
+  oneWeek: boolean;
+  threeDays: boolean;
+  oneDay: boolean;
+  oneHour: boolean;
+  atRelease: boolean;
+}
+
 export interface CustomFilter {
   id: string;
   name: string;

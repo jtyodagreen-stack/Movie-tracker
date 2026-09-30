@@ -1,7 +1,7 @@
 import type { User } from 'firebase/auth';
 
-export const DEFAULT_USER_EMAIL = 'jtyodagreen@gmail.com';
-export const DEFAULT_USER_NAME = 'JT Yoda Green';
+export const DEFAULT_USER_EMAIL = 'user@gmail.com';
+export const DEFAULT_USER_NAME = 'User';
 
 // SVG data URI of the official Google Account profile picture
 export const GOOGLE_AVATAR_DATA_URI = `data:image/svg+xml;utf8,${encodeURIComponent(`
@@ -17,7 +17,7 @@ export const GOOGLE_AVATAR_DATA_URI = `data:image/svg+xml;utf8,${encodeURICompon
 </svg>
 `.trim())}`;
 
-export const DEFAULT_PROFILE_PICTURE = `https://ui-avatars.com/api/?name=JT+Yoda+Green&background=1a73e8&color=ffffff&bold=true&rounded=true&size=128`;
+export const DEFAULT_PROFILE_PICTURE = `https://ui-avatars.com/api/?name=User&background=1a73e8&color=ffffff&bold=true&rounded=true&size=128`;
 
 /**
  * Custom helper to request high-res profile photo from Google servers.
@@ -110,14 +110,13 @@ export function getProfileDisplayName(user?: any | null): string {
   }
   if (user?.email && user.email.includes('@')) {
     const prefix = user.email.split('@')[0];
-    if (prefix.toLowerCase() === 'jtyodagreen') return 'JT Yoda Green';
     return prefix.charAt(0).toUpperCase() + prefix.slice(1);
   }
   return DEFAULT_USER_NAME;
 }
 
 /**
- * Returns the user's email or default jtyodagreen@gmail.com.
+ * Returns the user's email or default email.
  */
 export function getProfileEmail(user?: { email?: string | null } | null): string {
   return user?.email || DEFAULT_USER_EMAIL;
@@ -127,7 +126,7 @@ export function getProfileEmail(user?: { email?: string | null } | null): string
  * Creates the default Google Account user profile object.
  */
 export const DEFAULT_PROFILE_USER: User = {
-  uid: 'user_jtyodagreen',
+  uid: 'user_default',
   email: DEFAULT_USER_EMAIL,
   displayName: DEFAULT_USER_NAME,
   photoURL: DEFAULT_PROFILE_PICTURE,

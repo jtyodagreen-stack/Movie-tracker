@@ -174,7 +174,7 @@ export default function HeroBillboard({
             <div className="absolute inset-0 bg-gradient-to-r from-[#141414] via-[#141414]/80 to-transparent w-full md:w-3/4" />
           </div>
 
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full h-full flex flex-col md:flex-row items-start md:items-center justify-end md:justify-between pb-6 sm:pb-12 lg:pb-16 z-10 pt-20 sm:pt-28 gap-4 sm:gap-8">
+          <div className="relative max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 w-full h-full flex flex-col md:flex-row items-start md:items-center justify-end md:justify-between pb-6 sm:pb-12 lg:pb-16 z-10 pt-20 sm:pt-28 gap-4 sm:gap-8">
             <div className="max-w-2xl space-y-3 sm:space-y-4">
               <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
                 <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-bold uppercase tracking-wider bg-red-600 text-white shadow-md">

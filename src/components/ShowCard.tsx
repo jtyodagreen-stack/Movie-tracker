@@ -5,6 +5,8 @@ import { getOptimizedPoster } from '../utils/imageOptimizer';
 import { formatToDDMMYYYY } from '../utils/dateUtils';
 import { calculateShowProgress } from '../utils/showMetrics';
 import { isNotificationEnabled, toggleShowNotification, isShowOutNow, isFutureRelease } from '../services/notificationService';
+import { fetchLiveTvMazeInfo } from '../services/tvMazeService';
+import { getViewerColor } from '../utils/profileColors';
 
 interface ShowCardProps {
   show: ShowItem;
@@ -14,6 +16,7 @@ interface ShowCardProps {
   className?: string;
   onHoverEnter?: (show: ShowItem, rect: { top: number; left: number; width: number; height: number }) => void;
   onHoverLeave?: () => void;
+  viewerColors?: Record<string, string>;
 }
 
 export default function ShowCard({
@@ -24,9 +27,11 @@ export default function ShowCard({
   className,
   onHoverEnter,
   onHoverLeave,
+  viewerColors,
 }: ShowCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isNotifActive, setIsNotifActive] = useState(() => isNotificationEnabled(show.id));
+  const [liveAirstamp, setLiveAirstamp] = useState<string | null>(null);
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -42,6 +47,28 @@ export default function ShowCard({
     window.addEventListener('notification-changed', handleNotifChange);
     return () => window.removeEventListener('notification-changed', handleNotifChange);
   }, [show.id]);
+
+  useEffect(() => {
+    if (show.releaseDate || show.type !== 'Series' || show.status !== '⏳ Watching') {
+      setLiveAirstamp(null);
+      return;
+    }
+
+    let isMounted = true;
+    const delay = Math.random() * 800; // Small staggered delay to prevent TVMaze lookup lookup rate-limits
+    const timeout = setTimeout(() => {
+      fetchLiveTvMazeInfo(show.title).then((info) => {
+        if (isMounted && info && info.nextEpisode) {
+          setLiveAirstamp(info.nextEpisode.airstamp);
+        }
+      }).catch((err) => console.warn('ShowCard TVMaze fetch failed:', err));
+    }, delay);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeout);
+    };
+  }, [show.id, show.title, show.releaseDate, show.status]);
 
   const handleToggleNotif = async (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
@@ -212,18 +239,22 @@ export default function ShowCard({
                 </span>
               )}
             </div>
-            {show.releaseDate && (
+            {(show.releaseDate || liveAirstamp) && (
               isShowOutNow(show) ? (
                 <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500 text-black border border-emerald-400 shadow-md shrink-0 flex items-center gap-1 animate-pulse">
                   🎉 OUT NOW!
                 </span>
-              ) : isFutureRelease(show) ? (
+              ) : (
                 <div className="flex items-center gap-1 pointer-events-auto">
                   <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-400 text-black border border-amber-300 shadow-sm shrink-0 flex items-center gap-0.5">
-                    ⏰ {formatToDDMMYYYY(show.releaseDate)}
+                    ⏰ {show.releaseDate 
+                      ? formatToDDMMYYYY(show.releaseDate) 
+                      : liveAirstamp 
+                        ? new Date(liveAirstamp).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-') 
+                        : ''}
                   </span>
                 </div>
-              ) : null
+              )
             )}
           </div>
           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-zinc-900/90 text-zinc-300 border border-zinc-700">
@@ -257,10 +288,10 @@ export default function ShowCard({
           </span>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-zinc-400">
-          <span className="flex items-center gap-1 font-medium text-[11px]">
+        <div className="flex items-center justify-between text-xs text-zinc-400 gap-1.5">
+          <span className="flex items-center gap-1 font-medium text-[11px] truncate">
             <span
-              className={`w-1.5 h-1.5 rounded-full ${
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                 isWatched
                   ? 'bg-emerald-500'
                   : isWatching
@@ -268,12 +299,31 @@ export default function ShowCard({
                   : 'bg-zinc-500'
               }`}
             />
-            {show.status.replace(/[^a-zA-Z\s]/g, '').trim()}
+            <span className="truncate">{show.status.replace(/[^a-zA-Z\s]/g, '').trim()}</span>
           </span>
 
-          <span className="text-[11px] text-zinc-500">
-            {show.type === 'Series' ? `${formatS(show.seasons)} • ${formatE(show.episodes)}` : 'Movie'}
-          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {show.who && (
+              <span
+                className="text-[10px] font-bold px-1.5 py-0.2 rounded-full border flex items-center gap-1 max-w-[85px] truncate"
+                style={{
+                  backgroundColor: `${getViewerColor(show.who, viewerColors)}20`,
+                  color: getViewerColor(show.who, viewerColors),
+                  borderColor: `${getViewerColor(show.who, viewerColors)}50`,
+                }}
+                title={`Viewer: ${show.who}`}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ backgroundColor: getViewerColor(show.who, viewerColors) }}
+                />
+                <span className="truncate">{show.who}</span>
+              </span>
+            )}
+            <span className="text-[11px] text-zinc-500">
+              {show.type === 'Series' ? `${formatS(show.seasons)} • ${formatE(show.episodes)}` : 'Movie'}
+            </span>
+          </div>
         </div>
       </div>
     </div>

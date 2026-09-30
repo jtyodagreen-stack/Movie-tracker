@@ -1,9 +1,33 @@
 import React from 'react';
 import toast from 'react-hot-toast';
-import { ShowItem } from '../types';
+import { ShowItem, AlertIntervals } from '../types';
 
 const NOTIF_KEY = 'showtracker_24h_notifications';
 const NOTIFIED_KEY = 'showtracker_sent_notifications';
+const INTERVALS_KEY = 'showtracker_alert_intervals';
+
+export const DEFAULT_ALERT_INTERVALS: AlertIntervals = {
+  oneWeek: false,
+  threeDays: false,
+  oneDay: true,
+  oneHour: true,
+  atRelease: true,
+};
+
+export function getAlertIntervals(): AlertIntervals {
+  try {
+    const raw = localStorage.getItem(INTERVALS_KEY);
+    return raw ? { ...DEFAULT_ALERT_INTERVALS, ...JSON.parse(raw) } : DEFAULT_ALERT_INTERVALS;
+  } catch (e) {
+    return DEFAULT_ALERT_INTERVALS;
+  }
+}
+
+export function saveAlertIntervals(intervals: AlertIntervals) {
+  try {
+    localStorage.setItem(INTERVALS_KEY, JSON.stringify(intervals));
+  } catch (e) {}
+}
 
 export function getNotificationShowIds(): string[] {
   try {
@@ -63,12 +87,12 @@ export async function requestBrowserNotificationPermission(): Promise<boolean> {
 }
 
 /**
- * Dispatches 24h Premiere Reminder alert
+ * Dispatches a custom Premiere Reminder alert
  */
-export function send24hNotificationAlert(show: ShowItem) {
+export function sendIntervalNotificationAlert(show: ShowItem, intervalLabel: string) {
   const title = show.title;
   const platform = show.platform || 'TV';
-  const releaseInfo = show.releaseDate || show.releaseNote || 'Tomorrow';
+  const releaseInfo = show.releaseDate || show.releaseNote || 'Soon';
 
   // In-App Toast Alert Card
   toast.custom(
@@ -84,13 +108,13 @@ export function send24hNotificationAlert(show: ShowItem) {
         <div className="flex-1 min-w-0 space-y-1">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
-              🔔 24h Premiere Alert
+              🔔 {intervalLabel} Alert
             </span>
             <span className="text-[10px] font-mono text-zinc-400">COMING SOON</span>
           </div>
           <h4 className="text-sm font-black text-white truncate">{title}</h4>
           <p className="text-xs text-amber-200/90 leading-snug">
-            Premieres in less than 24 hours on <span className="text-amber-400 font-bold">{platform}</span>! ({releaseInfo})
+            Premieres in <span className="text-amber-400 font-bold">{intervalLabel}</span> on <span className="text-amber-400 font-bold">{platform}</span>! ({releaseInfo})
           </p>
         </div>
       </div>
@@ -99,10 +123,11 @@ export function send24hNotificationAlert(show: ShowItem) {
   );
 
   // Native Browser Notification
+  const msg = `${title} premieres in ${intervalLabel} on ${platform}! (${releaseInfo})`;
   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
     try {
-      new Notification(`⏰ 24h Premiere Alert: ${title}`, {
-        body: `${title} premieres tomorrow on ${platform}! (${releaseInfo})`,
+      new Notification(`⏰ ${intervalLabel} Alert: ${title}`, {
+        body: msg,
         icon: show.posterUrl || show.backdropUrl || '/favicon.ico',
       });
     } catch (e) {
@@ -112,14 +137,21 @@ export function send24hNotificationAlert(show: ShowItem) {
     requestBrowserNotificationPermission().then((granted) => {
       if (granted) {
         try {
-          new Notification(`⏰ 24h Premiere Alert: ${title}`, {
-            body: `${title} premieres tomorrow on ${platform}! (${releaseInfo})`,
+          new Notification(`⏰ ${intervalLabel} Alert: ${title}`, {
+            body: msg,
             icon: show.posterUrl || show.backdropUrl || '/favicon.ico',
           });
         } catch (e) {}
       }
     });
   }
+}
+
+/**
+ * Dispatches 24h Premiere Reminder alert
+ */
+export function send24hNotificationAlert(show: ShowItem) {
+  sendIntervalNotificationAlert(show, '24 Hours');
 }
 
 /**
@@ -386,14 +418,19 @@ export function isFutureRelease(show: ShowItem): boolean {
 
 /**
  * Checks all shows with notifications enabled:
- * 1. Triggers 24-hour reminder when premiere is within 24 hours.
- * 2. Triggers "OUT NOW!" alert when countdown hits 0 / release time reached.
+ * Triggers alerts based on custom intervals.
  */
 export function checkAndTrigger24hNotifications(shows: ShowItem[]): number {
   const enabledIds = getNotificationShowIds();
   const sentKeys = getSentNotifiedKeys();
+  const intervals = getAlertIntervals();
   const now = Date.now();
-  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+  
+  const ONE_HOUR_MS = 60 * 60 * 1000;
+  const ONE_DAY_MS = 24 * ONE_HOUR_MS;
+  const THREE_DAYS_MS = 3 * ONE_DAY_MS;
+  const ONE_WEEK_MS = 7 * ONE_DAY_MS;
+
   let sentCount = 0;
 
   shows.forEach((show) => {
@@ -405,18 +442,38 @@ export function checkAndTrigger24hNotifications(shows: ShowItem[]): number {
 
     const timeDiff = targetTime - now;
 
-    // 1. Stage 1: 24-Hour Premiere Alert (within 24h before premiere)
-    if (timeDiff > 0 && timeDiff <= TWENTY_FOUR_HOURS_MS) {
-      const notificationKey = `${show.id}_${show.releaseDate}_24h`;
-      if (!sentKeys.includes(notificationKey)) {
-        send24hNotificationAlert(show);
-        markNotifiedSent(notificationKey);
+    // Helper to send alert once
+    const trySend = (keySuffix: string, label: string) => {
+      const key = `${show.id}_${show.releaseDate}_${keySuffix}`;
+      if (!sentKeys.includes(key)) {
+        sendIntervalNotificationAlert(show, label);
+        markNotifiedSent(key);
         sentCount++;
       }
+    };
+
+    // 1. One Week Alert
+    if (intervals.oneWeek && timeDiff > 0 && timeDiff <= ONE_WEEK_MS && timeDiff > THREE_DAYS_MS) {
+      trySend('1w', '1 Week');
     }
 
-    // 2. Stage 2: "OUT NOW!" Release Alert (countdown reached 0 / release date reached, valid for 48h past)
-    if (timeDiff <= 0 && timeDiff >= -48 * 60 * 60 * 1000) {
+    // 2. Three Days Alert
+    if (intervals.threeDays && timeDiff > 0 && timeDiff <= THREE_DAYS_MS && timeDiff > ONE_DAY_MS) {
+      trySend('3d', '3 Days');
+    }
+
+    // 3. One Day Alert
+    if (intervals.oneDay && timeDiff > 0 && timeDiff <= ONE_DAY_MS && timeDiff > ONE_HOUR_MS) {
+      trySend('24h', '24 Hours');
+    }
+
+    // 4. One Hour Alert
+    if (intervals.oneHour && timeDiff > 0 && timeDiff <= ONE_HOUR_MS && timeDiff > 0) {
+      trySend('1h', '1 Hour');
+    }
+
+    // 5. "OUT NOW!" Release Alert (countdown reached 0 / release date reached, valid for 48h past)
+    if (intervals.atRelease && timeDiff <= 0 && timeDiff >= -48 * ONE_HOUR_MS) {
       const outNowKey = `${show.id}_${show.releaseDate}_out_now`;
       if (!sentKeys.includes(outNowKey)) {
         sendOutNowNotificationAlert(show);

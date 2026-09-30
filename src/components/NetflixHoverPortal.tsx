@@ -10,6 +10,7 @@ import { calculateShowProgress } from '../utils/showMetrics';
 import { isShowOutNow, isFutureRelease, parseReleaseDateToTimestamp } from '../services/notificationService';
 import { useNotificationContext } from '../context/NotificationContext';
 import { fetchLiveTvMazeInfo } from '../services/tvMazeService';
+import { getViewerColor } from '../utils/profileColors';
 
 interface NetflixHoverPortalProps {
   show: ShowItem;
@@ -21,6 +22,7 @@ interface NetflixHoverPortalProps {
   onUpdateRating: (show: ShowItem, ratingNum: number) => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  viewerColors?: Record<string, string>;
 }
 
 export default function NetflixHoverPortal({
@@ -33,6 +35,7 @@ export default function NetflixHoverPortal({
   onUpdateRating,
   onMouseEnter,
   onMouseLeave,
+  viewerColors,
 }: NetflixHoverPortalProps) {
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -176,8 +179,26 @@ export default function NetflixHoverPortal({
 
   // Premium viewport boundary auto-fit math (prevents any visual card bleeding offscreen)
   const placement = useMemo(() => {
-    const width = rect.width;
-    const height = rect.height;
+    let width = rect.width;
+    let height = rect.height;
+    let left = rect.left;
+    let top = rect.top;
+
+    // Ideal uniform card dimensions to match the main page carousels
+    const idealWidth = 256;
+    const idealHeight = 144;
+
+    // If the card is scaled or stretched differently (e.g. in a filter page grid view), we normalize it!
+    if (Math.abs(width - idealWidth) > 5) {
+      const diffX = width - idealWidth;
+      left = left + diffX / 2;
+      width = idealWidth;
+    }
+    if (Math.abs(height - idealHeight) > 5) {
+      const diffY = height - idealHeight;
+      top = top + diffY / 2;
+      height = idealHeight;
+    }
 
     // The scale extends the boundaries outward from center
     const expandedWidth = width * scaleFactor;
@@ -186,8 +207,8 @@ export default function NetflixHoverPortal({
     const bleedX = (expandedWidth - width) / 2;
     const bleedY = (expandedHeight - height) / 2;
 
-    const visualLeft = rect.left - bleedX;
-    const visualTop = rect.top - bleedY;
+    const visualLeft = left - bleedX;
+    const visualTop = top - bleedY;
     const visualRight = visualLeft + expandedWidth;
     const visualBottom = visualTop + expandedHeight;
 
@@ -212,8 +233,8 @@ export default function NetflixHoverPortal({
     }
 
     return {
-      top: rect.top + window.scrollY + shiftY,
-      left: rect.left + window.scrollX + shiftX,
+      top: top + window.scrollY + shiftY,
+      left: left + window.scrollX + shiftX,
       width,
       height,
     };
@@ -426,60 +447,58 @@ export default function NetflixHoverPortal({
         {isWatched && <div className="w-full h-1.5 bg-emerald-500" />}
 
         {/* Premium Expanded Metadata & Interactive Controls Panel */}
-        <div className="p-4 bg-[#181818] space-y-3.5">
-          {/* Primary Action Buttons Row */}
-          <div className="flex items-center justify-between gap-2 w-full">
-            <div className="flex items-center gap-2">
-              {!isMovie && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onIncrementEpisode(show);
-                  }}
-                  className="flex items-center justify-center gap-1.5 bg-white hover:bg-zinc-200 text-black font-black text-xs px-3.5 py-2 rounded-full transition-all active:scale-95 shadow-md hover:scale-105 cursor-pointer shrink-0"
-                  title={`Next Episode: Ep ${currentEpNum + 1}`}
-                >
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>Play Ep {currentEpNum}</span>
-                </button>
-              )}
-
-              {/* Quick Watchlist Status Circle Toggle */}
+        <div className="p-3.5 bg-[#181818] space-y-4">
+          {/* Primary Action Buttons Row - Perfectly distributed full-width layout with zero wrapping & sleek h-9 height */}
+          <div className="flex items-center w-full gap-1.5 flex-nowrap h-9">
+            {!isMovie && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onToggleStatus(show);
+                  onIncrementEpisode(show);
                 }}
-                className={`w-8.5 h-8.5 rounded-full border flex items-center justify-center transition-all hover:scale-110 cursor-pointer shrink-0 ${
-                  isWatched
-                    ? 'bg-emerald-600/90 border-emerald-500 text-white hover:bg-emerald-500'
-                    : 'bg-zinc-800/90 hover:bg-zinc-700 border-zinc-600 hover:border-zinc-400 text-white'
-                }`}
-                title={isWatched ? 'Mark as Watching' : 'Mark as Completed'}
+                className="flex-[2.2] h-full flex items-center justify-center gap-1.5 bg-white hover:bg-zinc-200 text-zinc-950 font-black text-xs rounded-md transition-all active:scale-95 shadow-lg hover:scale-[1.02] cursor-pointer min-w-0 overflow-hidden"
+                title={`Next Episode: Ep ${currentEpNum + 1}`}
               >
-                {isWatched ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                <Play className="w-4 h-4 fill-current shrink-0" />
+                <span className="truncate">Play Ep {currentEpNum}</span>
               </button>
+            )}
 
-              {/* Notification Alert Toggle (for upcoming releases) */}
-              {(Boolean(show.releaseDate) || Boolean(show.releaseNote) || Boolean(liveAirstamp) || isFutureRelease(show)) && (
-                <button
-                  type="button"
-                  onClick={handleToggleNotif}
-                  className={`w-8.5 h-8.5 rounded-full border flex items-center justify-center transition-all hover:scale-110 cursor-pointer shrink-0 ${
-                    isNotifActive
-                      ? 'bg-amber-400 text-black border-amber-300 shadow-lg'
-                      : 'bg-zinc-800/90 hover:bg-zinc-700 border-zinc-600 hover:border-zinc-400 text-zinc-300'
-                  }`}
-                  title={isNotifActive ? '24h Release Alert Active (Click to disable)' : 'Notify me 24 hours before release'}
-                >
-                  {isNotifActive ? (
-                    <BellRing className="w-4 h-4 fill-current animate-pulse" />
-                  ) : (
-                    <Bell className="w-4 h-4" />
-                  )}
-                </button>
-              )}
-            </div>
+            {/* Quick Watchlist Status Toggle */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleStatus(show);
+              }}
+              className={`flex-1 h-full rounded-md border flex items-center justify-center transition-all hover:scale-110 cursor-pointer shadow-md min-w-0 ${
+                isWatched
+                  ? 'bg-emerald-600/90 border-emerald-500/50 text-white hover:bg-emerald-500'
+                  : 'bg-zinc-800/90 hover:bg-zinc-700 border-zinc-700/60 hover:border-zinc-500 text-white'
+              }`}
+              title={isWatched ? 'Mark as Watching' : 'Mark as Completed'}
+            >
+              {isWatched ? <Check className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+            </button>
+
+            {/* Notification Alert Toggle */}
+            {(Boolean(show.releaseDate) || Boolean(show.releaseNote) || Boolean(liveAirstamp) || isFutureRelease(show)) && (
+              <button
+                type="button"
+                onClick={handleToggleNotif}
+                className={`flex-1 h-full rounded-md border flex items-center justify-center transition-all hover:scale-110 cursor-pointer shadow-md min-w-0 ${
+                  isNotifActive
+                    ? 'bg-amber-400 text-zinc-950 border-amber-300'
+                    : 'bg-zinc-800/90 hover:bg-zinc-700 border-zinc-700/60 hover:border-zinc-500 text-zinc-300'
+                }`}
+                title={isNotifActive ? '24h Release Alert Active (Click to disable)' : 'Notify me 24 hours before release'}
+              >
+                {isNotifActive ? (
+                  <BellRing className="w-5 h-5 fill-current animate-pulse" />
+                ) : (
+                  <Bell className="w-5 h-5" />
+                )}
+              </button>
+            )}
 
             {/* Expand Details Button */}
             <button
@@ -488,10 +507,10 @@ export default function NetflixHoverPortal({
                 onOpenDetails(show);
                 onClose();
               }}
-              className="w-8.5 h-8.5 rounded-full bg-zinc-800/90 hover:bg-zinc-700 border border-zinc-600 hover:border-zinc-400 text-white flex items-center justify-center transition-all hover:scale-110 cursor-pointer shrink-0 shadow-sm"
+              className="flex-1 h-full rounded-md bg-zinc-800/90 hover:bg-zinc-700 border border-zinc-700/60 text-white flex items-center justify-center transition-all hover:scale-110 cursor-pointer shadow-md min-w-0"
               title="More Info Details"
             >
-              <Info className="w-4 h-4" />
+              <Info className="w-5 h-5 text-zinc-300" />
             </button>
           </div>
 
@@ -510,8 +529,22 @@ export default function NetflixHoverPortal({
 
           {/* Viewer Profile Name Indicator */}
           {show.who && (
-            <div className="text-xs sm:text-sm text-zinc-300 font-medium">
-              Watching with: <span className="text-amber-400 font-extrabold">{show.who}</span>
+            <div className="text-xs sm:text-sm text-zinc-300 font-medium flex items-center gap-2 flex-wrap">
+              <span>Watching with:</span>
+              <span
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-bold text-xs border shadow-sm"
+                style={{
+                  backgroundColor: `${getViewerColor(show.who, viewerColors)}20`,
+                  color: getViewerColor(show.who, viewerColors),
+                  borderColor: `${getViewerColor(show.who, viewerColors)}50`,
+                }}
+              >
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: getViewerColor(show.who, viewerColors) }}
+                />
+                {show.who}
+              </span>
             </div>
           )}
 

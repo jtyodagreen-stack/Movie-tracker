@@ -13,7 +13,7 @@ import {
   loadUserSheetConfig,
   googleFetch as fetch,
 } from './firebase';
-import { ShowItem, WatchStatus, PRESET_PLATFORMS, AccessibilitySettings } from './types';
+import { ShowItem, WatchStatus, PRESET_PLATFORMS, AccessibilitySettings, AlertIntervals } from './types';
 import { DEFAULT_PROFILE_USER } from './utils/userProfile';
 import {
   fetchSpreadsheetDetails,
@@ -37,6 +37,7 @@ import {
   getSheetTabHeaders,
   extractSpreadsheetId,
   fetchCustomViewers,
+  updateCustomViewers,
   parseGoogleSheetsDate,
   formatA1Range,
 } from './services/sheetsService';
@@ -48,14 +49,21 @@ import ShowRow from './components/ShowRow';
 import ShowCard from './components/ShowCard';
 import ShowDetailModal from './components/ShowDetailModal';
 import AddShowModal from './components/AddShowModal';
-import SheetSyncModal from './components/SheetSyncModal';
+import SettingsCenterModal from './components/SettingsCenterModal';
 import ConfirmModal from './components/ConfirmModal';
 import DashboardStats from './components/DashboardStats';
 import MainPageReleaseRadarBanner from './components/MainPageReleaseRadarBanner';
 import ShowcaseSection from './components/ShowcaseSection';
 import NetflixHoverPortal from './components/NetflixHoverPortal';
-import { checkAndTrigger24hNotifications, parseReleaseDateToTimestamp, enableShowNotificationSilent } from './services/notificationService';
+import {
+  checkAndTrigger24hNotifications,
+  parseReleaseDateToTimestamp,
+  enableShowNotificationSilent,
+  getAlertIntervals,
+  saveAlertIntervals
+} from './services/notificationService';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { getViewerColor } from './utils/profileColors';
 import { getAppDataCache, setAppDataCache, queueOfflineAction } from './services/offlineQueue';
 import { calculateShowProgress } from './utils/showMetrics';
 import { parseAnyDate, getTodayDDMMYYYY } from './utils/dateUtils';
@@ -114,6 +122,20 @@ export default function App() {
   const lastResetCheckTimeRef = useRef(0);
   const connectingSheetIdRef = useRef<string | null>(null);
 
+  // Ensure layout is clean on mount and during transitions
+  useEffect(() => {
+    const root = document.getElementById('root');
+    if (root) {
+      root.style.width = '100%';
+      root.style.maxWidth = '100%';
+      root.style.overflowX = 'hidden';
+    }
+    document.body.style.width = '100%';
+    document.body.style.overflowX = 'hidden';
+    document.documentElement.style.width = '100%';
+    document.documentElement.style.overflowX = 'hidden';
+  }, []);
+
   const handleSyncOfflineQueue = async (queue: any[]) => {
     for (const action of queue) {
       try {
@@ -145,6 +167,14 @@ export default function App() {
       reduceMotion: false,
     };
   });
+
+  const [alertIntervals, setAlertIntervals] = useState<AlertIntervals>(() => getAlertIntervals());
+
+  const handleUpdateAlertIntervals = (intervals: AlertIntervals) => {
+    setAlertIntervals(intervals);
+    saveAlertIntervals(intervals);
+    toast.success('🔔 Alert preferences updated!');
+  };
 
   // Persist accessibility settings whenever they change
   useEffect(() => {
@@ -321,6 +351,37 @@ export default function App() {
     } catch {}
     return [];
   });
+  const [viewerColors, setViewerColors] = useState<Record<string, string>>(() => {
+    try {
+      const cached = localStorage.getItem('showflix_viewer_colors');
+      return cached ? JSON.parse(cached) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [activeProfile, setActiveProfile] = useState<string>(() => {
+    try {
+      return localStorage.getItem('showflix_active_profile') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const profileFilteredShows = useMemo(() => {
+    let list = shows;
+    if (activeProfile) {
+      const normActive = activeProfile.trim().toLowerCase();
+      list = list.filter((show) => {
+        if (!show.who) return false;
+        const showWho = String(show.who).trim().toLowerCase();
+        if (!showWho) return false;
+        if (showWho === normActive || showWho.includes(normActive)) return true;
+        const parts = showWho.split(/[&,\/]/).map((p) => p.trim());
+        return parts.includes(normActive);
+      });
+    }
+    return list;
+  }, [shows, activeProfile]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | undefined>(undefined);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean>(() => {
@@ -360,16 +421,77 @@ export default function App() {
     };
   }, []);
 
+  const handleSwitchProfile = (profile: string) => {
+    setActiveProfile(profile);
+    try {
+      if (profile) {
+        localStorage.setItem('showflix_active_profile', profile);
+        showToast(`👤 Switched profile to ${profile}`);
+      } else {
+        localStorage.removeItem('showflix_active_profile');
+        showToast('👥 Viewing all profiles');
+      }
+    } catch {}
+  };
+
+  const handleUpdateViewerColors = (colors: Record<string, string>) => {
+    setViewerColors(colors);
+    try {
+      localStorage.setItem('showflix_viewer_colors', JSON.stringify(colors));
+    } catch {}
+  };
+
   const handleUpdateSyncFrequency = (freq: number) => {
     setSyncFrequency(freq);
     try {
       localStorage.setItem('showflix_sync_frequency', String(freq));
     } catch {}
-    const activeUid = auth.currentUser?.uid || (user && user.uid !== 'user_jtyodagreen' ? user.uid : undefined);
+    const activeUid = auth.currentUser?.uid || (user && user.uid !== 'user_default' ? user.uid : undefined);
     if (activeUid) {
       saveUserSheetConfig(activeUid, { syncFrequency: freq }).catch(console.warn);
     }
     showToast(`⏱️ Background sync frequency set to ${freq >= 60 ? `${freq / 60} min` : `${freq}s`}`);
+  };
+
+  const handleUpdateCustomViewers = async (updatedViewers: string[], updatedColors?: Record<string, string>) => {
+    setCustomViewers(updatedViewers);
+    try {
+      localStorage.setItem('showflix_custom_viewers', JSON.stringify(updatedViewers));
+    } catch {}
+
+    const colorsToSave = updatedColors || viewerColors;
+    if (updatedColors) {
+      setViewerColors(updatedColors);
+      try {
+        localStorage.setItem('showflix_viewer_colors', JSON.stringify(updatedColors));
+      } catch {}
+    }
+
+    // Seamless auto-sync to Google Sheet Lists tab Column D (Profile Name) and Column E (Color Tag)
+    if (spreadsheetId) {
+      try {
+        let token = await getAccessToken();
+        if (!token) {
+          const authRes = await handleSignIn();
+          token = authRes?.accessToken || null;
+        }
+        if (token) {
+          const meta = await fetchSpreadsheetDetails(spreadsheetId, token);
+          if (meta) {
+            const listsTabName = meta.sheetNames.find((t) => t.toLowerCase().includes('lists')) || 'Lists';
+            const success = await updateCustomViewers(spreadsheetId, listsTabName, updatedViewers, token, colorsToSave);
+            if (success) {
+              showToast('👤 Google Sheets profiles & color tags updated!');
+            } else {
+              showToast('⚠️ Failed to sync profiles to Lists sheet');
+            }
+          }
+        }
+      } catch (err: any) {
+        console.warn('Failed to sync custom viewers to sheet:', err);
+        showToast(`⚠️ Profile sync error: ${err.message || String(err)}`);
+      }
+    }
   };
 
   const clearAllUserData = useCallback(() => {
@@ -379,6 +501,12 @@ export default function App() {
     setShowAddModal(false);
     setShowSyncModal(false);
     setCustomViewers([]);
+    setViewerColors({});
+    setActiveProfile('');
+    try {
+      localStorage.removeItem('showflix_viewer_colors');
+      localStorage.removeItem('showflix_active_profile');
+    } catch {}
     setSpreadsheetId('');
     setSheetName('MASTER TRACKER');
     setWishlistSheetName('📋  WISHLIST');
@@ -537,10 +665,14 @@ export default function App() {
           const tabs: string[] = storedTabs ? JSON.parse(storedTabs) : availableTabs;
           const listsTab = tabs.find((t) => t.toLowerCase().includes('lists'));
           if (listsTab && currentSheetId) {
-            const viewers = await fetchCustomViewers(currentSheetId, listsTab, token);
-            if (viewers && viewers.length > 0) {
-              setCustomViewers(viewers);
-              localStorage.setItem('bingebox_custom_viewers', JSON.stringify(viewers));
+            const viewerRes = await fetchCustomViewers(currentSheetId, listsTab, token);
+            if (viewerRes?.viewers && viewerRes.viewers.length > 0) {
+              setCustomViewers(viewerRes.viewers);
+              localStorage.setItem('bingebox_custom_viewers', JSON.stringify(viewerRes.viewers));
+            }
+            if (viewerRes?.colors && Object.keys(viewerRes.colors).length > 0) {
+              setViewerColors(viewerRes.colors);
+              localStorage.setItem('showflix_viewer_colors', JSON.stringify(viewerRes.colors));
             }
           }
         } catch (listsErr) {
@@ -582,6 +714,18 @@ export default function App() {
       if (res?.user) {
         setUser(res.user);
         showToast(`Signed in as ${res.user.displayName || res.user.email}`);
+      }
+
+      // Auto-restore settings modal on returning from redirect
+      try {
+        const redirectTab = sessionStorage.getItem('showflix_auth_redirect_active');
+        if (redirectTab) {
+          console.log('[Auth Restore] Restoring settings modal tab after redirect:', redirectTab);
+          setShowSyncModal(true);
+          sessionStorage.removeItem('showflix_auth_redirect_active');
+        }
+      } catch (e) {
+        console.warn('[Auth Restore] Failed checking session storage:', e);
       }
     }).catch((err) => {
       console.warn('Redirect result check on load failed:', err);
@@ -798,11 +942,11 @@ export default function App() {
       const meta = metaResult.status === 'fulfilled' ? metaResult.value : null;
       const quickResults = quickSheetResults.status === 'fulfilled' ? quickSheetResults.value : {};
       
-      let viewerList: string[] = [];
+      let viewerResult: { viewers: string[]; colors: Record<string, string> } = { viewers: [], colors: {} };
       if (meta) {
         const listsTabName = meta.sheetNames.find((t) => t.toLowerCase().includes('lists'));
         if (listsTabName) {
-          viewerList = await fetchCustomViewers(cleanId, listsTabName, token);
+          viewerResult = await fetchCustomViewers(cleanId, listsTabName, token);
         }
       }
 
@@ -846,9 +990,13 @@ export default function App() {
         if (refinedResults[chosenWishlist]) wishlistParsed = refinedResults[chosenWishlist];
       }
 
-      if (viewerList.length > 0) {
-        setCustomViewers(viewerList);
-        localStorage.setItem('bingebox_custom_viewers', JSON.stringify(viewerList));
+      if (viewerResult.viewers && viewerResult.viewers.length > 0) {
+        setCustomViewers(viewerResult.viewers);
+        localStorage.setItem('bingebox_custom_viewers', JSON.stringify(viewerResult.viewers));
+      }
+      if (viewerResult.colors && Object.keys(viewerResult.colors).length > 0) {
+        setViewerColors(viewerResult.colors);
+        localStorage.setItem('showflix_viewer_colors', JSON.stringify(viewerResult.colors));
       }
 
       let combinedShows: ShowItem[] = [
@@ -881,7 +1029,7 @@ export default function App() {
         sheetName: chosenSheet,
         wishlistSheetName: chosenWishlist,
         showcaseSheetName: chosenShowcase,
-        customViewers: viewerList.length > 0 ? viewerList : undefined,
+        customViewers: viewerResult.viewers && viewerResult.viewers.length > 0 ? viewerResult.viewers : undefined,
       });
 
       localStorage.setItem('bingebox_spreadsheet_id', cleanId);
@@ -1717,7 +1865,7 @@ export default function App() {
         .replace(/['’".,\/#!$%\^&\*;:{}=\-_`~()]/g, ' ');
     };
 
-    let list = shows;
+    let list = profileFilteredShows;
 
     // 1. Search Query filter (if any)
     if (trimmedQuery) {
@@ -1774,7 +1922,7 @@ export default function App() {
     }
 
     return list;
-  }, [shows, searchQuery, activeFilter, selectedYear]);
+  }, [profileFilteredShows, searchQuery, activeFilter, selectedYear]);
 
   // Filter shows - broad search across all metadata combined with category, platform, and year
   const filteredShows = useMemo(() => {
@@ -1926,11 +2074,12 @@ export default function App() {
 
   // Featured billboard show
   const featuredShow = useMemo(() => {
-    if (shows.length === 0) return null;
-    const watchingList = shows.filter((s) => s.status === '⏳ Watching');
-    const candidates = watchingList.length > 0 ? watchingList : shows;
-    return candidates[featuredIndex % candidates.length] || shows[0];
-  }, [shows, featuredIndex]);
+    const list = profileFilteredShows.length > 0 ? profileFilteredShows : shows;
+    if (list.length === 0) return null;
+    const watchingList = list.filter((s) => s.status === '⏳ Watching');
+    const candidates = watchingList.length > 0 ? watchingList : list;
+    return candidates[featuredIndex % candidates.length] || list[0];
+  }, [profileFilteredShows, shows, featuredIndex]);
 
   // Auto-slideshow for Hero Billboard
   useEffect(() => {
@@ -1941,13 +2090,13 @@ export default function App() {
     }, 12000); // 12 seconds per slide
 
     return () => clearInterval(timer);
-  }, [isAnyFilterActive, shows.length]);
+  }, [isAnyFilterActive, profileFilteredShows.length]);
 
   // Show category collections
   const recentlyAddedShows = useMemo(() => {
-    if (!shows || shows.length === 0) return [];
+    if (!profileFilteredShows || profileFilteredShows.length === 0) return [];
 
-    const copy = [...shows];
+    const copy = [...profileFilteredShows];
     copy.sort((a, b) => {
       const dateA = a.dateAdded ? parseAnyDate(a.dateAdded)?.getTime() : null;
       const dateB = b.dateAdded ? parseAnyDate(b.dateAdded)?.getTime() : null;
@@ -1966,62 +2115,62 @@ export default function App() {
     });
 
     return copy.slice(0, 20);
-  }, [shows]);
+  }, [profileFilteredShows]);
 
   const continueWatching = useMemo(
-    () => shows
+    () => profileFilteredShows
       .filter((s) => s.status === '⏳ Watching')
       .sort((a, b) => calculateShowProgress(b) - calculateShowProgress(a)),
-    [shows]
+    [profileFilteredShows]
   );
   const topRated = useMemo(
-    () => shows
+    () => profileFilteredShows
       .filter((s) => s.ratingNum >= 4 || s.rating.includes('5'))
       .sort((a, b) => (b.ratingNum || 0) - (a.ratingNum || 0)),
-    [shows]
+    [profileFilteredShows]
   );
   const netflixShows = useMemo(
-    () => shows.filter((s) => s.platform.toLowerCase().includes('netflix')),
-    [shows]
+    () => profileFilteredShows.filter((s) => s.platform.toLowerCase().includes('netflix')),
+    [profileFilteredShows]
   );
   const primeShows = useMemo(
-    () => shows.filter((s) => s.platform.toLowerCase().includes('prime')),
-    [shows]
+    () => profileFilteredShows.filter((s) => s.platform.toLowerCase().includes('prime')),
+    [profileFilteredShows]
   );
   const disneyShows = useMemo(
-    () => shows.filter((s) => s.platform.toLowerCase().includes('disney')),
-    [shows]
+    () => profileFilteredShows.filter((s) => s.platform.toLowerCase().includes('disney')),
+    [profileFilteredShows]
   );
   const appleShows = useMemo(
-    () => shows.filter((s) => s.platform.toLowerCase().includes('apple')),
-    [shows]
+    () => profileFilteredShows.filter((s) => s.platform.toLowerCase().includes('apple')),
+    [profileFilteredShows]
   );
   const paramountShows = useMemo(
-    () => shows.filter((s) => s.platform.toLowerCase().includes('paramount')),
-    [shows]
+    () => profileFilteredShows.filter((s) => s.platform.toLowerCase().includes('paramount')),
+    [profileFilteredShows]
   );
   const maxShows = useMemo(
-    () => shows.filter((s) => s.platform.toLowerCase().includes('max') || s.platform.toLowerCase().includes('hbo')),
-    [shows]
+    () => profileFilteredShows.filter((s) => s.platform.toLowerCase().includes('max') || s.platform.toLowerCase().includes('hbo')),
+    [profileFilteredShows]
   );
   const skyShows = useMemo(
-    () => shows.filter((s) => s.platform.toLowerCase().includes('sky') || s.platform.toLowerCase().includes('now')),
-    [shows]
+    () => profileFilteredShows.filter((s) => s.platform.toLowerCase().includes('sky') || s.platform.toLowerCase().includes('now')),
+    [profileFilteredShows]
   );
   const watchedShows = useMemo(
-    () => shows.filter((s) => s.status === '✅ Watched'),
-    [shows]
+    () => profileFilteredShows.filter((s) => s.status === '✅ Watched'),
+    [profileFilteredShows]
   );
   const pausedShows = useMemo(
-    () => shows.filter((s) => s.status === '⏸️ Paused' || s.status === '❌ Dropped'),
-    [shows]
+    () => profileFilteredShows.filter((s) => s.status === '⏸️ Paused' || s.status === '❌ Dropped'),
+    [profileFilteredShows]
   );
   const wishlistShows = useMemo(
-    () => shows.filter((s) => s.isWishlist),
-    [shows]
+    () => profileFilteredShows.filter((s) => s.isWishlist),
+    [profileFilteredShows]
   );
   const comingSoonShows = useMemo(() => {
-    const list = shows.filter((s) => Boolean(s.releaseDate || s.releaseNote || s.nextAirDate || s.nextAirTimestamp));
+    const list = profileFilteredShows.filter((s) => Boolean(s.releaseDate || s.releaseNote || s.nextAirDate || s.nextAirTimestamp));
     return [...list].sort((a, b) => {
       const tsA = a.releaseDate ? parseReleaseDateToTimestamp(a.releaseDate) : a.nextAirTimestamp || null;
       const tsB = b.releaseDate ? parseReleaseDateToTimestamp(b.releaseDate) : b.nextAirTimestamp || null;
@@ -2035,7 +2184,7 @@ export default function App() {
 
       return (a.releaseNote || a.title).localeCompare(b.releaseNote || b.title);
     });
-  }, [shows]);
+  }, [profileFilteredShows]);
 
   const renderMasterTrackerOverviewBar = (position: 'top' | 'bottom' = 'top') => (
     <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${position === 'top' ? 'pt-2 sm:pt-3 pb-2' : 'pt-6 pb-4'}`}>
@@ -2076,7 +2225,7 @@ export default function App() {
               title="Click to show all titles in filter view (click again to restore shelves)"
             >
               <span className={`w-1.5 h-1.5 rounded-full transition-colors ${activeFilter === 'All Titles' ? 'bg-red-500 animate-pulse' : 'bg-zinc-500'}`} />
-              <span>{shows.length} Total Titles</span>
+              <span>{profileFilteredShows.length} Total Titles</span>
             </button>
           </div>
         </div>
@@ -2099,7 +2248,7 @@ export default function App() {
             </div>
             <div>
               <span className="text-[10px] text-zinc-400 uppercase font-semibold block">Movies</span>
-              <span className="text-base font-extrabold text-white">{shows.filter((s) => s.type === 'Movie').length}</span>
+              <span className="text-base font-extrabold text-white">{profileFilteredShows.filter((s) => s.type === 'Movie').length}</span>
             </div>
           </button>
 
@@ -2120,7 +2269,7 @@ export default function App() {
             </div>
             <div>
               <span className="text-[10px] text-zinc-400 uppercase font-semibold block">Series</span>
-              <span className="text-base font-extrabold text-white">{shows.filter((s) => s.type === 'Series').length}</span>
+              <span className="text-base font-extrabold text-white">{profileFilteredShows.filter((s) => s.type === 'Series').length}</span>
             </div>
           </button>
 
@@ -2877,6 +3026,7 @@ export default function App() {
                       onToggleStatus={handleToggleStatus}
                       onHoverEnter={handleHoverEnter}
                       onHoverLeave={handleHoverLeave}
+                      viewerColors={viewerColors}
                     />
                   ))}
                 </div>
@@ -2957,25 +3107,70 @@ export default function App() {
           </section>
         )}
 
+        {/* Active Profile Filter Indicator Banner */}
+        {activeProfile && (
+          <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 pt-4 pb-1">
+            <div
+              className="flex items-center justify-between px-3.5 py-2.5 rounded-xl border backdrop-blur-sm shadow-md transition-all"
+              style={{
+                backgroundColor: `${getViewerColor(activeProfile, viewerColors)}15`,
+                borderColor: `${getViewerColor(activeProfile, viewerColors)}40`,
+              }}
+            >
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm"
+                  style={{ backgroundColor: getViewerColor(activeProfile, viewerColors) }}
+                >
+                  {activeProfile.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs sm:text-sm font-bold text-white">
+                    Active Profile: <span style={{ color: getViewerColor(activeProfile, viewerColors) }}>{activeProfile}</span>
+                  </span>
+                  <span className="text-[11px] text-zinc-400 hidden sm:inline font-medium">
+                    (Showing titles for this viewer)
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleSwitchProfile('')}
+                className="text-xs font-semibold px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white transition-colors cursor-pointer border border-zinc-700"
+              >
+                👥 View All Profiles
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Netflix Category Shelves (Default Home) */}
         {!isAnyFilterActive && (
           <div className="space-y-4 sm:space-y-6 pt-2">
             {/* Recently Added Section */}
-            {recentlyAddedShows.length > 0 && (
-              <ShowRow
-                id="recently-added"
-                title="✨ Recently Added"
-                subtitle="The latest 20 titles added to your tracker"
-                shows={recentlyAddedShows}
-                isLoading={isSyncing}
-                onOpenDetails={handleOpenDetails}
-                onIncrementEpisode={handleIncrementEpisode}
-                onToggleStatus={handleToggleStatus}
-                onTitleClick={() => setActiveFilter('All Titles')}
-                onHoverEnter={handleHoverEnter}
-                onHoverLeave={handleHoverLeave}
-              />
-            )}
+            <ShowRow
+              id="recently-added"
+              title="✨ Recently Added"
+              subtitle="Latest additions to your tracker"
+              shows={recentlyAddedShows}
+              isLoading={isSyncing}
+              onOpenDetails={handleOpenDetails}
+              onIncrementEpisode={handleIncrementEpisode}
+              onToggleStatus={handleToggleStatus}
+              onTitleClick={() => setActiveFilter('All Titles')}
+              onHoverEnter={handleHoverEnter}
+              onHoverLeave={handleHoverLeave}
+              viewerColors={viewerColors}
+              emptyState={{
+                type: 'recently-added',
+                title: 'No Recently Added Shows',
+                description: 'Your recent additions shelf is empty. Add new movies or TV series to start tracking dates, platform availability, and your personal ratings.',
+                actionLabel: '+ Add Show',
+                onAction: () => setShowAddModal(true),
+                tipText: 'New entries are automatically sorted to the front so you always see your latest additions.',
+                badge: 'RECENT FEED EMPTY',
+              }}
+            />
 
             {/* Continue Watching Row */}
             <ShowRow
@@ -2990,6 +3185,18 @@ export default function App() {
               onTitleClick={() => setActiveFilter('⏳ Watching')}
               onHoverEnter={handleHoverEnter}
               onHoverLeave={handleHoverLeave}
+              viewerColors={viewerColors}
+              emptyState={{
+                type: 'continue-watching',
+                title: 'No Shows In Progress Right Now',
+                description: 'You don\'t have any titles currently marked as "Watching". Add a new show or mark an existing title from your library to track episodes, seasons, and progress bars here!',
+                actionLabel: '+ Add Show',
+                onAction: () => setShowAddModal(true),
+                secondaryActionLabel: shows.length > 0 ? 'Explore All Titles' : undefined,
+                onSecondaryAction: shows.length > 0 ? () => setActiveFilter('All Titles') : undefined,
+                tipText: 'Tap the status button on any title card to switch it to "Watching" and resume right here.',
+                badge: 'QUEUE READY',
+              }}
             />
 
             {/* Wishlist Sheet Shelf */}
@@ -3005,6 +3212,7 @@ export default function App() {
                 onTitleClick={() => setActiveFilter('🎁 Wishlist')}
                 onHoverEnter={handleHoverEnter}
                 onHoverLeave={handleHoverLeave}
+                viewerColors={viewerColors}
               />
             )}
 
@@ -3022,6 +3230,7 @@ export default function App() {
                 onTitleClick={() => setActiveFilter('⏰ Coming Soon')}
                 onHoverEnter={handleHoverEnter}
                 onHoverLeave={handleHoverLeave}
+                viewerColors={viewerColors}
               />
             )}
 
@@ -3037,6 +3246,7 @@ export default function App() {
               onTitleClick={() => setActiveFilter('⭐ Top Rated')}
               onHoverEnter={handleHoverEnter}
               onHoverLeave={handleHoverLeave}
+              viewerColors={viewerColors}
             />
 
             {/* Netflix Originals & Shows */}
@@ -3051,6 +3261,7 @@ export default function App() {
               onTitleClick={() => setSelectedPlatform('Netflix')}
               onHoverEnter={handleHoverEnter}
               onHoverLeave={handleHoverLeave}
+              viewerColors={viewerColors}
             />
 
             {/* Prime Video Hits */}
@@ -3065,6 +3276,7 @@ export default function App() {
               onTitleClick={() => setSelectedPlatform('Prime Video')}
               onHoverEnter={handleHoverEnter}
               onHoverLeave={handleHoverLeave}
+              viewerColors={viewerColors}
             />
 
             {/* Additional Platforms */}
@@ -3080,6 +3292,7 @@ export default function App() {
                 onTitleClick={() => setSelectedPlatform('Disney+')}
                 onHoverEnter={handleHoverEnter}
                 onHoverLeave={handleHoverLeave}
+                viewerColors={viewerColors}
               />
             )}
             {appleShows.length > 0 && (
@@ -3094,6 +3307,7 @@ export default function App() {
                 onTitleClick={() => setSelectedPlatform('Apple TV+')}
                 onHoverEnter={handleHoverEnter}
                 onHoverLeave={handleHoverLeave}
+                viewerColors={viewerColors}
               />
             )}
             {paramountShows.length > 0 && (
@@ -3108,6 +3322,7 @@ export default function App() {
                 onTitleClick={() => setSelectedPlatform('Paramount+')}
                 onHoverEnter={handleHoverEnter}
                 onHoverLeave={handleHoverLeave}
+                viewerColors={viewerColors}
               />
             )}
             {maxShows.length > 0 && (
@@ -3122,6 +3337,7 @@ export default function App() {
                 onTitleClick={() => setSelectedPlatform('Max')}
                 onHoverEnter={handleHoverEnter}
                 onHoverLeave={handleHoverLeave}
+                viewerColors={viewerColors}
               />
             )}
             {skyShows.length > 0 && (
@@ -3136,6 +3352,7 @@ export default function App() {
                 onTitleClick={() => setSelectedPlatform('Sky')}
                 onHoverEnter={handleHoverEnter}
                 onHoverLeave={handleHoverLeave}
+                viewerColors={viewerColors}
               />
             )}
 
@@ -3152,6 +3369,7 @@ export default function App() {
               onTitleClick={() => setActiveFilter('✅ Watched')}
               onHoverEnter={handleHoverEnter}
               onHoverLeave={handleHoverLeave}
+              viewerColors={viewerColors}
             />
 
             {/* Paused & Dropped */}
@@ -3168,6 +3386,7 @@ export default function App() {
                 onTitleClick={() => setActiveFilter('⏸️ Paused / ❌ Dropped')}
                 onHoverEnter={handleHoverEnter}
                 onHoverLeave={handleHoverLeave}
+                viewerColors={viewerColors}
               />
             )}
           </div>
@@ -3175,7 +3394,7 @@ export default function App() {
 
             {/* Currently In-Progress & Top Rated Showcase at Main Page Bottom */}
             <ShowcaseSection
-              shows={shows}
+              shows={profileFilteredShows}
               onOpenDetails={handleOpenDetails}
               onNavigateToFilter={(filter = 'All Titles', sort) => {
                 setSearchQuery('');
@@ -3235,7 +3454,7 @@ export default function App() {
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-6 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold shadow-2xl shadow-black/80 hover:scale-105 active:scale-95 transition-all cursor-pointer text-xs sm:text-sm border border-red-400/40 animate-in fade-in slide-in-from-bottom-4 duration-200"
           title="Back to Top"
         >
-          <ArrowUp className="w-4 h-4" />
+          <ArrowUp className="w-4 h-4 animate-bounce-subtle" />
           <span>Back to Top</span>
         </button>
       )}
@@ -3264,7 +3483,7 @@ export default function App() {
         }}
         sheetConnected={Boolean(spreadsheetId && sheetTitle)}
         sheetTitle={sheetTitle}
-        shows={shows}
+        shows={profileFilteredShows}
         isSyncing={isSyncing}
         lastSyncedAt={lastSyncedAt}
         autoSyncEnabled={autoSyncEnabled}
@@ -3276,16 +3495,31 @@ export default function App() {
         syncFrequency={syncFrequency}
         onUpdateSyncFrequency={handleUpdateSyncFrequency}
         onOpenDetails={handleOpenDetails}
+        activeProfile={activeProfile}
+        onSwitchProfile={handleSwitchProfile}
+        customViewers={customViewers}
+        onUpdateCustomViewers={handleUpdateCustomViewers}
+        viewerColors={viewerColors}
+        onUpdateViewerColors={handleUpdateViewerColors}
+        alertIntervals={alertIntervals}
+        onUpdateAlertIntervals={handleUpdateAlertIntervals}
+        spreadsheetId={spreadsheetId}
+        sheetName={sheetName}
+        wishlistSheetName={wishlistSheetName}
+        availableTabs={availableTabs}
+        onConnect={handleConnectSheets}
+        onDisconnect={handleDisconnectSheets}
+        onToggleAutoSync={handleToggleAutoSync}
       />
 
-      <main className={`flex-1 pb-16 ${!isAnyFilterActive && !showStatsModal ? 'pt-0' : 'pt-16'}`}>
+      <main className={`flex-1 pb-16 w-full max-w-full overflow-x-hidden ${!isAnyFilterActive && !showStatsModal ? 'pt-0' : 'pt-16'}`}>
         {renderMainContent()}
       </main>
 
 
       {/* Footer */}
       <footer className="border-t border-zinc-800/80 bg-[#101010] py-8 pb-28 sm:pb-8 text-zinc-500 text-xs mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 rounded bg-[#E50914] flex items-center justify-center font-bold text-white text-xs">
               N
@@ -3331,6 +3565,7 @@ export default function App() {
           onMoveToMaster={handleMoveToMaster}
           masterSheetName={sheetName}
           wishlistSheetName={wishlistSheetName}
+          viewerColors={viewerColors}
         />
       )}
 
@@ -3341,38 +3576,51 @@ export default function App() {
           onAdd={handleAddShow}
           onSelectExistingShow={(show) => setSelectedShow(show)}
           sheetConnected={Boolean(spreadsheetId)}
-          defaultViewer=""
+          defaultViewer={activeProfile || ""}
           sheetPlatforms={availablePlatforms.map((p) => p.raw)}
           sheetViewers={availableViewers}
           sheetGenres={availableGenres}
           masterSheetName={sheetName}
           wishlistSheetName={wishlistSheetName}
           shows={shows}
+          viewerColors={viewerColors}
         />
       )}
 
       {showSyncModal && (
-        <SheetSyncModal
+        <SettingsCenterModal
           isOpen={true}
           onClose={() => setShowSyncModal(false)}
           user={user}
           onSignIn={handleSignIn}
+          onSignOut={handleSignOut}
           spreadsheetId={spreadsheetId}
           sheetName={sheetName}
           wishlistSheetName={wishlistSheetName}
           availableTabs={availableTabs}
           onConnect={handleConnectSheets}
           onDisconnect={handleDisconnectSheets}
-          isLoading={isSyncing}
+          isSyncing={isSyncing}
           lastSyncedAt={lastSyncedAt}
           sheetTitle={sheetTitle}
-          rowCount={shows.length}
+          shows={shows}
           autoSyncEnabled={autoSyncEnabled}
           onToggleAutoSync={handleToggleAutoSync}
           syncFrequency={syncFrequency}
           onUpdateSyncFrequency={handleUpdateSyncFrequency}
           onTriggerSync={() => fetchLatestFromSheet(false)}
           isOnline={isOnline}
+          customViewers={customViewers}
+          onUpdateCustomViewers={handleUpdateCustomViewers}
+          viewerColors={viewerColors}
+          onUpdateViewerColors={handleUpdateViewerColors}
+          activeProfile={activeProfile}
+          onSwitchProfile={handleSwitchProfile}
+          alertIntervals={alertIntervals}
+          onUpdateAlertIntervals={handleUpdateAlertIntervals}
+          accessibilitySettings={accessibilitySettings}
+          setAccessibilitySettings={setAccessibilitySettings}
+          defaultTab="sync"
         />
       )}
 
@@ -3415,6 +3663,7 @@ export default function App() {
           onUpdateRating={(s, num) => {
             handleUpdateRating(s, num);
           }}
+          viewerColors={viewerColors}
         />
       )}
     </div>

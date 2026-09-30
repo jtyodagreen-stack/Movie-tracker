@@ -8,6 +8,7 @@ import { autoFetchPoster, searchLiveSuggestions, LiveSearchItem, PosterCandidate
 import { fetchLiveTvMazeInfo, TvMazeShowInfo, TvMazeEpisode } from '../services/tvMazeService';
 import { extractDateOnly, extractTimeOnly, combineDateAndTime } from '../utils/dateUtils';
 import { enableShowNotificationSilent } from '../services/notificationService';
+import { getViewerColor } from '../utils/profileColors';
 
 interface AddShowModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ interface AddShowModalProps {
   wishlistSheetName?: string;
   shows?: ShowItem[];
   onSelectExistingShow?: (show: ShowItem) => void;
+  viewerColors?: Record<string, string>;
 }
 
 const DEFAULT_PLATFORMS = PRESET_PLATFORMS;
@@ -111,7 +113,31 @@ export default function AddShowModal({
   wishlistSheetName = 'Wishlist',
   shows = [],
   onSelectExistingShow,
+  viewerColors,
 }: AddShowModalProps) {
+  // Prevent background scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      // Save current scroll position
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+    } else {
+      // Restore scroll position
+      const scrollY = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      window.scrollTo(0, parseInt(scrollY || '0') * -1);
+    }
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+    };
+  }, [isOpen]);
+
   const [destination, setDestination] = useState<'master' | 'wishlist'>(
     initialIsWishlist ? 'wishlist' : 'master'
   );
@@ -613,12 +639,12 @@ export default function AddShowModal({
   return (
     <div
       id="add-show-modal-backdrop"
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md"
       onClick={onClose}
     >
       <div
         id="add-show-modal-dialog"
-        className="relative w-full max-w-2xl max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-[#181818] border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-2xl max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-[#181818] border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         <style>{`
@@ -688,7 +714,7 @@ export default function AddShowModal({
         </div>
 
         {/* Form */}
-        <form id="add-show-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+        <form id="add-show-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4">
           {/* Destination Sheet Selector */}
           <div className="space-y-1.5 p-3 rounded-lg bg-zinc-900/90 border border-zinc-800">
             <div className="flex items-center justify-between">
@@ -827,9 +853,6 @@ export default function AddShowModal({
                                 {item.type}
                               </span>
                             </div>
-                            {item.cast && (
-                              <p className="text-[11px] text-zinc-400 truncate mt-0.5">{item.cast}</p>
-                            )}
                           </div>
 
                           <div className="shrink-0 text-zinc-500 text-xs pr-1">
@@ -1163,7 +1186,25 @@ export default function AddShowModal({
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label htmlFor="new-show-who" className="text-xs font-bold text-zinc-400 uppercase tracking-widest block ml-1">Viewer (Who)</label>
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="new-show-who" className="text-xs font-bold text-zinc-400 uppercase tracking-widest block ml-1">Viewer (Who)</label>
+                    {who && (
+                      <span
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1"
+                        style={{
+                          backgroundColor: `${getViewerColor(who, viewerColors)}20`,
+                          color: getViewerColor(who, viewerColors),
+                          borderColor: `${getViewerColor(who, viewerColors)}50`,
+                        }}
+                      >
+                        <span
+                          className="w-1.5 h-1.5 rounded-full"
+                          style={{ backgroundColor: getViewerColor(who, viewerColors) }}
+                        />
+                        {who}
+                      </span>
+                    )}
+                  </div>
                   <select
                     id="new-show-who"
                     value={who}

@@ -24,9 +24,12 @@ import {
   Trash2,
   Star,
   Shuffle,
+  Settings,
+  Users,
+  Palette,
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
-import { ShowItem, PRESET_PLATFORMS, AccessibilitySettings } from '../types';
+import { ShowItem, PRESET_PLATFORMS, AccessibilitySettings, AlertIntervals } from '../types';
 import { normalizePlatform } from '../services/sheetsService';
 import { getOptimizedPoster } from '../utils/imageOptimizer';
 import {
@@ -36,10 +39,14 @@ import {
   GOOGLE_AVATAR_DATA_URI,
   DEFAULT_PROFILE_USER,
 } from '../utils/userProfile';
+import { getViewerColor, getViewerColorName } from '../utils/profileColors';
+
+import SettingsCenterModal from './SettingsCenterModal';
+import NetflixProfileSwitcherModal from './NetflixProfileSwitcherModal';
 
 interface NavbarProps {
   user: User | null;
-  onSignIn: () => void;
+  onSignIn: (options?: { forceConsent?: boolean }) => any;
   onSignOut: () => void;
   onOpenSync: () => void;
   onOpenAdd: () => void;
@@ -66,6 +73,19 @@ interface NavbarProps {
   onOpenRandomPicker?: () => void;
   activeProfile?: string;
   onSwitchProfile?: (profile: string) => void;
+  customViewers?: string[];
+  onUpdateCustomViewers?: (viewers: string[], colors?: Record<string, string>) => void;
+  viewerColors?: Record<string, string>;
+  onUpdateViewerColors?: (colors: Record<string, string>) => void;
+  alertIntervals: AlertIntervals;
+  onUpdateAlertIntervals: (intervals: AlertIntervals) => void;
+  spreadsheetId: string;
+  sheetName: string;
+  wishlistSheetName?: string;
+  availableTabs?: string[];
+  onConnect: (id: string, name: string, wishlistName?: string) => Promise<void>;
+  onDisconnect: () => void;
+  onToggleAutoSync?: (enabled: boolean) => void;
 }
 
 const AVATAR_COLORS = [
@@ -107,10 +127,26 @@ export default function Navbar({
   onOpenRandomPicker,
   activeProfile,
   onSwitchProfile,
+  customViewers = [],
+  onUpdateCustomViewers,
+  viewerColors = {},
+  onUpdateViewerColors,
+  alertIntervals,
+  onUpdateAlertIntervals,
+  spreadsheetId,
+  sheetName,
+  wishlistSheetName,
+  availableTabs,
+  onConnect,
+  onDisconnect,
+  onToggleAutoSync,
 }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
   const [showSearch, setShowSearch] = useState(Boolean(searchQuery));
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showSettingsCenterModal, setShowSettingsCenterModal] = useState(false);
+  const [showNetflixProfileSwitcher, setShowNetflixProfileSwitcher] = useState(false);
+  const [settingsModalTab, setSettingsModalTab] = useState<'all' | 'user' | 'sync' | 'acc' | 'theme' | 'data'>('all');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAccMenu, setShowAccMenu] = useState(false);
   const [isOnlineState, setIsOnlineState] = useState<boolean>(
@@ -304,6 +340,25 @@ export default function Navbar({
     }, 200);
   };
 
+  const userTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleUserMouseEnter = () => {
+    if (userTimeoutRef.current) {
+      clearTimeout(userTimeoutRef.current);
+      userTimeoutRef.current = null;
+    }
+    setShowUserMenu(true);
+  };
+
+  const handleUserMouseLeave = () => {
+    if (userTimeoutRef.current) {
+      clearTimeout(userTimeoutRef.current);
+    }
+    userTimeoutRef.current = setTimeout(() => {
+      setShowUserMenu(false);
+    }, 200);
+  };
+
   useEffect(() => {
     return () => {
       if (platformTimeoutRef.current) {
@@ -311,6 +366,9 @@ export default function Navbar({
       }
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
+      }
+      if (userTimeoutRef.current) {
+        clearTimeout(userTimeoutRef.current);
       }
     };
   }, []);
@@ -450,7 +508,7 @@ export default function Navbar({
           : 'bg-[#141414]/98 backdrop-blur-md shadow-xl border-b border-[#262626]'
       }`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         {/* Left: Brand Logo & Desktop Navigation */}
         <div className="flex items-center gap-4 xl:gap-6 min-w-0">
           <button
@@ -1132,7 +1190,34 @@ export default function Navbar({
 
             {/* Desktop Auth / User Menu */}
             {isSignedIn ? (
-              <div className="relative shrink-0" ref={userDropdownRef}>
+              <div
+                className="relative shrink-0 flex items-center gap-2 z-50"
+                ref={userDropdownRef}
+                onMouseEnter={handleUserMouseEnter}
+                onMouseLeave={handleUserMouseLeave}
+              >
+                {activeProfile && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNetflixProfileSwitcher(true);
+                    }}
+                    className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border transition-all cursor-pointer hover:scale-105 shadow-sm"
+                    style={{
+                      backgroundColor: `${getViewerColor(activeProfile, viewerColors)}20`,
+                      color: getViewerColor(activeProfile, viewerColors),
+                      borderColor: `${getViewerColor(activeProfile, viewerColors)}60`,
+                    }}
+                    title={`Active Profile: ${activeProfile} (Click to switch profile)`}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: getViewerColor(activeProfile, viewerColors) }}
+                    />
+                    <span className="truncate max-w-[85px]">{activeProfile}</span>
+                  </button>
+                )}
+
                 <button
                   id="user-profile-btn"
                   onClick={() => setShowUserMenu(!showUserMenu)}
@@ -1194,13 +1279,13 @@ export default function Navbar({
               {showUserMenu && (
                 <div
                   id="user-dropdown-menu"
-                  className="absolute right-0 mt-2 w-72 bg-[#181818] border border-zinc-700 rounded-xl shadow-2xl py-2 text-sm z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden"
+                  className="absolute right-0 top-full mt-3 w-72 max-h-[calc(100vh-90px)] bg-[#181818] border border-zinc-800 rounded-xl shadow-2xl py-2 text-sm z-50 animate-in fade-in zoom-in-95 duration-150 overflow-y-auto"
                 >
-                  <div className="border-t border-zinc-800/80 pt-2 mt-1 space-y-2">
+                  <div className="pt-2 mt-1 space-y-2">
                     {/* Profile Picture & Account Header inside dropdown */}
                     <div
                       id="account-dropdown-profile-header"
-                      className="p-3.5 border border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-900/60 flex flex-col gap-3 mx-2 rounded-xl"
+                      className="p-3.5 bg-zinc-900/50 flex flex-col gap-3 mx-2 rounded-xl"
                     >
                       <a
                         href="https://myaccount.google.com/?pli=1"
@@ -1240,17 +1325,20 @@ export default function Navbar({
                           </div>
                         </div>
                       </a>
-                      
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowUserMenu(false);
-                          onOpenSync();
-                        }}
-                        className="w-full text-center text-xs text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 py-2 rounded-lg transition-colors font-medium cursor-pointer"
-                      >
-                        Sync Settings
-                      </button>
+
+                      <div className="px-3.5 pb-2">
+                        <button
+                          id="sync-settings-dropdown-btn"
+                          onClick={() => {
+                            setShowUserMenu(false);
+                            setSettingsModalTab('sync');
+                            setShowSettingsCenterModal(true);
+                          }}
+                          className="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-bold py-2 rounded-lg border border-zinc-700 transition-colors cursor-pointer"
+                        >
+                          Sync Settings
+                        </button>
+                      </div>
                     </div>
 
                     <button
@@ -1264,6 +1352,39 @@ export default function Navbar({
                       <div className="flex items-center gap-2">
                         <BarChart3 className="w-4 h-4 text-red-500" />
                         <span>Stats & Analytics</span>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
+                    </button>
+
+                    <button
+                      id="settings-dropdown-btn"
+                      type="button"
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        setSettingsModalTab('all');
+                        setShowSettingsCenterModal(true);
+                      }}
+                      className="w-full text-left px-3.5 py-2.5 text-zinc-200 hover:text-white hover:bg-zinc-800/80 flex items-center justify-between cursor-pointer font-medium"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Settings className="w-4 h-4 text-amber-400" />
+                        <span>Settings</span>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
+                    </button>
+
+                    <button
+                      id="account-dropdown-switch-profile-btn"
+                      type="button"
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        setShowNetflixProfileSwitcher(true);
+                      }}
+                      className="w-full text-left px-3.5 py-2.5 text-zinc-200 hover:text-white hover:bg-zinc-800/80 flex items-center justify-between cursor-pointer font-medium"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-red-500" />
+                        <span>Switch Profile</span>
                       </div>
                       <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
                     </button>
@@ -1882,32 +2003,168 @@ export default function Navbar({
                 </div>
               </a>
 
+              <div className="flex flex-col gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    setSettingsModalTab('sync');
+                    setShowSettingsCenterModal(true);
+                  }}
+                  className="text-[11px] text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-2.5 py-1.5 rounded-lg transition-colors font-medium cursor-pointer"
+                >
+                  Sync Settings
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile Profile Viewers List */}
+            {customViewers.length > 0 && (
+              <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-red-500" />
+                    <span>Viewer Profiles</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      setSettingsModalTab('user');
+                      setShowSettingsCenterModal(true);
+                    }}
+                    className="text-[10px] text-red-400 hover:text-red-300 font-bold transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <Palette className="w-3 h-3" />
+                    <span>Colors</span>
+                  </button>
+                </div>
+                <div className="flex gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onSwitchProfile) onSwitchProfile('');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                      !activeProfile
+                        ? 'bg-zinc-800 text-white border-zinc-600'
+                        : 'bg-zinc-950 text-zinc-400 border-zinc-800'
+                    }`}
+                  >
+                    <span>👥 All</span>
+                  </button>
+                  {customViewers.map((viewer) => {
+                    const isSelected = activeProfile === viewer;
+                    const vColor = getViewerColor(viewer, viewerColors);
+                    return (
+                      <button
+                        key={`mobile-viewer-${viewer}`}
+                        type="button"
+                        onClick={() => {
+                          if (onSwitchProfile) onSwitchProfile(viewer);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer shadow-sm"
+                        style={{
+                          backgroundColor: isSelected ? `${vColor}35` : `${vColor}15`,
+                          borderColor: isSelected ? vColor : `${vColor}40`,
+                          color: isSelected ? '#ffffff' : vColor,
+                        }}
+                      >
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: vColor }} />
+                        <span>{viewer}</span>
+                        {isSelected && <Check className="w-3 h-3 text-white" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2 mt-auto">
               <button
                 type="button"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
-                  onOpenSync();
+                  setSettingsModalTab('all');
+                  setShowSettingsCenterModal(true);
                 }}
-                className="text-[11px] text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-2.5 py-1.5 rounded-lg transition-colors font-medium shrink-0 cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-zinc-300 hover:text-white bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 py-2.5 rounded-lg transition-colors cursor-pointer"
               >
-                Sync Settings
+                <Settings className="w-4 h-4 shrink-0" />
+                <span>Settings</span>
+              </button>
+
+              <button
+                id="mobile-signout-btn"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  onSignOut();
+                }}
+                className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-red-400 hover:text-red-300 bg-red-950/40 hover:bg-red-900/40 border border-red-800/40 py-2.5 rounded-lg transition-colors cursor-pointer"
+              >
+                <LogOut className="w-4 h-4 shrink-0" />
+                <span>Sign Out</span>
               </button>
             </div>
-
-            <button
-              id="mobile-signout-btn"
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                onSignOut();
-              }}
-              className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-red-400 hover:text-red-300 bg-red-950/40 hover:bg-red-900/40 border border-red-800/40 py-2.5 rounded-lg transition-colors cursor-pointer"
-            >
-              <LogOut className="w-4 h-4 shrink-0" />
-              <span>Sign Out</span>
-            </button>
           </div>
         </div>
       )}
+
+      {/* Settings Center Modal (3x2 Control Panel matching user's rough sketch) */}
+      <SettingsCenterModal
+        isOpen={showSettingsCenterModal}
+        defaultTab={settingsModalTab}
+        onClose={() => {
+          setShowSettingsCenterModal(false);
+          setSettingsModalTab('all');
+        }}
+        user={user}
+        onSignIn={onSignIn}
+        onSignOut={onSignOut}
+        spreadsheetId={spreadsheetId}
+        sheetName={sheetName}
+        wishlistSheetName={wishlistSheetName}
+        availableTabs={availableTabs}
+        onConnect={onConnect}
+        onDisconnect={onDisconnect}
+        isSyncing={Boolean(isSyncing)}
+        lastSyncedAt={lastSyncedAt}
+        sheetTitle={sheetTitle}
+        shows={shows}
+        autoSyncEnabled={autoSyncEnabled}
+        onToggleAutoSync={onToggleAutoSync}
+        syncFrequency={syncFrequency}
+        onUpdateSyncFrequency={onUpdateSyncFrequency}
+        onTriggerSync={onTriggerSync}
+        isOnline={isOnline}
+        customViewers={customViewers}
+        onUpdateCustomViewers={onUpdateCustomViewers || (() => {})}
+        viewerColors={viewerColors}
+        onUpdateViewerColors={onUpdateViewerColors}
+        alertIntervals={alertIntervals}
+        onUpdateAlertIntervals={onUpdateAlertIntervals}
+        activeProfile={activeProfile}
+        onSwitchProfile={onSwitchProfile}
+        accessibilitySettings={accessibilitySettings}
+        setAccessibilitySettings={setAccessibilitySettings}
+      />
+
+      {/* Netflix-Style "Who's Watching?" Profile Switcher Modal */}
+      <NetflixProfileSwitcherModal
+        isOpen={showNetflixProfileSwitcher}
+        onClose={() => setShowNetflixProfileSwitcher(false)}
+        customViewers={customViewers}
+        activeProfile={activeProfile}
+        onSwitchProfile={onSwitchProfile}
+        viewerColors={viewerColors}
+        shows={shows}
+        onOpenManageProfiles={() => {
+          setSettingsModalTab('user');
+          setShowSettingsCenterModal(true);
+        }}
+      />
     </header>
   );
 }

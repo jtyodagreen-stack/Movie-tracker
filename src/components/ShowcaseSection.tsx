@@ -73,7 +73,7 @@ export default function ShowcaseSection({
   if (!isLoading && shows.length === 0) return null;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-6">
+    <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 pt-4 pb-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {/* Active Watching In-Progress */}
         <div className="bg-[#181818] border border-zinc-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between">

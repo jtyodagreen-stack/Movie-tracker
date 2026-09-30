@@ -34,6 +34,7 @@ import { extractDateOnly, extractTimeOnly, combineDateAndTime } from '../utils/d
 import { isNotificationEnabled, toggleShowNotification, isShowOutNow, isFutureRelease, enableShowNotificationSilent } from '../services/notificationService';
 import { fetchLiveTvMazeInfo, TvMazeShowInfo, TvMazeEpisode } from '../services/tvMazeService';
 import { useNotificationContext } from '../context/NotificationContext';
+import { getViewerColor } from '../utils/profileColors';
 
 const TvMazeEpisodeCountdown = ({ airstamp }: { airstamp: string }) => {
   const [timeLeft, setTimeLeft] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
@@ -100,6 +101,7 @@ interface ShowDetailModalProps {
   onMoveToMaster?: (show: ShowItem) => Promise<void>;
   masterSheetName?: string;
   wishlistSheetName?: string;
+  viewerColors?: Record<string, string>;
 }
 
 const DEFAULT_PLATFORMS = PRESET_PLATFORMS;
@@ -137,7 +139,31 @@ export default function ShowDetailModal({
   onMoveToMaster,
   masterSheetName = 'MASTER TRACKER',
   wishlistSheetName = 'Wishlist',
+  viewerColors,
 }: ShowDetailModalProps) {
+  // Prevent background scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      // Save current scroll position
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+    } else {
+      // Restore scroll position
+      const scrollY = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      window.scrollTo(0, parseInt(scrollY || '0') * -1);
+    }
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+    };
+  }, [isOpen]);
+
   const [title, setTitle] = useState(show?.title || '');
   const [type, setType] = useState<ShowType>(show?.type || 'Series');
   const [platform, setPlatform] = useState(normalizePlatform(show?.platform || ''));
@@ -529,7 +555,7 @@ export default function ShowDetailModal({
   return (
     <div
       id="show-detail-modal-backdrop"
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/90 backdrop-blur-md overflow-y-auto overflow-x-hidden"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/90 backdrop-blur-md overflow-x-hidden"
       style={{ perspective: '1200px' }}
       onClick={onClose}
     >
@@ -660,7 +686,7 @@ export default function ShowDetailModal({
         )}
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-6">
           {/* Location & Sheet Move Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-lg bg-zinc-900/90 border border-zinc-800">
             <div className="flex flex-col gap-1">
@@ -1100,7 +1126,25 @@ export default function ShowDetailModal({
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label htmlFor="detail-who-input" className="text-xs font-bold text-zinc-400 uppercase tracking-widest block ml-1">Viewer (Who)</label>
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="detail-who-input" className="text-xs font-bold text-zinc-400 uppercase tracking-widest block ml-1">Viewer (Who)</label>
+                      {who && (
+                        <span
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1"
+                          style={{
+                            backgroundColor: `${getViewerColor(who, viewerColors)}20`,
+                            color: getViewerColor(who, viewerColors),
+                            borderColor: `${getViewerColor(who, viewerColors)}50`,
+                          }}
+                        >
+                          <span
+                            className="w-1.5 h-1.5 rounded-full"
+                            style={{ backgroundColor: getViewerColor(who, viewerColors) }}
+                          />
+                          {who}
+                        </span>
+                      )}
+                    </div>
                     <select
                       id="detail-who-input"
                       value={who}
