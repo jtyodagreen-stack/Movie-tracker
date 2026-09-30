@@ -5,8 +5,8 @@ export interface OfflineAction {
   timestamp: number;
 }
 
-const QUEUE_KEY = 'bingebox_offline_queue';
-const CACHED_DATA_KEY = 'bingebox_app_data_cache';
+const QUEUE_KEY = 'showflix_offline_queue';
+const CACHED_DATA_KEY = 'showflix_app_data_cache';
 
 export interface AppDataCache {
   shows: any[];
@@ -21,7 +21,7 @@ export interface AppDataCache {
 
 export function getOfflineQueue(): OfflineAction[] {
   try {
-    const raw = localStorage.getItem(QUEUE_KEY);
+    const raw = localStorage.getItem(QUEUE_KEY) || localStorage.getItem('bingebox_offline_queue');
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -53,7 +53,7 @@ export function clearOfflineQueue() {
 
 export function getAppDataCache(): AppDataCache | null {
   try {
-    const raw = localStorage.getItem(CACHED_DATA_KEY);
+    const raw = localStorage.getItem(CACHED_DATA_KEY) || localStorage.getItem('bingebox_app_data_cache');
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;

@@ -84,7 +84,7 @@ export default function App() {
   const [shows, setShows] = useState<ShowItem[]>(() => {
     try {
       const cache = getAppDataCache();
-      const currentStoredId = localStorage.getItem('bingebox_spreadsheet_id') || '';
+      const currentStoredId = localStorage.getItem('showflix_spreadsheet_id') || localStorage.getItem('bingebox_spreadsheet_id') || '';
       // Pre-flight check: Verify cache spreadsheet ID matches the stored active spreadsheet ID
       if (cache?.spreadsheetId && currentStoredId && cache.spreadsheetId !== currentStoredId) {
         console.warn('[Pre-flight Check] Cached shows belong to a different spreadsheet ID. Discarding stale data.');
@@ -101,7 +101,7 @@ export default function App() {
   useEffect(() => {
     setAppDataCache({
       shows,
-      spreadsheetId: localStorage.getItem('bingebox_spreadsheet_id') || undefined,
+      spreadsheetId: localStorage.getItem('showflix_spreadsheet_id') || localStorage.getItem('bingebox_spreadsheet_id') || undefined,
     });
   }, [shows]);
 
@@ -131,7 +131,7 @@ export default function App() {
   const [customPlatforms] = useState<string[]>([]);
   const [accessibilitySettings, setAccessibilitySettings] = useState<AccessibilitySettings>(() => {
     try {
-      const saved = localStorage.getItem('bingebox_accessibility_settings');
+      const saved = localStorage.getItem('showflix_accessibility_settings') || localStorage.getItem('bingebox_accessibility_settings');
       if (saved) {
         return JSON.parse(saved);
       }
@@ -149,7 +149,7 @@ export default function App() {
   // Persist accessibility settings whenever they change
   useEffect(() => {
     try {
-      localStorage.setItem('bingebox_accessibility_settings', JSON.stringify(accessibilitySettings));
+      localStorage.setItem('showflix_accessibility_settings', JSON.stringify(accessibilitySettings));
     } catch {
       // Ignore
     }
@@ -239,42 +239,42 @@ export default function App() {
   // Google Sheets state with localStorage persistence
   const [spreadsheetId, setSpreadsheetId] = useState<string>(() => {
     try {
-      return getAppDataCache()?.spreadsheetId || localStorage.getItem('bingebox_spreadsheet_id') || '';
+      return getAppDataCache()?.spreadsheetId || localStorage.getItem('showflix_spreadsheet_id') || localStorage.getItem('bingebox_spreadsheet_id') || '';
     } catch {
       return '';
     }
   });
   const [sheetName, setSheetName] = useState<string>(() => {
     try {
-      return getAppDataCache()?.sheetName || localStorage.getItem('bingebox_sheet_name') || 'MASTER TRACKER';
+      return getAppDataCache()?.sheetName || localStorage.getItem('showflix_sheet_name') || localStorage.getItem('bingebox_sheet_name') || 'MASTER TRACKER';
     } catch {
       return 'MASTER TRACKER';
     }
   });
   const [wishlistSheetName, setWishlistSheetName] = useState<string>(() => {
     try {
-      return getAppDataCache()?.wishlistSheetName || localStorage.getItem('bingebox_wishlist_sheet_name') || '📋  WISHLIST';
+      return getAppDataCache()?.wishlistSheetName || localStorage.getItem('showflix_wishlist_sheet_name') || localStorage.getItem('bingebox_wishlist_sheet_name') || '📋  WISHLIST';
     } catch {
       return '📋  WISHLIST';
     }
   });
   const [showcaseSheetName, setShowcaseSheetName] = useState<string>(() => {
     try {
-      return getAppDataCache()?.showcaseSheetName || localStorage.getItem('bingebox_showcase_sheet_name') || 'SHOWCASE';
+      return getAppDataCache()?.showcaseSheetName || localStorage.getItem('showflix_showcase_sheet_name') || localStorage.getItem('bingebox_showcase_sheet_name') || 'SHOWCASE';
     } catch {
       return 'SHOWCASE';
     }
   });
   const [availableTabs, setAvailableTabs] = useState<string[]>(() => {
     try {
-      const v = localStorage.getItem('bingebox_available_sheet_tabs');
+      const v = localStorage.getItem('showflix_available_sheet_tabs') || localStorage.getItem('bingebox_available_sheet_tabs');
       if (v) return JSON.parse(v);
     } catch {}
     return [];
   });
   const [sheetTabId, setSheetTabId] = useState<number | undefined>(() => {
     try {
-      const v = localStorage.getItem('bingebox_sheet_tab_id');
+      const v = localStorage.getItem('showflix_sheet_tab_id') || localStorage.getItem('bingebox_sheet_tab_id');
       return v ? parseInt(v, 10) : undefined;
     } catch {
       return undefined;
@@ -282,7 +282,7 @@ export default function App() {
   });
   const [sheetTitle, setSheetTitle] = useState<string | undefined>(() => {
     try {
-      return localStorage.getItem('bingebox_sheet_title') || undefined;
+      return localStorage.getItem('showflix_sheet_title') || localStorage.getItem('bingebox_sheet_title') || undefined;
     } catch {
       return undefined;
     }
@@ -291,7 +291,7 @@ export default function App() {
     try {
       const cache = getAppDataCache();
       if (cache?.headers && cache.headers.length > 0) return cache.headers;
-      const v = localStorage.getItem('bingebox_sheet_headers');
+      const v = localStorage.getItem('showflix_sheet_headers') || localStorage.getItem('bingebox_sheet_headers');
       if (v) return JSON.parse(v);
     } catch {}
     return [
@@ -316,7 +316,7 @@ export default function App() {
     try {
       const cache = getAppDataCache();
       if (cache?.customViewers && cache.customViewers.length > 0) return cache.customViewers;
-      const cached = localStorage.getItem('bingebox_custom_viewers');
+      const cached = localStorage.getItem('showflix_custom_viewers') || localStorage.getItem('bingebox_custom_viewers');
       if (cached) return JSON.parse(cached);
     } catch {}
     return [];
@@ -325,14 +325,14 @@ export default function App() {
   const [lastSyncedAt, setLastSyncedAt] = useState<string | undefined>(undefined);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('bingebox_auto_sync') !== 'false';
+      return localStorage.getItem('showflix_auto_sync') !== 'false' && localStorage.getItem('bingebox_auto_sync') !== 'false';
     } catch {
       return true;
     }
   });
   const [syncFrequency, setSyncFrequency] = useState<number>(() => {
     try {
-      const saved = localStorage.getItem('bingebox_sync_frequency');
+      const saved = localStorage.getItem('showflix_sync_frequency') || localStorage.getItem('bingebox_sync_frequency');
       if (saved) return parseInt(saved, 10) || 45;
     } catch {}
     return 45;
@@ -363,7 +363,7 @@ export default function App() {
   const handleUpdateSyncFrequency = (freq: number) => {
     setSyncFrequency(freq);
     try {
-      localStorage.setItem('bingebox_sync_frequency', String(freq));
+      localStorage.setItem('showflix_sync_frequency', String(freq));
     } catch {}
     const activeUid = auth.currentUser?.uid || (user && user.uid !== 'user_jtyodagreen' ? user.uid : undefined);
     if (activeUid) {
@@ -394,6 +394,22 @@ export default function App() {
     setWelcomeError('');
 
     const keysToClear = [
+      'showflix_preview_mode',
+      'showflix_spreadsheet_id',
+      'showflix_sheet_name',
+      'showflix_wishlist_sheet_name',
+      'showflix_showcase_sheet_name',
+      'showflix_available_sheet_tabs',
+      'showflix_sheet_tab_id',
+      'showflix_sheet_title',
+      'showflix_sheet_headers',
+      'showflix_app_data_cache',
+      'showflix_cached_shows',
+      'showflix_offline_queue',
+      'showflix_auto_sync',
+      'showflix_custom_viewers',
+      'showflix_sync_frequency',
+      'showflix_accessibility_settings',
       'bingebox_preview_mode',
       'bingebox_spreadsheet_id',
       'bingebox_sheet_name',
@@ -404,8 +420,6 @@ export default function App() {
       'bingebox_sheet_title',
       'bingebox_sheet_headers',
       'bingebox_app_data_cache',
-      'showflix_cached_shows',
-      'showflix_offline_queue',
       'bingebox_auto_sync',
       'bingebox_custom_viewers',
       'google_access_token',
@@ -421,7 +435,7 @@ export default function App() {
   const handleToggleAutoSync = (enabled: boolean) => {
     setAutoSyncEnabled(enabled);
     try {
-      localStorage.setItem('bingebox_auto_sync', String(enabled));
+      localStorage.setItem('showflix_auto_sync', String(enabled));
     } catch {}
     showToast(enabled ? '⚡ Auto-Sync Active: continuous real-time sync' : '⏸ Auto-Sync Paused');
   };

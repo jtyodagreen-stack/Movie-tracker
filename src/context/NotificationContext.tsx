@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { getNotificationShowIds, toggleShowNotification } from '../services/notificationService';
+import { getNotificationShowIds, toggleShowNotification, isNotificationEnabled as checkIsNotificationEnabled } from '../services/notificationService';
 import { ShowItem } from '../types';
 
 interface NotificationContextType {
   enabledNotificationIds: string[];
   toggleNotification: (show: ShowItem) => Promise<void>;
-  isNotificationEnabled: (showId: string) => boolean;
+  isNotificationEnabled: (showOrId: ShowItem | string, optionalTitle?: string) => boolean;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -31,8 +31,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setEnabledNotificationIds(getNotificationShowIds());
   }, []);
 
-  const isNotificationEnabled = useCallback((showId: string) => {
-    return enabledNotificationIds.includes(showId);
+  const isNotificationEnabled = useCallback((showOrId: ShowItem | string, optionalTitle?: string) => {
+    return checkIsNotificationEnabled(showOrId, optionalTitle);
   }, [enabledNotificationIds]);
 
   const value = useMemo(() => ({ enabledNotificationIds, toggleNotification, isNotificationEnabled }), [enabledNotificationIds, toggleNotification, isNotificationEnabled]);

@@ -14,9 +14,32 @@ export function getNotificationShowIds(): string[] {
   }
 }
 
-export function isNotificationEnabled(showId: string): boolean {
+export function isNotificationEnabled(showOrId: ShowItem | string, optionalTitle?: string): boolean {
   const ids = getNotificationShowIds();
-  return ids.includes(showId);
+  
+  const id = typeof showOrId === 'string' ? showOrId : showOrId.id;
+  const title = optionalTitle || (typeof showOrId === 'object' ? showOrId.title : '');
+  
+  if (ids.includes(id)) return true;
+  
+  if (title) {
+    const cleanTitle = title.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (cleanTitle) {
+      if (ids.includes(`title:${cleanTitle}`)) return true;
+      if (ids.some((storedId) => storedId.toLowerCase().includes(cleanTitle))) return true;
+    }
+  }
+
+  // Check title slug in ID (e.g. "show-mastertracker-12-[#slug]")
+  if (id) {
+    const parts = id.split('-');
+    const slug = parts[parts.length - 1];
+    if (slug && slug.length >= 3 && ids.some((storedId) => storedId.toLowerCase().includes(slug))) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export async function requestBrowserNotificationPermission(): Promise<boolean> {
@@ -160,14 +183,24 @@ export function sendOutNowNotificationAlert(show: ShowItem) {
   }
 }
 
-export async function toggleShowNotification(show: ShowItem): Promise<boolean> {
+export async function toggleShowNotification(showOrItem: ShowItem | { id: string; title: string; platform?: string }): Promise<boolean> {
   const ids = getNotificationShowIds();
-  const exists = ids.includes(show.id);
+  const show = typeof showOrItem === 'string' ? { id: showOrItem, title: showOrItem } : showOrItem;
+  
+  const cleanTitle = show.title ? show.title.trim().toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+  const titleKey = cleanTitle ? `title:${cleanTitle}` : '';
+
+  const currentlyActive = isNotificationEnabled(show.id, show.title);
 
   let newValue: boolean;
-  if (exists) {
-    // Disable notification
-    const updated = ids.filter((id) => id !== show.id);
+  if (currentlyActive) {
+    // Disable notification - only explicit manual toggle removes it!
+    const updated = ids.filter((id) => {
+      if (id === show.id) return false;
+      if (titleKey && id === titleKey) return false;
+      if (cleanTitle && cleanTitle.length >= 3 && id.toLowerCase().includes(cleanTitle)) return false;
+      return true;
+    });
     localStorage.setItem(NOTIF_KEY, JSON.stringify(updated));
     newValue = false;
 
@@ -198,8 +231,11 @@ export async function toggleShowNotification(show: ShowItem): Promise<boolean> {
       { duration: 3000 }
     );
   } else {
-    // Enable notification
-    const updated = [...ids, show.id];
+    // Enable notification - store both ID and title key so sync reloads never turn it off
+    const toAdd = [show.id];
+    if (titleKey) toAdd.push(titleKey);
+
+    const updated = Array.from(new Set([...ids, ...toAdd]));
     localStorage.setItem(NOTIF_KEY, JSON.stringify(updated));
     newValue = true;
 
@@ -236,17 +272,25 @@ export async function toggleShowNotification(show: ShowItem): Promise<boolean> {
   }
   
   // Dispatch custom event to notify components in the same window
-  window.dispatchEvent(new CustomEvent('notification-changed', { detail: { showId: show.id, enabled: newValue } }));
+  window.dispatchEvent(new CustomEvent('notification-changed', { detail: { showId: show.id, title: show.title, enabled: newValue } }));
   
   return newValue;
 }
 
-export function enableShowNotificationSilent(showId: string) {
+export function enableShowNotificationSilent(showOrItem: ShowItem | string | { id: string; title: string }) {
   const ids = getNotificationShowIds();
-  if (!ids.includes(showId)) {
-    const updated = [...ids, showId];
+  const show = typeof showOrItem === 'string' ? { id: showOrItem, title: showOrItem } : showOrItem;
+  const cleanTitle = show.title ? show.title.trim().toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+  const titleKey = cleanTitle ? `title:${cleanTitle}` : '';
+
+  const toAdd: string[] = [];
+  if (show.id && !ids.includes(show.id)) toAdd.push(show.id);
+  if (titleKey && !ids.includes(titleKey)) toAdd.push(titleKey);
+
+  if (toAdd.length > 0) {
+    const updated = Array.from(new Set([...ids, ...toAdd]));
     localStorage.setItem(NOTIF_KEY, JSON.stringify(updated));
-    window.dispatchEvent(new CustomEvent('notification-changed', { detail: { showId, enabled: true } }));
+    window.dispatchEvent(new CustomEvent('notification-changed', { detail: { showId: show.id, title: show.title, enabled: true } }));
   }
 }
 

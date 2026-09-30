@@ -590,7 +590,7 @@ export default function AddShowModal({
     };
 
     // Auto-enable release notification bell by default for newly added titles
-    enableShowNotificationSilent(id);
+    enableShowNotificationSilent(newShow);
 
     onAdd(newShow);
     setTitle('');

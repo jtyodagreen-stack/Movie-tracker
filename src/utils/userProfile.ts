@@ -67,7 +67,7 @@ export function getProfilePicture(user?: any | null): string {
   // 3. Fallback to local storage cache if live profile is missing
   try {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('bingebox_user_profile');
+      const saved = localStorage.getItem('showflix_user_profile') || localStorage.getItem('bingebox_user_profile');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed?.photoURL && typeof parsed.photoURL === 'string' && parsed.photoURL.trim().length > 0) {
@@ -93,7 +93,7 @@ export function getProfilePicture(user?: any | null): string {
 export function getProfileDisplayName(user?: any | null): string {
   try {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('bingebox_user_profile');
+      const saved = localStorage.getItem('showflix_user_profile') || localStorage.getItem('bingebox_user_profile');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed?.displayName && typeof parsed.displayName === 'string' && parsed.displayName.trim().length > 0) {
