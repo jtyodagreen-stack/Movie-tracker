@@ -49,7 +49,7 @@ export default function ShowRow({
   return (
     <section id={`row-${id}`} className="relative py-4 group">
       {/* Header */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-3 flex items-baseline justify-between">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-3 flex items-center justify-between gap-2">
         <div
           className={`flex items-baseline gap-2 ${
             onTitleClick ? 'cursor-pointer group/title' : ''
@@ -76,6 +76,17 @@ export default function ShowRow({
             </span>
           )}
         </div>
+
+        {onTitleClick && (
+          <button
+            type="button"
+            onClick={onTitleClick}
+            className="text-xs font-semibold text-zinc-400 hover:text-red-400 flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+          >
+            <span>Explore All</span>
+            <ChevronRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-red-400" />
+          </button>
+        )}
       </div>
 
       {/* Carousel Container */}

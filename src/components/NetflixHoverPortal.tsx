@@ -303,10 +303,10 @@ export default function NetflixHoverPortal({
       onMouseLeave={isMobile ? undefined : onMouseLeave}
       className="pointer-events-auto selection:bg-[#E50914] selection:text-white netflix-hover-portal-active relative"
     >
-      {/* Cinematic Ambient Glow */}
+      {/* Ultra-Bright Cinematic Backlight Ambient Glow */}
       {!isMobile && (
         <div 
-          className="absolute inset-[-30px] z-[-1] opacity-[0.38] blur-[35px] saturate-150 pointer-events-none transition-all duration-300 select-none rounded-xl"
+          className="absolute inset-[-60px] sm:inset-[-80px] z-0 opacity-95 blur-[55px] sm:blur-[70px] saturate-[280%] pointer-events-none transition-all duration-300 select-none rounded-[40px] transform scale-105"
           style={{
             backgroundImage: `url(${getOptimizedPoster(show.backdropUrl || show.posterUrl)})`,
             backgroundSize: 'cover',
@@ -319,15 +319,24 @@ export default function NetflixHoverPortal({
         initial={isMobile ? { scale: 0.9, opacity: 0 } : { scale: 1, boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
         animate={isMobile ? { scale: 1, opacity: 1 } : {
           scale: scaleFactor,
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85), 0 0 25px 4px rgba(0, 0, 0, 0.4)',
+          boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.95), 0 0 45px 10px rgba(0, 0, 0, 0.7)',
         }}
         exit={isMobile ? { scale: 0.9, opacity: 0 } : { scale: 1, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 28 }}
         className={isMobile 
-          ? "w-full max-w-[340px] bg-[#181818] rounded-2xl overflow-hidden border border-zinc-800 flex flex-col pointer-events-auto shadow-2xl relative" 
-          : "w-full bg-[#181818] rounded-xl overflow-hidden border border-zinc-800 flex flex-col pointer-events-auto"
+          ? "w-full max-w-[340px] bg-[#181818] rounded-2xl overflow-hidden border border-zinc-800 flex flex-col pointer-events-auto shadow-2xl relative z-10" 
+          : "w-full bg-[#181818] rounded-xl overflow-hidden border border-zinc-800/80 flex flex-col pointer-events-auto relative shadow-2xl z-10"
         }
       >
+        {/* Interior Ambient Poster Color Blur */}
+        <div 
+          className="absolute inset-0 z-0 opacity-20 blur-3xl pointer-events-none"
+          style={{
+            backgroundImage: `url(${getOptimizedPoster(show.backdropUrl || show.posterUrl)})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
         {/* Cinematic Media Header */}
         <div className="relative aspect-[16/10] w-full overflow-hidden bg-zinc-900">
           <img
@@ -368,7 +377,7 @@ export default function NetflixHoverPortal({
                 )
               )}
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={handleOpenImdb}
@@ -381,22 +390,21 @@ export default function NetflixHoverPortal({
               <span className="hidden sm:block text-[10px] font-semibold px-1.5 py-0.5 rounded bg-zinc-900/90 text-zinc-300 border border-zinc-700 shadow-md">
                 {show.genre.split('/')[0].trim()}
               </span>
+              {isMobile && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClose();
+                  }}
+                  className="w-6 h-6 rounded-full bg-black/75 border border-zinc-600/60 backdrop-blur-sm text-zinc-200 flex items-center justify-center hover:bg-black hover:text-white active:scale-90 transition-all cursor-pointer shadow-md shrink-0"
+                  aria-label="Close"
+                >
+                  <span className="text-xs font-bold leading-none">✕</span>
+                </button>
+              )}
             </div>
           </div>
-
-          {/* Close button on mobile top-right */}
-          {isMobile && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onClose();
-              }}
-              className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 border border-zinc-700/50 backdrop-blur-sm text-zinc-300 flex items-center justify-center hover:bg-black/80 transition-colors cursor-pointer z-50 pointer-events-auto"
-              aria-label="Close"
-            >
-              <span className="text-sm font-bold leading-none">✕</span>
-            </button>
-          )}
 
           {/* Floating Quick Title */}
           <div className="absolute bottom-3 left-3 right-3">
@@ -418,58 +426,60 @@ export default function NetflixHoverPortal({
         {isWatched && <div className="w-full h-1.5 bg-emerald-500" />}
 
         {/* Premium Expanded Metadata & Interactive Controls Panel */}
-        <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 bg-[#181818]">
+        <div className="p-4 bg-[#181818] space-y-3.5">
           {/* Primary Action Buttons Row */}
-          <div className="flex items-center gap-2 w-full">
-            {!isMovie && (
+          <div className="flex items-center justify-between gap-2 w-full">
+            <div className="flex items-center gap-2">
+              {!isMovie && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onIncrementEpisode(show);
+                  }}
+                  className="flex items-center justify-center gap-1.5 bg-white hover:bg-zinc-200 text-black font-black text-xs px-3.5 py-2 rounded-full transition-all active:scale-95 shadow-md hover:scale-105 cursor-pointer shrink-0"
+                  title={`Next Episode: Ep ${currentEpNum + 1}`}
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>Play Ep {currentEpNum}</span>
+                </button>
+              )}
+
+              {/* Quick Watchlist Status Circle Toggle */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onIncrementEpisode(show);
+                  onToggleStatus(show);
                 }}
-                className="flex items-center justify-center gap-1.5 bg-white hover:bg-zinc-200 text-black font-black text-xs sm:text-sm px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-full transition-all active:scale-95 shadow-md hover:scale-105 cursor-pointer shrink-0"
-                title={`Next Episode: Ep ${currentEpNum + 1}`}
-              >
-                <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
-                <span>Play Ep {currentEpNum}</span>
-              </button>
-            )}
-
-            {/* Quick Watchlist Status Circle Toggle */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleStatus(show);
-              }}
-              className={`w-7.5 h-7.5 sm:w-8.5 sm:h-8.5 rounded-full border flex items-center justify-center transition-all hover:scale-110 cursor-pointer shrink-0 ${
-                isWatched
-                  ? 'bg-emerald-600/90 border-emerald-500 text-white hover:bg-emerald-500'
-                  : 'bg-zinc-800/90 hover:bg-zinc-700 border-zinc-600 hover:border-zinc-400 text-white'
-              }`}
-              title={isWatched ? 'Mark as Watching' : 'Mark as Completed'}
-            >
-              {isWatched ? <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-            </button>
-
-            {/* Notification Alert Toggle (for upcoming releases) */}
-            {(Boolean(show.releaseDate) || Boolean(show.releaseNote) || Boolean(liveAirstamp) || isFutureRelease(show)) && (
-              <button
-                type="button"
-                onClick={handleToggleNotif}
-                className={`w-7.5 h-7.5 sm:w-8.5 sm:h-8.5 rounded-full border flex items-center justify-center transition-all hover:scale-110 cursor-pointer shrink-0 ${
-                  isNotifActive
-                    ? 'bg-amber-400 text-black border-amber-300 shadow-lg'
-                    : 'bg-zinc-800/90 hover:bg-zinc-700 border-zinc-600 hover:border-zinc-400 text-zinc-300'
+                className={`w-8.5 h-8.5 rounded-full border flex items-center justify-center transition-all hover:scale-110 cursor-pointer shrink-0 ${
+                  isWatched
+                    ? 'bg-emerald-600/90 border-emerald-500 text-white hover:bg-emerald-500'
+                    : 'bg-zinc-800/90 hover:bg-zinc-700 border-zinc-600 hover:border-zinc-400 text-white'
                 }`}
-                title={isNotifActive ? '24h Release Alert Active (Click to disable)' : 'Notify me 24 hours before release'}
+                title={isWatched ? 'Mark as Watching' : 'Mark as Completed'}
               >
-                {isNotifActive ? (
-                  <BellRing className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current animate-pulse" />
-                ) : (
-                  <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                )}
+                {isWatched ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
               </button>
-            )}
+
+              {/* Notification Alert Toggle (for upcoming releases) */}
+              {(Boolean(show.releaseDate) || Boolean(show.releaseNote) || Boolean(liveAirstamp) || isFutureRelease(show)) && (
+                <button
+                  type="button"
+                  onClick={handleToggleNotif}
+                  className={`w-8.5 h-8.5 rounded-full border flex items-center justify-center transition-all hover:scale-110 cursor-pointer shrink-0 ${
+                    isNotifActive
+                      ? 'bg-amber-400 text-black border-amber-300 shadow-lg'
+                      : 'bg-zinc-800/90 hover:bg-zinc-700 border-zinc-600 hover:border-zinc-400 text-zinc-300'
+                  }`}
+                  title={isNotifActive ? '24h Release Alert Active (Click to disable)' : 'Notify me 24 hours before release'}
+                >
+                  {isNotifActive ? (
+                    <BellRing className="w-4 h-4 fill-current animate-pulse" />
+                  ) : (
+                    <Bell className="w-4 h-4" />
+                  )}
+                </button>
+              )}
+            </div>
 
             {/* Expand Details Button */}
             <button
@@ -478,10 +488,10 @@ export default function NetflixHoverPortal({
                 onOpenDetails(show);
                 onClose();
               }}
-              className="w-7.5 h-7.5 sm:w-8.5 sm:h-8.5 rounded-full bg-zinc-800/90 hover:bg-zinc-700 border border-zinc-600 hover:border-zinc-400 text-white flex items-center justify-center ml-auto transition-all hover:scale-110 cursor-pointer shrink-0"
+              className="w-8.5 h-8.5 rounded-full bg-zinc-800/90 hover:bg-zinc-700 border border-zinc-600 hover:border-zinc-400 text-white flex items-center justify-center transition-all hover:scale-110 cursor-pointer shrink-0 shadow-sm"
               title="More Info Details"
             >
-              <Info className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <Info className="w-4 h-4" />
             </button>
           </div>
 

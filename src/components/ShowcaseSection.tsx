@@ -32,7 +32,7 @@ export default function ShowcaseSection({
     return shows
       .filter((s) => s.status === '⏳ Watching')
       .sort((a, b) => calculateShowProgress(b) - calculateShowProgress(a))
-      .slice(0, 6);
+      .slice(0, 20);
   }, [shows]);
 
   // Top Rated titles (4-5 stars)
@@ -43,7 +43,7 @@ export default function ShowcaseSection({
         return stars >= 4 || (s.rating && (s.rating.toLowerCase().includes('excellent') || s.rating.toLowerCase().includes('great')));
       })
       .sort((a, b) => (b.ratingNum || 0) - (a.ratingNum || 0))
-      .slice(0, 6);
+      .slice(0, 20);
   }, [shows]);
 
   // Coming Soon titles with release dates or premiere notes
@@ -67,7 +67,7 @@ export default function ShowcaseSection({
         if (tsB) return 1;
         return (a.releaseNote || a.title).localeCompare(b.releaseNote || b.title);
       })
-      .slice(0, 6);
+      .slice(0, 20);
   }, [shows]);
 
   if (!isLoading && shows.length === 0) return null;

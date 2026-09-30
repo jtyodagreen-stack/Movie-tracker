@@ -58,6 +58,7 @@ import { checkAndTrigger24hNotifications, parseReleaseDateToTimestamp, enableSho
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { getAppDataCache, setAppDataCache, queueOfflineAction } from './services/offlineQueue';
 import { calculateShowProgress } from './utils/showMetrics';
+import { parseAnyDate, getTodayDDMMYYYY } from './utils/dateUtils';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 
 import {
@@ -956,8 +957,17 @@ export default function App() {
     const targetTab = updatedShow.sheetTabName || (updatedShow.isWishlist ? wishlistSheetName : sheetName);
     console.log(`[Google Sheets Sync] Syncing show "${updatedShow.title}" to tab "${targetTab}" with posterUrl: "${updatedShow.posterUrl || 'none'}"`);
 
+    let rowNum = updatedShow.rowNumber;
+    let currentHeaders = updatedShow.isWishlist ? DEFAULT_WISHLIST_HEADERS : sheetHeaders;
+
     try {
       let token = await getAccessToken();
+      if (!token) {
+        showToast('🔑 Authenticating Google session...');
+        const authRes = await handleSignIn();
+        token = authRes?.accessToken || null;
+      }
+
       if (!token) {
         setShowSyncModal(true);
         showToast('⚠️ Google sign-in required. Please click Connect to sign in.');
@@ -965,7 +975,6 @@ export default function App() {
       }
 
       // If show has a poster image and sheet lacks a poster column, ensure it exists
-      let currentHeaders = updatedShow.isWishlist ? DEFAULT_WISHLIST_HEADERS : sheetHeaders;
       const liveHeaders = await getSheetTabHeaders(spreadsheetId, targetTab, token);
       if (liveHeaders && liveHeaders.length > 0) {
         currentHeaders = liveHeaders;
@@ -999,7 +1008,6 @@ export default function App() {
       }
 
       // 1. Resolve row number in the sheet
-      let rowNum = updatedShow.rowNumber;
       if (!rowNum) {
         rowNum = (await findRowNumberByTitle(spreadsheetId, targetTab, updatedShow.title, token)) ?? undefined;
       }
@@ -1112,6 +1120,25 @@ export default function App() {
         msg.includes('Expected OAuth 2 access token')
       ) {
         setCachedAccessToken(null);
+        try {
+          showToast('🔑 Session expired, re-authenticating Google...');
+          const authRes = await handleSignIn();
+          const newToken = authRes?.accessToken;
+          if (newToken && rowNum) {
+            await updateSheetRow(
+              spreadsheetId,
+              targetTab,
+              rowNum,
+              updatedShow,
+              currentHeaders,
+              newToken
+            );
+            showToast(`✅ Google Sheet Updated: "${updatedShow.title}" (${targetTab})`);
+            return;
+          }
+        } catch (retryErr) {
+          console.warn('Auto re-auth retry failed:', retryErr);
+        }
         setShowSyncModal(true);
         showToast('⚠️ Google Sheets session expired. Please click Connect to re-authenticate.');
       } else {
@@ -1293,7 +1320,11 @@ export default function App() {
           setConfirmState((prev) => ({ ...prev, isOpen: false }));
           let targetRow = showToDelete.rowNumber;
           try {
-            const token = await getAccessToken();
+            let token = await getAccessToken();
+            if (!token) {
+              const authRes = await handleSignIn();
+              token = authRes?.accessToken || null;
+            }
             if (token) {
               // If row number is missing or needs verification, find it by title in the sheet
               if (!targetRow) {
@@ -1397,6 +1428,7 @@ export default function App() {
       ...newShow,
       isWishlist,
       sheetTabName: targetTab,
+      dateAdded: newShow.dateAdded || getTodayDDMMYYYY(),
       seasons: isMovie || isWishlist ? '' : normalizeSeasonStr(newShow.seasons),
       episodes: isMovie || isWishlist ? '' : normalizeEpisodeStr(newShow.episodes),
       maxEp: isMovie || isWishlist ? '' : (newShow.maxEp ? normalizeEpisodeStr(newShow.maxEp) : ''),
@@ -1416,7 +1448,11 @@ export default function App() {
       (async () => {
         let addedShow = { ...sanitizedShow };
         try {
-          const token = await getAccessToken();
+          let token = await getAccessToken();
+          if (!token) {
+            const authRes = await handleSignIn();
+            token = authRes?.accessToken || null;
+          }
           if (token) {
             let currentHeaders = isWishlist ? DEFAULT_WISHLIST_HEADERS : sheetHeaders;
             if (isWishlist) {
@@ -1894,6 +1930,30 @@ export default function App() {
   }, [isAnyFilterActive, shows.length]);
 
   // Show category collections
+  const recentlyAddedShows = useMemo(() => {
+    if (!shows || shows.length === 0) return [];
+
+    const copy = [...shows];
+    copy.sort((a, b) => {
+      const dateA = a.dateAdded ? parseAnyDate(a.dateAdded)?.getTime() : null;
+      const dateB = b.dateAdded ? parseAnyDate(b.dateAdded)?.getTime() : null;
+
+      if (dateA && dateB && dateA !== dateB) {
+        return dateB - dateA;
+      }
+      if (dateA && !dateB) return -1;
+      if (!dateA && dateB) return 1;
+
+      if (a.rowNumber && b.rowNumber && a.rowNumber !== b.rowNumber) {
+        return b.rowNumber - a.rowNumber;
+      }
+
+      return 0;
+    });
+
+    return copy.slice(0, 20);
+  }, [shows]);
+
   const continueWatching = useMemo(
     () => shows
       .filter((s) => s.status === '⏳ Watching')
@@ -2886,12 +2946,29 @@ export default function App() {
         {/* Netflix Category Shelves (Default Home) */}
         {!isAnyFilterActive && (
           <div className="space-y-4 sm:space-y-6 pt-2">
+            {/* Recently Added Section */}
+            {recentlyAddedShows.length > 0 && (
+              <ShowRow
+                id="recently-added"
+                title="✨ Recently Added"
+                subtitle="The latest 20 titles added to your tracker"
+                shows={recentlyAddedShows}
+                isLoading={isSyncing}
+                onOpenDetails={handleOpenDetails}
+                onIncrementEpisode={handleIncrementEpisode}
+                onToggleStatus={handleToggleStatus}
+                onTitleClick={() => setActiveFilter('All Titles')}
+                onHoverEnter={handleHoverEnter}
+                onHoverLeave={handleHoverLeave}
+              />
+            )}
+
             {/* Continue Watching Row */}
             <ShowRow
               id="continue-watching"
               title="Continue Watching"
               subtitle="Pick up right where you left off"
-              shows={continueWatching}
+              shows={continueWatching.slice(0, 20)}
               isLoading={isSyncing}
               onOpenDetails={handleOpenDetails}
               onIncrementEpisode={handleIncrementEpisode}
@@ -2906,7 +2983,7 @@ export default function App() {
               <ShowRow
                 id="wishlist-shelf"
                 title="🎁 Your Wishlist"
-                shows={wishlistShows}
+                shows={wishlistShows.slice(0, 20)}
                 isLoading={isSyncing}
                 onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
@@ -2923,7 +3000,7 @@ export default function App() {
                 id="coming-soon-shelf"
                 title="⏰ Upcoming Release Dates"
                 subtitle="Shows with upcoming release dates"
-                shows={comingSoonShows}
+                shows={comingSoonShows.slice(0, 20)}
                 isLoading={isSyncing}
                 onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
@@ -2938,11 +3015,12 @@ export default function App() {
             <ShowRow
               id="top-rated"
               title="Top Rated &amp; Great Picks"
-              shows={topRated}
+              shows={topRated.slice(0, 20)}
               isLoading={isSyncing}
               onOpenDetails={handleOpenDetails}
               onIncrementEpisode={handleIncrementEpisode}
               onToggleStatus={handleToggleStatus}
+              onTitleClick={() => setActiveFilter('⭐ Top Rated')}
               onHoverEnter={handleHoverEnter}
               onHoverLeave={handleHoverLeave}
             />
@@ -2951,7 +3029,7 @@ export default function App() {
             <ShowRow
               id="netflix-shelf"
               title="On Netflix"
-              shows={netflixShows}
+              shows={netflixShows.slice(0, 20)}
               isLoading={isSyncing}
               onOpenDetails={handleOpenDetails}
               onIncrementEpisode={handleIncrementEpisode}
@@ -2965,7 +3043,7 @@ export default function App() {
             <ShowRow
               id="prime-shelf"
               title="On Prime Video"
-              shows={primeShows}
+              shows={primeShows.slice(0, 20)}
               isLoading={isSyncing}
               onOpenDetails={handleOpenDetails}
               onIncrementEpisode={handleIncrementEpisode}
@@ -2980,7 +3058,7 @@ export default function App() {
               <ShowRow
                 id="disney-shelf"
                 title="On Disney+"
-                shows={disneyShows}
+                shows={disneyShows.slice(0, 20)}
                 isLoading={isSyncing}
                 onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
@@ -2994,7 +3072,7 @@ export default function App() {
               <ShowRow
                 id="apple-shelf"
                 title="On Apple TV+"
-                shows={appleShows}
+                shows={appleShows.slice(0, 20)}
                 isLoading={isSyncing}
                 onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
@@ -3008,7 +3086,7 @@ export default function App() {
               <ShowRow
                 id="paramount-shelf"
                 title="On Paramount+"
-                shows={paramountShows}
+                shows={paramountShows.slice(0, 20)}
                 isLoading={isSyncing}
                 onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
@@ -3022,7 +3100,7 @@ export default function App() {
               <ShowRow
                 id="max-shelf"
                 title="On Max / HBO"
-                shows={maxShows}
+                shows={maxShows.slice(0, 20)}
                 isLoading={isSyncing}
                 onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
@@ -3036,7 +3114,7 @@ export default function App() {
               <ShowRow
                 id="sky-shelf"
                 title="On Sky / Now"
-                shows={skyShows}
+                shows={skyShows.slice(0, 20)}
                 isLoading={isSyncing}
                 onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
@@ -3052,7 +3130,7 @@ export default function App() {
               id="watched-shelf"
               title="Completed &amp; Watched"
               subtitle="Everything you've finished"
-              shows={watchedShows}
+              shows={watchedShows.slice(0, 20)}
               isLoading={isSyncing}
               onOpenDetails={handleOpenDetails}
               onIncrementEpisode={handleIncrementEpisode}
@@ -3068,7 +3146,7 @@ export default function App() {
                 id="paused-dropped-shelf"
                 title="Paused &amp; Dropped"
                 subtitle="Titles currently on hold or dropped"
-                shows={pausedShows}
+                shows={pausedShows.slice(0, 20)}
                 isLoading={isSyncing}
                 onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
