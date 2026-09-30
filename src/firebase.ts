@@ -336,6 +336,9 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
       }
 
       cachedAccessToken = credential.accessToken;
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('bingebox_google_access_token', credential.accessToken);
+      }
 
       // Extract and persist Google account profile details
       const addInfo = getAdditionalUserInfo(result);
@@ -375,33 +378,19 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
       return { user: result.user, accessToken: cachedAccessToken };
     } catch (popupError: any) {
       const code = popupError?.code;
-      if (code === 'auth/popup-closed-by-user') {
-        return null;
-      }
-      console.warn('signInWithPopup notice:', popupError);
+      console.warn('[Google Auth] Popup notice:', code || popupError);
       if (
+        code === 'auth/popup-closed-by-user' ||
         code === 'auth/popup-blocked' ||
         code === 'auth/cancelled-popup-request' ||
         String(popupError).includes('Pending promise was never set')
       ) {
-        try {
-          if (typeof window !== 'undefined') {
-            sessionStorage.setItem('firebase_redirect_active', 'true');
-          }
-          const { signInWithRedirect: dynamicSignInWithRedirect } = await import('firebase/auth');
-          await dynamicSignInWithRedirect(auth, freshProvider);
-        } catch (redirectErr) {
-          if (typeof window !== 'undefined') {
-            sessionStorage.removeItem('firebase_redirect_active');
-          }
-          console.warn('signInWithRedirect notice:', redirectErr);
-        }
         return null;
       }
       throw popupError;
     }
   } catch (error: any) {
-    if (error?.code === 'auth/popup-closed-by-user') {
+    if (error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/popup-blocked') {
       return null;
     }
     console.error('Sign in error:', error);
@@ -411,89 +400,28 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
   }
 };
 
-let redirectPromise: Promise<{ user: User; accessToken: string } | null> | null = null;
-
 export const handleRedirectResultOnLoad = async (): Promise<{ user: User; accessToken: string } | null> => {
   if (typeof window !== 'undefined') {
-    const isRedirectActive = sessionStorage.getItem('firebase_redirect_active') === 'true';
-    if (!isRedirectActive) {
-      return null;
-    }
+    sessionStorage.removeItem('firebase_redirect_active');
   }
-
-  if (redirectPromise) {
-    return redirectPromise;
-  }
-
-  redirectPromise = (async () => {
-    try {
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('firebase_redirect_active');
-      }
-      const { getRedirectResult: dynamicGetRedirectResult } = await import('firebase/auth');
-      const result = await dynamicGetRedirectResult(auth).catch(() => null);
-      if (result) {
-        const credential = GoogleAuthProvider.credentialFromResult(result);
-        if (credential?.accessToken) {
-          cachedAccessToken = credential.accessToken;
-        }
-
-        const addInfo = getAdditionalUserInfo(result);
-        const profilePic =
-          (addInfo?.profile as any)?.picture ||
-          result.user.photoURL ||
-          result.user.providerData?.find((p) => p.photoURL)?.photoURL;
-        const profileName = (addInfo?.profile as any)?.name || result.user.displayName;
-
-        if (profilePic && result.user) {
-          try {
-            if (result.user.photoURL !== profilePic) {
-              await updateProfile(result.user, {
-                photoURL: profilePic,
-                displayName: profileName || result.user.displayName,
-              });
-            }
-            if (typeof window !== 'undefined') {
-              localStorage.setItem(
-                'bingebox_user_profile',
-                JSON.stringify({
-                  photoURL: profilePic,
-                  displayName: profileName || result.user.displayName,
-                  email: result.user.email,
-                })
-              );
-            }
-            await saveUserSheetConfig(result.user.uid, {
-              photoURL: profilePic,
-              displayName: profileName || result.user.displayName,
-            });
-          } catch (e) {
-            console.warn('Redirect profile save error:', e);
-          }
-        }
-
-        return { user: result.user, accessToken: cachedAccessToken || '' };
-      }
-    } catch (err: any) {
-      const errStr = String(err?.message || err);
-      if (!errStr.includes('Pending promise was never set')) {
-        console.warn('getRedirectResult on load notice:', err);
-      }
-    }
-    return null;
-  })();
-
-  return redirectPromise;
+  return null;
 };
 
 export const getAccessToken = async (forceRefresh = false): Promise<string | null> => {
   if (forceRefresh) {
     console.log('[Auth] Force-refresh of access token requested.');
     cachedAccessToken = null; // Clear the cached invalid token
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('bingebox_google_access_token');
+    }
     if (auth.currentUser) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        console.warn('[Auth] Network is offline, skipping force token refresh.');
+        return cachedAccessToken;
+      }
       // Retry mechanism for network failures with exponential backoff
       let retries = 3;
-      let delay = 1500; // Increased base delay
+      let delay = 1500;
       while (retries > 0) {
         try {
           await auth.currentUser.getIdToken(true);
@@ -501,50 +429,44 @@ export const getAccessToken = async (forceRefresh = false): Promise<string | nul
           break;
         } catch (err: any) {
           retries--;
-          console.error(`[Auth] Failed to refresh Firebase token (${retries} retries left):`, err);
-          if (retries === 0) {
-            // If all retries fail, trigger a network check
-            if (!navigator.onLine) {
-              console.error('[Auth] Network appears offline');
-            }
+          const errCode = err?.code || String(err);
+          if (errCode.includes('network-request-failed') || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+            console.warn(`[Auth] Network unavailable or request failed during token refresh (${retries} retries left).`);
           } else {
-            // Wait before retrying with exponential backoff
-            console.log(`[Auth] Retrying in ${delay}ms...`);
+            console.warn(`[Auth] Token refresh notice (${retries} retries left):`, errCode);
+          }
+          if (retries > 0) {
             await new Promise(resolve => setTimeout(resolve, delay));
-            delay *= 2; // Increase delay for next retry
+            delay *= 2;
           }
         }
       }
     }
   }
+
+  if (!cachedAccessToken && typeof window !== 'undefined') {
+    const stored = sessionStorage.getItem('bingebox_google_access_token');
+    if (stored) {
+      cachedAccessToken = stored;
+    }
+  }
+
   return cachedAccessToken;
 };
 
-// Export a safe custom fetch wrapper for Google APIs to handle 403 errors and auto-retry with force-refresh
+// Export a safe custom fetch wrapper for Google APIs to handle 403/401 errors and auto-recover with re-authentication
 export const googleFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
   const response = await fetch(input, init);
   
   if (response.status === 403 || response.status === 401) {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     if (url.includes('googleapis.com')) {
-      console.warn(`[googleFetch] Google API ${response.status} error detected.`);
+      console.warn(`[googleFetch] Google API ${response.status} Forbidden/Unauthorized error detected.`);
       
-      // Dispatch immediately for 403/401 to prompt re-authentication
       cachedAccessToken = null;
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('google-sheets-403'));
-      }
-      
-      // Attempt token refresh if possible
-      const freshToken = await getAccessToken(true);
-      if (freshToken) {
-        const newInit = init ? { ...init } : {};
-        const headers = new Headers(newInit.headers || {});
-        headers.set('Authorization', `Bearer ${freshToken}`);
-        newInit.headers = headers;
-        
-        console.log('[googleFetch] Retrying Google API call with fresh token...');
-        return fetch(input, newInit);
+        sessionStorage.removeItem('bingebox_google_access_token');
+        window.dispatchEvent(new CustomEvent('google-sheets-403', { detail: { status: response.status, url } }));
       }
     }
   }
@@ -554,9 +476,19 @@ export const googleFetch = async (input: RequestInfo | URL, init?: RequestInit):
 
 export const setCachedAccessToken = (token: string | null) => {
   cachedAccessToken = token;
+  if (typeof window !== 'undefined') {
+    if (token) {
+      sessionStorage.setItem('bingebox_google_access_token', token);
+    } else {
+      sessionStorage.removeItem('bingebox_google_access_token');
+    }
+  }
 };
 
 export const logout = async () => {
   await signOut(auth);
   cachedAccessToken = null;
+  if (typeof window !== 'undefined') {
+    sessionStorage.removeItem('bingebox_google_access_token');
+  }
 };

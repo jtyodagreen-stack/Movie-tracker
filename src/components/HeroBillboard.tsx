@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Play, Info, ChevronRight, Star } from 'lucide-react';
+import { Play, Info, ChevronRight, ChevronLeft, Star } from 'lucide-react';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import { ShowItem } from '../types';
@@ -12,6 +12,10 @@ interface HeroBillboardProps {
   onOpenDetails: (show: ShowItem) => void;
   onIncrementEpisode: (show: ShowItem) => void;
   onSelectNextFeatured?: () => void;
+  onSelectPrevFeatured?: () => void;
+  itemCount?: number;
+  currentIndex?: number;
+  onSelectIndex?: (index: number) => void;
 }
 
 export default function HeroBillboard({
@@ -20,6 +24,10 @@ export default function HeroBillboard({
   onOpenDetails,
   onIncrementEpisode,
   onSelectNextFeatured,
+  onSelectPrevFeatured,
+  itemCount,
+  currentIndex,
+  onSelectIndex,
 }: HeroBillboardProps) {
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
@@ -58,17 +66,38 @@ export default function HeroBillboard({
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (!touchStartRef.current) return;
     const t = e.changedTouches[0];
-    const dx = Math.abs(t.clientX - touchStartRef.current.x);
-    const dy = Math.abs(t.clientY - touchStartRef.current.y);
+    const dx = t.clientX - touchStartRef.current.x;
+    const dy = t.clientY - touchStartRef.current.y;
     const dt = Date.now() - touchStartRef.current.time;
     touchStartRef.current = null;
 
-    if (dx < 12 && dy < 12 && dt < 500) {
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+
+    // Horizontal swipe gesture for mobile carousel swap
+    if (absX > 35 && absX > absY * 1.1) {
+      if (dx < 0) {
+        // Swiped left -> Next featured show
+        if (onSelectNextFeatured) {
+          onSelectNextFeatured();
+        }
+      } else {
+        // Swiped right -> Previous featured show
+        if (onSelectPrevFeatured) {
+          onSelectPrevFeatured();
+        } else if (onSelectNextFeatured) {
+          onSelectNextFeatured();
+        }
+      }
+      return;
+    }
+
+    // Single clean tap (not dragging)
+    if (absX < 12 && absY < 12 && dt < 450) {
       const target = e.target as HTMLElement;
-      if (target.closest('#hero-play-btn, #hero-cycle-btn')) {
+      if (target.closest('#hero-play-btn, #hero-cycle-btn, #hero-info-btn, button')) {
         return;
       }
-      e.preventDefault();
       onOpenDetails(show);
     }
   };
@@ -264,25 +293,6 @@ export default function HeroBillboard({
                   <Info className="w-5 h-5 text-zinc-300" />
                   <span>{isMovie ? 'Movie Details' : 'More Info'}</span>
                 </button>
-
-                {onSelectNextFeatured && (
-                  <button
-                    id="hero-cycle-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelectNextFeatured();
-                    }}
-                    onTouchEnd={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      onSelectNextFeatured();
-                    }}
-                    className="p-2.5 rounded-md bg-zinc-900/60 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-700/50 transition-colors ml-auto sm:ml-2 cursor-pointer active:scale-90"
-                    title="Next Featured Title"
-                  >
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
-                )}
               </div>
             </div>
 
@@ -295,6 +305,73 @@ export default function HeroBillboard({
             </div>
           </div>
         </div>
+
+        {/* Explicit Navigation Arrows (Visible on mobile & tablet, hover reveal on desktop) */}
+        {onSelectPrevFeatured && (
+          <button
+            type="button"
+            id="hero-nav-prev"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectPrevFeatured();
+            }}
+            onTouchEnd={(e) => {
+              e.stopPropagation();
+              onSelectPrevFeatured();
+            }}
+            aria-label="Previous Featured Show"
+            title="Previous Featured Show"
+            className="flex items-center justify-center absolute left-2 sm:left-4 lg:left-6 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-11 sm:h-11 lg:w-12 lg:h-12 rounded-full bg-zinc-950/80 hover:bg-black text-white/90 hover:text-white border border-white/25 hover:border-red-500 shadow-2xl backdrop-blur-md opacity-80 lg:opacity-0 group-hover/hero:opacity-100 transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer"
+          >
+            <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+          </button>
+        )}
+
+        {onSelectNextFeatured && (
+          <button
+            type="button"
+            id="hero-nav-next"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectNextFeatured();
+            }}
+            onTouchEnd={(e) => {
+              e.stopPropagation();
+              onSelectNextFeatured();
+            }}
+            aria-label="Next Featured Show"
+            title="Next Featured Show"
+            className="flex items-center justify-center absolute right-2 sm:right-4 lg:right-6 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-11 sm:h-11 lg:w-12 lg:h-12 rounded-full bg-zinc-950/80 hover:bg-black text-white/90 hover:text-white border border-white/25 hover:border-red-500 shadow-2xl backdrop-blur-md opacity-80 lg:opacity-0 group-hover/hero:opacity-100 transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer"
+          >
+            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
+          </button>
+        )}
+
+        {/* Red Bottom Indicator Track */}
+        {itemCount !== undefined && itemCount > 1 && (
+          <div className="absolute bottom-2.5 sm:bottom-4 left-0 right-0 z-20 flex items-center justify-center gap-1.5 px-4 pointer-events-auto">
+            {Array.from({ length: Math.min(itemCount, 12) }).map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectIndex?.(idx);
+                }}
+                onTouchEnd={(e) => {
+                  e.stopPropagation();
+                  onSelectIndex?.(idx);
+                }}
+                aria-label={`Jump to featured slide ${idx + 1}`}
+                className={`transition-all duration-300 rounded-full cursor-pointer ${
+                  idx === ((currentIndex ?? 0) % Math.min(itemCount, 12))
+                    ? 'w-6 h-1.5 bg-red-600 shadow-lg shadow-red-900/60'
+                    : 'w-1.5 h-1.5 bg-zinc-700/80 hover:bg-zinc-400'
+                }`}
+              />
+            ))}
+          </div>
+        )}
     </section>
   );
 }

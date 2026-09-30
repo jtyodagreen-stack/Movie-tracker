@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { X, Plus, Star, Sparkles, Save, Image as ImageIcon, Loader2, Check, Search, Film, Tv, Calendar, Clock, RotateCcw, Tag } from 'lucide-react';
+import { X, Plus, Star, Sparkles, Save, Image as ImageIcon, Loader2, Check, Search, Film, Tv, Calendar, Clock, RotateCcw, Tag, AlertTriangle } from 'lucide-react';
 import { ShowItem, ShowType, WatchStatus, PRESET_PLATFORMS } from '../types';
 import { getBackdropForShow, getPosterForShow } from '../data/mediaAssets';
 import ImageUploader from './ImageUploader';
@@ -22,6 +22,7 @@ interface AddShowModalProps {
   masterSheetName?: string;
   wishlistSheetName?: string;
   shows?: ShowItem[];
+  onSelectExistingShow?: (show: ShowItem) => void;
 }
 
 const DEFAULT_PLATFORMS = PRESET_PLATFORMS;
@@ -109,25 +110,17 @@ export default function AddShowModal({
   masterSheetName = 'MASTER TRACKER',
   wishlistSheetName = 'Wishlist',
   shows = [],
+  onSelectExistingShow,
 }: AddShowModalProps) {
   const [destination, setDestination] = useState<'master' | 'wishlist'>(
     initialIsWishlist ? 'wishlist' : 'master'
   );
   const [title, setTitle] = useState('');
+  const [duplicateError, setDuplicateError] = useState('');
+  const [duplicateShowItem, setDuplicateShowItem] = useState<ShowItem | null>(null);
 
-  // Dynamic Library Counter & Live Matches Calculation
+  // Dynamic Library Counter
   const totalLibraryShows = shows.length;
-  const matchingLibraryShows = useMemo(() => {
-    if (!shows || !title.trim()) return [];
-    const query = title.trim().toLowerCase();
-    return shows.filter((s) => s.title.toLowerCase().includes(query));
-  }, [shows, title]);
-
-  const exactMatch = useMemo(() => {
-    if (!shows || !title.trim()) return null;
-    const query = title.trim().toLowerCase();
-    return shows.find((s) => s.title.trim().toLowerCase() === query);
-  }, [shows, title]);
   const [type, setType] = useState<ShowType>('Series');
   const [platform, setPlatform] = useState<string>(
     sheetPlatforms.length > 0 ? normalizePlatform(sheetPlatforms[0]) : '📺 Netflix'
@@ -409,6 +402,26 @@ export default function AddShowModal({
     setTitle(item.title);
     setType(item.type);
 
+    // Check duplicate upon selecting suggestion
+    const cleanCand = item.title.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const currentImdb = item.imdbId;
+    const dupe = cleanCand.length >= 2 ? shows.find((s) => {
+      if (currentImdb && s.imdbId && currentImdb === s.imdbId) return true;
+      if (!s.title) return false;
+      const cleanExisting = s.title.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      return cleanExisting.length >= 2 && cleanCand === cleanExisting;
+    }) : null;
+
+    if (dupe) {
+      setDuplicateShowItem(dupe);
+      setDuplicateError(
+        `🚫 Duplicate Found: "${dupe.title}" is already in your ${dupe.isWishlist ? 'Wishlist' : 'Master Tracker'} (${dupe.status} • ${dupe.platform || 'Tracker'}).`
+      );
+    } else {
+      setDuplicateShowItem(null);
+      setDuplicateError('');
+    }
+
     // Clear notes & release countdown setup fields before potential new data
     setNotes(item.synopsis || '');
     setReleaseDate('');
@@ -491,6 +504,24 @@ export default function AddShowModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
+
+    // Strict Duplicate Title Check upon submission
+    const cleanCand = title.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const currentImdb = imdbId || posterResult?.imdbId;
+    const dupe = cleanCand.length >= 2 ? shows.find((s) => {
+      if (currentImdb && s.imdbId && currentImdb === s.imdbId) return true;
+      if (!s.title) return false;
+      const cleanExisting = s.title.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      return cleanExisting.length >= 2 && cleanCand === cleanExisting;
+    }) : null;
+
+    if (dupe) {
+      setDuplicateShowItem(dupe);
+      setDuplicateError(
+        `🚫 Duplicate Found: "${dupe.title}" is already in your ${dupe.isWishlist ? 'Wishlist' : 'Master Tracker'} (${dupe.status} • ${dupe.platform || 'Tracker'}).`
+      );
+      return;
+    }
 
     const resolvedPlatform = platform;
     const getRatingText = (num: number): string => {
@@ -590,6 +621,16 @@ export default function AddShowModal({
         className="relative w-full max-w-2xl max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-[#181818] border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
+        <style>{`
+          @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-4px); }
+            40%, 80% { transform: translateX(4px); }
+          }
+          .animate-shake {
+            animation: shake 0.4s ease-in-out;
+          }
+        `}</style>
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between shrink-0 gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -605,50 +646,18 @@ export default function AddShowModal({
                 {/* Dynamic Library Counter Pill */}
                 <div
                   id="add-modal-library-counter"
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold transition-all duration-200 shadow-sm border ${
-                    exactMatch
-                      ? 'bg-amber-950/80 text-amber-300 border-amber-600/70 shadow-amber-900/20'
-                      : matchingLibraryShows.length > 0
-                      ? 'bg-blue-950/80 text-blue-300 border-blue-600/70 shadow-blue-900/20'
-                      : 'bg-zinc-850 bg-zinc-800/90 text-zinc-300 border-zinc-700/80'
-                  }`}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold transition-all duration-200 shadow-sm border bg-zinc-800/90 text-zinc-300 border-zinc-700/80"
                   title={`Your library currently has ${totalLibraryShows} ${totalLibraryShows === 1 ? 'show' : 'shows'}`}
                 >
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      exactMatch
-                        ? 'bg-amber-400 animate-ping'
-                        : matchingLibraryShows.length > 0
-                        ? 'bg-blue-400 animate-pulse'
-                        : 'bg-emerald-400'
-                    }`}
-                  />
-                  {title.trim().length > 0 ? (
-                    <span>
-                      <strong className="text-white font-mono">{matchingLibraryShows.length}</strong> {matchingLibraryShows.length === 1 ? 'match' : 'matches'} / <span className="font-mono text-zinc-400">{totalLibraryShows}</span> in library
-                    </span>
-                  ) : (
-                    <span>
-                      <strong className="text-white font-mono">{totalLibraryShows}</strong> {totalLibraryShows === 1 ? 'show' : 'shows'} in library
-                    </span>
-                  )}
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span>
+                    <strong className="text-white font-mono">{totalLibraryShows}</strong> {totalLibraryShows === 1 ? 'show' : 'shows'} in library
+                  </span>
                 </div>
               </div>
 
               <p className="text-xs text-zinc-400 truncate mt-0.5">
-                {exactMatch ? (
-                  <span className="text-amber-300 font-medium">
-                    ⚠️ Already in your library ({exactMatch.status} • {exactMatch.type || 'Series'})
-                  </span>
-                ) : title.trim().length > 0 && matchingLibraryShows.length > 0 ? (
-                  <span className="text-blue-300 font-medium">
-                    Found {matchingLibraryShows.length} existing {matchingLibraryShows.length === 1 ? 'title' : 'titles'} matching "{title.trim()}"
-                  </span>
-                ) : (
-                  <span>
-                    Official poster & metadata auto-fetch instantly {sheetConnected ? '& sync with Google Sheets' : ''}
-                  </span>
-                )}
+                Official poster & metadata auto-fetch instantly {sheetConnected ? '& sync with Google Sheets' : ''}
               </p>
             </div>
           </div>
@@ -657,11 +666,16 @@ export default function AddShowModal({
               type="submit"
               form="add-show-form"
               id="add-top-save-btn"
-              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-md transition-all cursor-pointer border border-emerald-500/50"
+              disabled={Boolean(duplicateShowItem && duplicateError)}
+              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full shadow-md transition-all ${
+                Boolean(duplicateShowItem && duplicateError)
+                  ? 'bg-red-950 text-red-300 border-2 border-red-600 cursor-not-allowed shadow-red-950/50'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/50 cursor-pointer'
+              }`}
             >
               <Save className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Add Title</span>
-              <span className="sm:hidden">Add</span>
+              <span className="hidden sm:inline">{Boolean(duplicateShowItem && duplicateError) ? '🚫 Duplicate' : 'Add Title'}</span>
+              <span className="sm:hidden">{Boolean(duplicateShowItem && duplicateError) ? 'Duplicate' : 'Add'}</span>
             </button>
             <button
               id="close-add-modal-btn"
@@ -735,6 +749,8 @@ export default function AddShowModal({
                   value={title}
                   onChange={(e) => {
                     setTitle(e.target.value);
+                    setDuplicateError('');
+                    setDuplicateShowItem(null);
                     setShowSuggestions(true);
                   }}
                   onFocus={() => {
@@ -742,7 +758,11 @@ export default function AddShowModal({
                   }}
                   onKeyDown={handleTitleKeyDown}
                   placeholder="Type title or paste IMDb URL here..."
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-4 py-3 text-base text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500 shadow-inner pr-10"
+                  className={`w-full bg-zinc-900 border rounded-md px-4 py-3 text-base text-white placeholder:text-zinc-600 focus:outline-none shadow-inner pr-10 transition-colors ${
+                    Boolean(duplicateShowItem && duplicateError)
+                      ? 'border-red-500 ring-2 ring-red-500/50 animate-shake'
+                      : 'border-zinc-700 focus:border-red-500'
+                  }`}
                   autoFocus
                   autoComplete="off"
                 />
@@ -780,7 +800,7 @@ export default function AddShowModal({
                           {/* Thumbnail */}
                           <div className="w-10 h-14 rounded overflow-hidden bg-zinc-950 shrink-0 border border-zinc-700/60 shadow-xs relative">
                             <img
-                              src={item.posterUrl}
+                              src={item.posterUrl || getPosterForShow(item.title, 'Drama')}
                               alt={item.title}
                               className="w-full h-full object-cover"
                               loading="lazy"
@@ -847,6 +867,52 @@ export default function AddShowModal({
               </select>
             </div>
           </div>
+
+          {/* Real-time Duplicate Found Warning Indicator */}
+          {(() => {
+            const activeDuplicate = duplicateShowItem;
+            if (!activeDuplicate) return null;
+            return (
+              <div
+                id="duplicate-title-warning-box"
+                className="p-4 bg-red-950/95 border-2 border-red-500 rounded-xl space-y-3 text-white shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-red-600/20 border border-red-500 flex items-center justify-center shrink-0 text-red-400 mt-0.5">
+                      <AlertTriangle className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-black text-white">
+                          Duplicate Found: &ldquo;{activeDuplicate.title}&rdquo;
+                        </h4>
+                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-red-600 text-white shadow-sm">
+                          Already in Library
+                        </span>
+                      </div>
+                      <p className="text-xs text-red-200/95 leading-relaxed">
+                        This show is already in your <strong>{activeDuplicate.isWishlist ? 'Wishlist' : 'Master Tracker'}</strong> ({activeDuplicate.status} • {activeDuplicate.platform || 'Tracker'}). Duplicate titles cannot be added.
+                      </p>
+                    </div>
+                  </div>
+
+                  {onSelectExistingShow && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onSelectExistingShow(activeDuplicate);
+                      }}
+                      className="text-xs bg-red-600 hover:bg-red-500 text-white font-black px-3.5 py-2 rounded-lg shadow-lg hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border border-red-400/60 whitespace-nowrap"
+                    >
+                      Open Existing Show →
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Automatic Live Poster Card & Metadata Assistant */}
           {title.trim().length > 1 && (
@@ -1334,10 +1400,15 @@ export default function AddShowModal({
             <button
               id="submit-add-show-btn"
               type="submit"
-              className="flex items-center gap-1.5 bg-[#E50914] hover:bg-[#B80710] text-white text-xs sm:text-sm font-bold px-5 py-2.5 rounded-md shadow-lg shadow-red-900/30 transition-all cursor-pointer"
+              disabled={Boolean(duplicateShowItem && duplicateError)}
+              className={`flex items-center gap-1.5 text-xs sm:text-sm font-bold px-5 py-2.5 rounded-md shadow-lg transition-all ${
+                Boolean(duplicateShowItem && duplicateError)
+                  ? 'bg-red-950 text-red-300 border-2 border-red-600 cursor-not-allowed shadow-red-950/50'
+                  : 'bg-[#E50914] hover:bg-[#B80710] text-white shadow-red-900/30 cursor-pointer'
+              }`}
             >
               <Plus className="w-4 h-4" />
-              <span>Add to Tracker</span>
+              <span>{Boolean(duplicateShowItem && duplicateError) ? '🚫 Duplicate - Cannot Add' : 'Add to Tracker'}</span>
             </button>
           </div>
         </form>

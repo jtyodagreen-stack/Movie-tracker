@@ -452,7 +452,7 @@ export default function NetflixHoverPortal({
             </button>
 
             {/* Notification Alert Toggle (for upcoming releases) */}
-            {isFutureRelease(show) && (
+            {(Boolean(show.releaseDate) || Boolean(show.releaseNote) || Boolean(liveAirstamp) || isFutureRelease(show)) && (
               <button
                 type="button"
                 onClick={handleToggleNotif}

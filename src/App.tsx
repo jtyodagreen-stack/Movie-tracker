@@ -54,7 +54,7 @@ import DashboardStats from './components/DashboardStats';
 import MainPageReleaseRadarBanner from './components/MainPageReleaseRadarBanner';
 import ShowcaseSection from './components/ShowcaseSection';
 import NetflixHoverPortal from './components/NetflixHoverPortal';
-import { checkAndTrigger24hNotifications, parseReleaseDateToTimestamp } from './services/notificationService';
+import { checkAndTrigger24hNotifications, parseReleaseDateToTimestamp, enableShowNotificationSilent } from './services/notificationService';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { getAppDataCache, setAppDataCache, queueOfflineAction } from './services/offlineQueue';
 import { calculateShowProgress } from './utils/showMetrics';
@@ -83,6 +83,12 @@ export default function App() {
   const [shows, setShows] = useState<ShowItem[]>(() => {
     try {
       const cache = getAppDataCache();
+      const currentStoredId = localStorage.getItem('bingebox_spreadsheet_id') || '';
+      // Pre-flight check: Verify cache spreadsheet ID matches the stored active spreadsheet ID
+      if (cache?.spreadsheetId && currentStoredId && cache.spreadsheetId !== currentStoredId) {
+        console.warn('[Pre-flight Check] Cached shows belong to a different spreadsheet ID. Discarding stale data.');
+        return [];
+      }
       if (cache?.shows && cache.shows.length > 0) {
         return cache.shows;
       }
@@ -90,9 +96,12 @@ export default function App() {
     return [];
   });
 
-  // Persist shows to local cache whenever they update
+  // Persist shows and active spreadsheet context to local cache whenever they update
   useEffect(() => {
-    setAppDataCache({ shows });
+    setAppDataCache({
+      shows,
+      spreadsheetId: localStorage.getItem('bingebox_spreadsheet_id') || undefined,
+    });
   }, [shows]);
 
   const showsRef = useRef<ShowItem[]>([]);
@@ -152,6 +161,7 @@ export default function App() {
   const [hoveredShowId, setHoveredShowId] = useState<string | null>(null);
   const [hoveredRect, setHoveredRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const hoverGraceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const filteredSectionRef = useRef<HTMLElement | null>(null);
 
   const hoveredShow = useMemo(() => {
     return shows.find((s) => s.id === hoveredShowId) || null;
@@ -531,10 +541,17 @@ export default function App() {
       } catch (e: any) {
         console.warn('Background auto-sync fetch:', e);
         const msg = e?.message || String(e);
-        if (msg.includes('invalid authentication credentials') || msg.includes('401') || msg.includes('invalid_grant') || msg.includes('Expected OAuth 2 access token')) {
+        if (
+          msg.includes('invalid authentication credentials') ||
+          msg.includes('401') ||
+          msg.includes('403') ||
+          msg.includes('invalid_grant') ||
+          msg.includes('Expected OAuth 2 access token')
+        ) {
           setCachedAccessToken(null);
           if (!isSilent) {
-            showToast('⚠️ Google Sheets session expired. Please open Google Sheets Settings and reconnect.');
+            setShowSyncModal(true);
+            showToast('⚠️ Google Sheets session expired. Please click Connect to re-authenticate.');
           }
         }
       } finally {
@@ -573,50 +590,61 @@ export default function App() {
           return;
         }
 
-        // Check Firestore cloud settings only if there is no active local spreadsheet configured
-        const localActiveId = localStorage.getItem('bingebox_spreadsheet_id') || '';
-        if (currentUser?.uid && !localActiveId) {
+        // Pre-flight Check during Auth flow: Verify if user's cloud config matches current session
+        if (currentUser?.uid) {
           try {
             const cloudConfig = await loadUserSheetConfig(currentUser.uid);
             if (cloudConfig?.spreadsheetId) {
-              activeSheetId = cloudConfig.spreadsheetId;
-              setSpreadsheetId(cloudConfig.spreadsheetId);
-              localStorage.setItem('bingebox_spreadsheet_id', cloudConfig.spreadsheetId);
+              const currentLocalId = localStorage.getItem('bingebox_spreadsheet_id') || '';
+              
+              // If local storage has a different spreadsheet ID than cloud config, pre-flight check detects change
+              if (currentLocalId && cloudConfig.spreadsheetId !== currentLocalId && !connectingSheetIdRef.current) {
+                console.log('[Pre-flight Check] Sheet updated in user profile. Clearing stale local shows before sync.');
+                setShows([]);
+                setSheetHeaders([]);
+                setAppDataCache({ shows: [], spreadsheetId: cloudConfig.spreadsheetId });
+              }
 
-              if (cloudConfig.sheetName) {
-                activeSheetName = cloudConfig.sheetName;
-                setSheetName(cloudConfig.sheetName);
-                localStorage.setItem('bingebox_sheet_name', cloudConfig.sheetName);
-              }
-              if (cloudConfig.wishlistSheetName) {
-                activeWishlistName = cloudConfig.wishlistSheetName;
-                setWishlistSheetName(cloudConfig.wishlistSheetName);
-                localStorage.setItem('bingebox_wishlist_sheet_name', cloudConfig.wishlistSheetName);
-              }
-              if (cloudConfig.showcaseSheetName) {
-                activeShowcaseName = cloudConfig.showcaseSheetName;
-                setShowcaseSheetName(cloudConfig.showcaseSheetName);
-                localStorage.setItem('bingebox_showcase_sheet_name', cloudConfig.showcaseSheetName);
-              }
-              if (cloudConfig.sheetTitle) {
-                setSheetTitle(cloudConfig.sheetTitle);
-                localStorage.setItem('bingebox_sheet_title', cloudConfig.sheetTitle);
-              }
-              if (cloudConfig.sheetTabId !== undefined) {
-                setSheetTabId(cloudConfig.sheetTabId);
-                localStorage.setItem('bingebox_sheet_tab_id', String(cloudConfig.sheetTabId));
-              }
-              if (cloudConfig.autoSyncEnabled !== undefined) {
-                setAutoSyncEnabled(cloudConfig.autoSyncEnabled);
-                localStorage.setItem('bingebox_auto_sync', String(cloudConfig.autoSyncEnabled));
-              }
-              if (cloudConfig.syncFrequency !== undefined) {
-                setSyncFrequency(cloudConfig.syncFrequency);
-                localStorage.setItem('bingebox_sync_frequency', String(cloudConfig.syncFrequency));
+              if (!currentLocalId || (!connectingSheetIdRef.current && cloudConfig.spreadsheetId !== currentLocalId)) {
+                activeSheetId = cloudConfig.spreadsheetId;
+                setSpreadsheetId(cloudConfig.spreadsheetId);
+                localStorage.setItem('bingebox_spreadsheet_id', cloudConfig.spreadsheetId);
+
+                if (cloudConfig.sheetName) {
+                  activeSheetName = cloudConfig.sheetName;
+                  setSheetName(cloudConfig.sheetName);
+                  localStorage.setItem('bingebox_sheet_name', cloudConfig.sheetName);
+                }
+                if (cloudConfig.wishlistSheetName) {
+                  activeWishlistName = cloudConfig.wishlistSheetName;
+                  setWishlistSheetName(cloudConfig.wishlistSheetName);
+                  localStorage.setItem('bingebox_wishlist_sheet_name', cloudConfig.wishlistSheetName);
+                }
+                if (cloudConfig.showcaseSheetName) {
+                  activeShowcaseName = cloudConfig.showcaseSheetName;
+                  setShowcaseSheetName(cloudConfig.showcaseSheetName);
+                  localStorage.setItem('bingebox_showcase_sheet_name', cloudConfig.showcaseSheetName);
+                }
+                if (cloudConfig.sheetTitle) {
+                  setSheetTitle(cloudConfig.sheetTitle);
+                  localStorage.setItem('bingebox_sheet_title', cloudConfig.sheetTitle);
+                }
+                if (cloudConfig.sheetTabId !== undefined) {
+                  setSheetTabId(cloudConfig.sheetTabId);
+                  localStorage.setItem('bingebox_sheet_tab_id', String(cloudConfig.sheetTabId));
+                }
+                if (cloudConfig.autoSyncEnabled !== undefined) {
+                  setAutoSyncEnabled(cloudConfig.autoSyncEnabled);
+                  localStorage.setItem('bingebox_auto_sync', String(cloudConfig.autoSyncEnabled));
+                }
+                if (cloudConfig.syncFrequency !== undefined) {
+                  setSyncFrequency(cloudConfig.syncFrequency);
+                  localStorage.setItem('bingebox_sync_frequency', String(cloudConfig.syncFrequency));
+                }
               }
             }
           } catch (e) {
-            console.warn('Error loading cloud sheet configuration:', e);
+            console.warn('[Pre-flight Check] Notice while checking cloud sheet configuration:', e);
           }
         }
 
@@ -931,13 +959,9 @@ export default function App() {
     try {
       let token = await getAccessToken();
       if (!token) {
-        showToast('🔑 Signing in to Google to sync spreadsheet...');
-        const authRes = await handleSignIn();
-        token = authRes?.accessToken || null;
-        if (!token) {
-          showToast('⚠️ Google sign-in required to update your Google Sheet');
-          return;
-        }
+        setShowSyncModal(true);
+        showToast('⚠️ Google sign-in required. Please click Connect to sign in.');
+        return;
       }
 
       // If show has a poster image and sheet lacks a poster column, ensure it exists
@@ -1080,9 +1104,16 @@ export default function App() {
     } catch (err: any) {
       console.error('Failed to sync show to Google Sheets:', err);
       const msg = err?.message || String(err);
-      if (msg.includes('invalid authentication credentials') || msg.includes('401') || msg.includes('invalid_grant') || msg.includes('Expected OAuth 2 access token')) {
+      if (
+        msg.includes('invalid authentication credentials') ||
+        msg.includes('401') ||
+        msg.includes('403') ||
+        msg.includes('invalid_grant') ||
+        msg.includes('Expected OAuth 2 access token')
+      ) {
         setCachedAccessToken(null);
-        showToast('⚠️ Google Sheets session expired. Please open Google Sheets Settings and reconnect.');
+        setShowSyncModal(true);
+        showToast('⚠️ Google Sheets session expired. Please click Connect to re-authenticate.');
       } else {
         showToast(`⚠️ Sheet sync: ${msg}`);
       }
@@ -1341,6 +1372,24 @@ export default function App() {
 
   // Add new show with instant optimistic UI update
   const handleAddShow = (newShow: ShowItem) => {
+    // Strict Duplicate title prevention: auto-decline duplicates
+    const cleanCand = newShow.title.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const existingDupe = cleanCand.length >= 2 ? shows.find((s) => {
+      if (newShow.imdbId && s.imdbId && newShow.imdbId === s.imdbId) return true;
+      if (!s.title) return false;
+      const cleanExisting = s.title.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      return cleanExisting.length >= 2 && cleanCand === cleanExisting;
+    }) : undefined;
+
+    if (existingDupe) {
+      showToast(
+        `🚫 Blocked Duplicate: "${newShow.title}" is already in your ${
+          existingDupe.isWishlist ? 'Wishlist' : 'Master Tracker'
+        } (${existingDupe.status})!`
+      );
+      return;
+    }
+
     const isWishlist = Boolean(newShow.isWishlist);
     const isMovie = newShow.type === 'Movie';
     const targetTab = newShow.sheetTabName || (isWishlist ? wishlistSheetName : sheetName);
@@ -1356,6 +1405,9 @@ export default function App() {
     };
 
     // 1. Instant optimistic UI update: Show appears on the dashboard immediately with 0ms delay!
+    if (sanitizedShow.releaseDate || sanitizedShow.releaseNote) {
+      enableShowNotificationSilent(sanitizedShow.id);
+    }
     setShows((prev) => [sanitizedShow, ...prev]);
     showToast(`✨ Added "${sanitizedShow.title}" to ${isWishlist ? 'Wishlist' : 'Master Tracker'}`);
 
@@ -1443,9 +1495,16 @@ export default function App() {
     }
 
     try {
-      const token = await getAccessToken();
+      let token = await getAccessToken();
       if (!token) {
-        showToast('⚠️ Google sign-in required to update Google Sheets');
+        showToast('🔑 Authenticating Google session...');
+        const authRes = await handleSignIn();
+        token = authRes?.accessToken || null;
+      }
+
+      if (!token) {
+        setShowSyncModal(true);
+        showToast('⚠️ Google sign-in required. Please click Connect to sign in.');
         return;
       }
 
@@ -1483,7 +1542,20 @@ export default function App() {
       showToast(`🎁 Moved "${showToMove.title}" to "${targetTab}"`);
     } catch (err: any) {
       console.error('Failed to move show to wishlist:', err);
-      showToast(`⚠️ Could not move to wishlist: ${err?.message || err}`);
+      const msg = err?.message || String(err);
+      if (
+        msg.includes('invalid authentication credentials') ||
+        msg.includes('401') ||
+        msg.includes('403') ||
+        msg.includes('invalid_grant') ||
+        msg.includes('Expected OAuth 2 access token')
+      ) {
+        setCachedAccessToken(null);
+        setShowSyncModal(true);
+        showToast('⚠️ Google Sheets session expired. Please click Connect to re-authenticate.');
+      } else {
+        showToast(`⚠️ Could not move to wishlist: ${msg}`);
+      }
     } finally {
       setIsSyncing(false);
     }
@@ -1513,9 +1585,16 @@ export default function App() {
     }
 
     try {
-      const token = await getAccessToken();
+      let token = await getAccessToken();
       if (!token) {
-        showToast('⚠️ Google sign-in required to update Google Sheets');
+        showToast('🔑 Authenticating Google session...');
+        const authRes = await handleSignIn();
+        token = authRes?.accessToken || null;
+      }
+
+      if (!token) {
+        setShowSyncModal(true);
+        showToast('⚠️ Google sign-in required. Please click Connect to sign in.');
         return;
       }
 
@@ -1555,7 +1634,20 @@ export default function App() {
       showToast(`📊 Moved "${showToMove.title}" to "${targetTab}"`);
     } catch (err: any) {
       console.error('Failed to move show to master:', err);
-      showToast(`⚠️ Could not move to master tracker: ${err?.message || err}`);
+      const msg = err?.message || String(err);
+      if (
+        msg.includes('invalid authentication credentials') ||
+        msg.includes('401') ||
+        msg.includes('403') ||
+        msg.includes('invalid_grant') ||
+        msg.includes('Expected OAuth 2 access token')
+      ) {
+        setCachedAccessToken(null);
+        setShowSyncModal(true);
+        showToast('⚠️ Google Sheets session expired. Please click Connect to re-authenticate.');
+      } else {
+        showToast(`⚠️ Could not move to master tracker: ${msg}`);
+      }
     } finally {
       setIsSyncing(false);
     }
@@ -1609,7 +1701,13 @@ export default function App() {
         if (activeFilter === 'Movie') return show.type === 'Movie';
         if (activeFilter === '⏳ Watching') return show.status === '⏳ Watching';
         if (activeFilter === '✅ Watched') return show.status === '✅ Watched';
-        if (activeFilter === '⏰ Coming Soon') return Boolean(show.releaseDate || show.releaseNote);
+        if (activeFilter === '⭐ Top Rated' || activeFilter === 'Top Rated') {
+          const stars = show.ratingNum || (show.rating ? (show.rating.match(/⭐/g) || []).length : 0);
+          return stars >= 4 || (show.rating && (show.rating.toLowerCase().includes('excellent') || show.rating.toLowerCase().includes('great')));
+        }
+        if (activeFilter === '⏰ Coming Soon' || activeFilter === 'Coming Soon') {
+          return Boolean(show.releaseDate || show.releaseNote || show.nextAirDate || show.nextAirTimestamp);
+        }
         if (activeFilter === '⏸️ Paused') return show.status === '⏸️ Paused';
         if (activeFilter === '❌ Dropped') return show.status === '❌ Dropped';
         if (activeFilter === '⏸️ Paused / ❌ Dropped') return show.status === '⏸️ Paused' || show.status === '❌ Dropped';
@@ -1672,6 +1770,37 @@ export default function App() {
       return 0;
     });
   }, [baseFilteredList, selectedPlatform, sortOrder]);
+
+  // Pagination State for Filtered Results
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(50);
+
+  // Reset page to 1 and itemsPerPage back to default 50 when returning Home or changing active filter
+  useEffect(() => {
+    setCurrentPage(1);
+    setItemsPerPage(50);
+  }, [searchQuery, activeFilter, selectedPlatform, selectedYear, sortOrder]);
+
+  const scrollToFilteredSection = useCallback(() => {
+    if (filteredSectionRef.current) {
+      filteredSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, []);
+
+  const handlePageChange = useCallback((newPage: number) => {
+    setCurrentPage(newPage);
+    setTimeout(() => {
+      scrollToFilteredSection();
+    }, 50);
+  }, [scrollToFilteredSection]);
+
+  const totalPages = Math.ceil(filteredShows.length / itemsPerPage) || 1;
+  const paginatedShows = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredShows.slice(start, start + itemsPerPage);
+  }, [filteredShows, currentPage, itemsPerPage]);
 
   // Unique sorted list of years
   const availableYears = useMemo(() => {
@@ -2320,6 +2449,10 @@ export default function App() {
                 onOpenDetails={handleOpenDetails}
                 onIncrementEpisode={handleIncrementEpisode}
                 onSelectNextFeatured={() => setFeaturedIndex((prev) => prev + 1)}
+                onSelectPrevFeatured={() => setFeaturedIndex((prev) => (prev > 0 ? prev - 1 : Math.max(0, shows.length - 1)))}
+                itemCount={shows.filter((s) => s.status === '⏳ Watching').length > 0 ? shows.filter((s) => s.status === '⏳ Watching').length : shows.length}
+                currentIndex={featuredIndex}
+                onSelectIndex={(idx) => setFeaturedIndex(idx)}
               />
             )}
             {!searchQuery && (
@@ -2334,7 +2467,7 @@ export default function App() {
 
         {/* Filter / Search results view */}
         {isAnyFilterActive && (
-          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 space-y-4">
+          <section ref={filteredSectionRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 space-y-4">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3 flex-wrap gap-2">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
@@ -2353,6 +2486,10 @@ export default function App() {
                         ? '⏳ Currently Watching'
                         : activeFilter === '✅ Watched'
                         ? '✅ Completed & Watched'
+                        : activeFilter === '⭐ Top Rated' || activeFilter === 'Top Rated'
+                        ? '⭐ Top Rated Titles (4–5 Stars)'
+                        : activeFilter === '⏰ Coming Soon' || activeFilter === 'Coming Soon'
+                        ? '⏰ Upcoming Release Dates & Premieres'
                         : activeFilter === '🎁 Wishlist' || activeFilter === 'Wishlist'
                         ? '🎁 Wishlist'
                         : activeFilter
@@ -2411,6 +2548,10 @@ export default function App() {
                           ? 'Watching'
                           : activeFilter === '✅ Watched'
                           ? 'Watched'
+                          : activeFilter === '⭐ Top Rated' || activeFilter === 'Top Rated'
+                          ? 'Top Rated'
+                          : activeFilter === '⏰ Coming Soon' || activeFilter === 'Coming Soon'
+                          ? 'Coming Soon'
                           : activeFilter === '🎁 Wishlist' || activeFilter === 'Wishlist'
                           ? 'Wishlist'
                           : activeFilter === '⏸️ Paused'
@@ -2554,7 +2695,9 @@ export default function App() {
                             ? 'Watching'
                             : activeFilter === '✅ Watched'
                             ? 'Watched'
-                            : activeFilter === '⏰ Coming Soon'
+                            : activeFilter === '⭐ Top Rated' || activeFilter === 'Top Rated'
+                            ? 'Top Rated'
+                            : activeFilter === '⏰ Coming Soon' || activeFilter === 'Coming Soon'
                             ? 'Coming Soon'
                             : activeFilter === '🎁 Wishlist' || activeFilter === 'Wishlist'
                             ? 'Wishlist'
@@ -2580,19 +2723,161 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 pt-2">
-                {filteredShows.map((show) => (
-                  <ShowCard
-                    key={show.id}
-                    show={show}
-                    className="w-full"
-                    onOpenDetails={handleOpenDetails}
-                    onIncrementEpisode={handleIncrementEpisode}
-                    onToggleStatus={handleToggleStatus}
-                    onHoverEnter={handleHoverEnter}
-                    onHoverLeave={handleHoverLeave}
-                  />
-                ))}
+              <div className="space-y-6">
+                {/* Top Pagination Bar for Quick Navigation */}
+                {(filteredShows.length > itemsPerPage || totalPages > 1) && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#181818] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs shadow-md">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-zinc-400 font-medium">Shows per page:</span>
+                      {[50, 100, 200].map((num) => (
+                        <button
+                          key={num}
+                          onClick={() => {
+                            setItemsPerPage(num);
+                            handlePageChange(1);
+                          }}
+                          className={`px-2.5 py-1 rounded font-mono font-bold transition-colors cursor-pointer ${
+                            itemsPerPage === num
+                              ? 'bg-red-600 text-white shadow-sm'
+                              : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                          }`}
+                        >
+                          {num}
+                        </button>
+                      ))}
+                      <span className="text-zinc-500 ml-2 font-mono">
+                        Showing {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredShows.length)} of {filteredShows.length}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="px-2.5 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors cursor-pointer"
+                      >
+                        Previous
+                      </button>
+                      
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter((page) => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                        .map((page, idx, arr) => {
+                          const prevPage = arr[idx - 1];
+                          const showEllipsis = prevPage && page - prevPage > 1;
+                          return (
+                            <div key={page} className="flex items-center gap-1">
+                              {showEllipsis && <span className="text-zinc-500 px-1">...</span>}
+                              <button
+                                onClick={() => handlePageChange(page)}
+                                className={`w-7 h-7 rounded font-bold font-mono text-xs transition-colors cursor-pointer flex items-center justify-center ${
+                                  currentPage === page
+                                    ? 'bg-red-600 text-white shadow-md'
+                                    : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                                }`}
+                              >
+                                {page}
+                              </button>
+                            </div>
+                          );
+                        })}
+
+                      <button
+                        onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="px-2.5 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors cursor-pointer"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 pt-2">
+                  {paginatedShows.map((show) => (
+                    <ShowCard
+                      key={show.id}
+                      show={show}
+                      className="w-full"
+                      onOpenDetails={handleOpenDetails}
+                      onIncrementEpisode={handleIncrementEpisode}
+                      onToggleStatus={handleToggleStatus}
+                      onHoverEnter={handleHoverEnter}
+                      onHoverLeave={handleHoverLeave}
+                    />
+                  ))}
+                </div>
+
+                {/* Bottom Pagination & Items Per Page Controls */}
+                {(filteredShows.length > itemsPerPage || totalPages > 1) && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-zinc-800 text-xs">
+                    {/* Items per page 50 / 100 / 200 */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-zinc-400 font-medium">Shows per page:</span>
+                      {[50, 100, 200].map((num) => (
+                        <button
+                          key={num}
+                          onClick={() => {
+                            setItemsPerPage(num);
+                            handlePageChange(1);
+                          }}
+                          className={`px-2.5 py-1 rounded font-mono font-bold transition-colors cursor-pointer ${
+                            itemsPerPage === num
+                              ? 'bg-red-600 text-white shadow-sm'
+                              : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                          }`}
+                        >
+                          {num}
+                        </button>
+                      ))}
+                      <span className="text-zinc-500 ml-2">
+                        Showing {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredShows.length)} of {filteredShows.length} titles
+                      </span>
+                    </div>
+
+                    {/* Page navigation 1, 2, 3, 4, 5, 6... */}
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <button
+                        onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors cursor-pointer"
+                      >
+                        Previous
+                      </button>
+
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter((page) => {
+                          return page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2;
+                        })
+                        .map((page, idx, arr) => {
+                          const prevPage = arr[idx - 1];
+                          const showEllipsis = prevPage && page - prevPage > 1;
+                          return (
+                            <div key={page} className="flex items-center gap-1">
+                              {showEllipsis && <span className="text-zinc-500 px-1">...</span>}
+                              <button
+                                onClick={() => handlePageChange(page)}
+                                className={`w-8 h-8 rounded font-bold font-mono transition-colors cursor-pointer flex items-center justify-center ${
+                                  currentPage === page
+                                    ? 'bg-red-600 text-white shadow-md'
+                                    : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                                }`}
+                              >
+                                {page}
+                              </button>
+                            </div>
+                          );
+                        })}
+
+                      <button
+                        onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors cursor-pointer"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </section>
@@ -2800,6 +3085,16 @@ export default function App() {
             <ShowcaseSection
               shows={shows}
               onOpenDetails={handleOpenDetails}
+              onNavigateToFilter={(filter = 'All Titles', sort) => {
+                setSearchQuery('');
+                setSelectedPlatform('all');
+                setSelectedYear('all');
+                if (sort) {
+                  setSortOrder(sort);
+                }
+                setActiveFilter(filter);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
             />
           </>
         )}
@@ -2952,6 +3247,7 @@ export default function App() {
           isOpen={true}
           onClose={() => setShowAddModal(false)}
           onAdd={handleAddShow}
+          onSelectExistingShow={(show) => setSelectedShow(show)}
           sheetConnected={Boolean(spreadsheetId)}
           defaultViewer=""
           sheetPlatforms={availablePlatforms.map((p) => p.raw)}

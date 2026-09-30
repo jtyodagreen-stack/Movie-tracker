@@ -170,11 +170,69 @@ export async function toggleShowNotification(show: ShowItem): Promise<boolean> {
     const updated = ids.filter((id) => id !== show.id);
     localStorage.setItem(NOTIF_KEY, JSON.stringify(updated));
     newValue = false;
+
+    toast.custom(
+      (t) => (
+        <div
+          className={`${
+            t.visible ? 'animate-in fade-in slide-in-from-top-3' : 'animate-out fade-out'
+          } max-w-md w-full bg-zinc-950 border border-zinc-800 shadow-2xl rounded-xl p-3.5 pointer-events-auto flex items-start gap-3 text-white ring-1 ring-zinc-800/50`}
+        >
+          <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 text-zinc-400 text-lg font-black shadow">
+            🔕
+          </div>
+          <div className="flex-1 min-w-0 space-y-0.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
+                🔕 24h Alert Muted
+              </span>
+              <span className="text-[10px] font-mono text-zinc-500 font-semibold">DISABLED</span>
+            </div>
+            <h4 className="text-xs sm:text-sm font-extrabold text-white truncate">{show.title}</h4>
+            <p className="text-[11px] text-zinc-400 leading-snug">
+              24-hour premiere notifications disabled for this title.
+            </p>
+          </div>
+        </div>
+      ),
+      { duration: 3000 }
+    );
   } else {
     // Enable notification
     const updated = [...ids, show.id];
     localStorage.setItem(NOTIF_KEY, JSON.stringify(updated));
     newValue = true;
+
+    toast.custom(
+      (t) => (
+        <div
+          className={`${
+            t.visible ? 'animate-in fade-in slide-in-from-top-3' : 'animate-out fade-out'
+          } max-w-md w-full bg-zinc-950 border-2 border-amber-500/80 shadow-2xl shadow-amber-950/40 rounded-xl p-3.5 pointer-events-auto flex items-start gap-3 text-white ring-1 ring-amber-500/40`}
+        >
+          <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center shrink-0 text-amber-400 text-lg font-black shadow animate-pulse">
+            🔔
+          </div>
+          <div className="flex-1 min-w-0 space-y-0.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
+                🔔 24h Release Alert Active
+              </span>
+              <span className="text-[10px] font-mono text-amber-400 font-extrabold bg-amber-500/20 px-1.5 py-0.5 rounded">
+                ENABLED
+              </span>
+            </div>
+            <h4 className="text-xs sm:text-sm font-extrabold text-white truncate">{show.title}</h4>
+            <p className="text-[11px] text-amber-200/90 leading-snug">
+              You will be alerted 24 hours before release on <span className="text-amber-400 font-bold">{show.platform || 'TV'}</span>!
+            </p>
+          </div>
+        </div>
+      ),
+      { duration: 4000 }
+    );
+
+    requestBrowserNotificationPermission();
   }
   
   // Dispatch custom event to notify components in the same window

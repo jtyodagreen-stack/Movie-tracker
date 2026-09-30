@@ -248,6 +248,27 @@ export default function SheetSyncModal({
             </div>
           )}
 
+          {/* RE-SYNC PROMPT ALERT BANNER (If connected & signed in) */}
+          {isConnected && (
+            <div className="p-3.5 rounded-xl bg-amber-950/60 border border-amber-500/60 text-amber-200 flex items-center justify-between gap-3 text-xs shadow-lg animate-in fade-in duration-200">
+              <div className="flex items-center gap-2 min-w-0">
+                <Sparkles className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
+                <span className="truncate">
+                  Google Account connected! Click <strong>"Re-Sync Now"</strong> to refresh your Google Sheets data.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleTestOrLoadTabs}
+                disabled={fetchingSheets || isLoading}
+                className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold px-3 py-1.5 rounded-lg text-xs shrink-0 transition-all shadow-md cursor-pointer flex items-center gap-1 hover:scale-105 active:scale-95"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${fetchingSheets || isLoading ? 'animate-spin' : ''}`} />
+                <span>Re-Sync Now</span>
+              </button>
+            </div>
+          )}
+
           {/* OFFLINE STATUS ALERT (If offline) */}
           {!isOnline && (
             <div className="p-3.5 rounded-lg bg-amber-950/70 border border-amber-500/50 flex items-start gap-3 animate-in fade-in duration-150">

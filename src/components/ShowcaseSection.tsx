@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { Play, Star, ChevronRight, Info, Calendar, Clock, Bell, BellRing } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Play, Star, ChevronRight, Info, Calendar, Clock, Bell, BellRing, ArrowRight } from 'lucide-react';
 import { ShowItem } from '../types';
 import { useNotificationContext } from '../context/NotificationContext';
 import { getOptimizedPoster } from '../utils/imageOptimizer';
@@ -10,12 +10,14 @@ interface ShowcaseSectionProps {
   shows: ShowItem[];
   onOpenDetails: (show: ShowItem) => void;
   isLoading?: boolean;
+  onNavigateToFilter?: (filter?: string, sort?: string) => void;
 }
 
 export default function ShowcaseSection({
   shows,
   onOpenDetails,
   isLoading = false,
+  onNavigateToFilter,
 }: ShowcaseSectionProps) {
   const { isNotificationEnabled, toggleNotification } = useNotificationContext();
 
@@ -24,6 +26,7 @@ export default function ShowcaseSection({
     e.preventDefault();
     await toggleNotification(show);
   };
+
   // Currently Watching in-progress titles sorted High to Low by %
   const inProgressList = useMemo(() => {
     return shows
@@ -64,13 +67,13 @@ export default function ShowcaseSection({
         if (tsB) return 1;
         return (a.releaseNote || a.title).localeCompare(b.releaseNote || b.title);
       })
-      .slice(0, 10);
+      .slice(0, 6);
   }, [shows]);
 
   if (!isLoading && shows.length === 0) return null;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {/* Active Watching In-Progress */}
         <div className="bg-[#181818] border border-zinc-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
@@ -155,6 +158,17 @@ export default function ShowcaseSection({
               <p className="text-xs text-zinc-500 py-6 text-center">No shows currently marked as Watching</p>
             )}
           </div>
+
+          {onNavigateToFilter && inProgressList.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onNavigateToFilter('⏳ Watching', 'progress-desc')}
+              className="mt-3.5 pt-2.5 border-t border-zinc-800/80 flex items-center justify-between text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors cursor-pointer w-full group/btn"
+            >
+              <span>View All Watching Titles</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-1 transition-transform" />
+            </button>
+          )}
         </div>
 
         {/* Top Rated Titles */}
@@ -240,6 +254,17 @@ export default function ShowcaseSection({
               <p className="text-xs text-zinc-500 py-6 text-center">No titles rated 4 or 5 stars yet</p>
             )}
           </div>
+
+          {onNavigateToFilter && topRatedList.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onNavigateToFilter('⭐ Top Rated', 'rating')}
+              className="mt-3.5 pt-2.5 border-t border-zinc-800/80 flex items-center justify-between text-xs font-bold text-yellow-400 hover:text-yellow-300 transition-colors cursor-pointer w-full group/btn"
+            >
+              <span>View All Top Rated Titles</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-1 transition-transform" />
+            </button>
+          )}
         </div>
 
         {/* Coming Soon & Premieres Section */}
@@ -336,6 +361,17 @@ export default function ShowcaseSection({
               </div>
             )}
           </div>
+
+          {onNavigateToFilter && comingSoonList.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onNavigateToFilter('⏰ Coming Soon')}
+              className="mt-3.5 pt-2.5 border-t border-zinc-800/80 flex items-center justify-between text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors cursor-pointer w-full group/btn"
+            >
+              <span>View All Upcoming Releases</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-1 transition-transform" />
+            </button>
+          )}
         </div>
       </div>
     </div>

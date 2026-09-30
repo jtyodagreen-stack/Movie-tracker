@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Sparkles, Clock, CheckCircle2, ChevronLeft, ChevronRight, Bell } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Sparkles, Clock, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ShowItem } from '../types';
 import { getOptimizedPoster, getOptimizedBackdrop } from '../utils/imageOptimizer';
 import { parseAnyDate, formatToDDMMYYYY } from '../utils/dateUtils';
@@ -16,6 +16,8 @@ export default function MainPageReleaseRadarBanner({
 }: MainPageReleaseRadarBannerProps) {
   const [now, setNow] = useState<Date>(new Date());
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
   useEffect(() => {
     // Check notifications on tick
@@ -60,10 +62,26 @@ export default function MainPageReleaseRadarBanner({
     });
   }, [shows, now]);
 
+  const activeIndex = useMemo(() => {
+    if (upcomingList.length === 0) return 0;
+    return currentIndex % upcomingList.length;
+  }, [upcomingList.length, currentIndex]);
+
   const activeShow = useMemo(() => {
     if (upcomingList.length === 0) return null;
-    return upcomingList[currentIndex % upcomingList.length];
-  }, [upcomingList, currentIndex]);
+    return upcomingList[activeIndex] || null;
+  }, [upcomingList, activeIndex]);
+
+  // Auto-slideshow for Countdown Banner (12 seconds per slide, pausing on hover/interaction)
+  useEffect(() => {
+    if (upcomingList.length <= 1 || isPaused) return;
+
+    const timer = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % upcomingList.length);
+    }, 12000);
+
+    return () => clearInterval(timer);
+  }, [upcomingList.length, isPaused]);
 
   // Countdown clock calculation
   const getCountdownClock = (targetDate: Date) => {
@@ -85,26 +103,75 @@ export default function MainPageReleaseRadarBanner({
 
   if (!activeShow) return null;
 
-  const handlePrev = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handlePrev = (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) e.stopPropagation();
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : upcomingList.length - 1));
   };
 
-  const handleNext = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleNext = (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) e.stopPropagation();
     setCurrentIndex((prev) => (prev + 1) % upcomingList.length);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touchStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
+    setIsPaused(true);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    setIsPaused(false);
+    if (!touchStartRef.current) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartRef.current.x;
+    const dy = t.clientY - touchStartRef.current.y;
+    const dt = Date.now() - touchStartRef.current.time;
+    touchStartRef.current = null;
+
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+
+    // Horizontal swipe gesture for mobile slide change
+    if (absX > 30 && absX > absY * 1.1) {
+      if (dx < 0) {
+        handleNext();
+      } else {
+        handlePrev();
+      }
+      return;
+    }
+
+    // Clean tap
+    if (absX < 12 && absY < 12 && dt < 450) {
+      const target = e.target as HTMLElement;
+      if (target.closest('button')) {
+        return;
+      }
+      onOpenDetails(activeShow);
+    }
   };
 
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 my-6">
-      <div className={`relative rounded-2xl overflow-hidden border shadow-2xl p-4 sm:p-6 transition-all ${
-        isFeaturedShowReleased 
-          ? 'border-emerald-500/50 bg-gradient-to-r from-zinc-950 via-emerald-950/20 to-zinc-950 animate-banner-out-now' 
-          : 'border-amber-500/40 bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950'
-      }`}>
+      <div
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={() => {
+          touchStartRef.current = null;
+          setIsPaused(false);
+        }}
+        className={`relative rounded-2xl overflow-hidden border shadow-2xl p-4 sm:p-6 transition-all duration-500 group touch-pan-y ${
+          isFeaturedShowReleased 
+            ? 'border-emerald-500/50 bg-gradient-to-r from-zinc-950 via-emerald-950/20 to-zinc-950 animate-banner-out-now' 
+            : 'border-amber-500/40 bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950'
+        }`}
+      >
         {/* Background Backdrop Glow */}
         <div
-          className="absolute inset-0 opacity-15 bg-cover bg-center blur-lg pointer-events-none"
+          key={activeShow.id + '-backdrop'}
+          className="absolute inset-0 opacity-20 bg-cover bg-center blur-lg pointer-events-none transition-opacity duration-700 animate-fadeIn"
           style={{
             backgroundImage: `url(${getOptimizedBackdrop(
               activeShow.backdropUrl || activeShow.posterUrl
@@ -112,44 +179,25 @@ export default function MainPageReleaseRadarBanner({
           }}
         />
 
-        <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-6">
+        <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-6 px-1 sm:px-4">
           {/* Left Title & Info */}
           <div className="flex items-center gap-4 sm:gap-5 w-full lg:w-auto">
-            <img
-              src={getOptimizedPoster(activeShow.posterUrl)}
-              alt={activeShow.title}
-              className="w-16 sm:w-20 aspect-[2/3] object-cover rounded-xl border border-zinc-700 shadow-xl shrink-0 cursor-pointer hover:scale-105 transition-transform"
-              onClick={() => onOpenDetails(activeShow)}
-            />
+            <div className="relative shrink-0 group/poster">
+              <img
+                key={activeShow.id + '-poster'}
+                src={getOptimizedPoster(activeShow.posterUrl)}
+                alt={activeShow.title}
+                className="w-16 sm:w-20 aspect-[2/3] object-cover rounded-xl border border-zinc-700 shadow-xl cursor-pointer hover:scale-105 transition-transform duration-300"
+                onClick={() => onOpenDetails(activeShow)}
+              />
+            </div>
 
-            <div className="space-y-1.5 min-w-0">
+            <div className="space-y-1.5 min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] font-black px-2 py-0.5 rounded bg-amber-500 text-black uppercase tracking-wider flex items-center gap-1 shadow">
                   <Clock className="w-3 h-3" /> Live Premiere Countdown
                 </span>
-                {upcomingList.length > 1 && (
-                  <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-700 px-1.5 py-0.5 rounded text-[10px] text-zinc-300 font-bold">
-                    <button
-                      type="button"
-                      onClick={handlePrev}
-                      className="hover:text-white p-0.5 rounded hover:bg-zinc-800 transition-colors"
-                      title="Previous upcoming premiere"
-                    >
-                      <ChevronLeft className="w-3 h-3" />
-                    </button>
-                    <span>
-                      {(currentIndex % upcomingList.length) + 1} of {upcomingList.length}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleNext}
-                      className="hover:text-white p-0.5 rounded hover:bg-zinc-800 transition-colors"
-                      title="Next upcoming premiere"
-                    >
-                      <ChevronRight className="w-3 h-3" />
-                    </button>
-                  </div>
-                )}
+
                 {activeShow.platform && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
                     {activeShow.platform}
@@ -158,6 +206,7 @@ export default function MainPageReleaseRadarBanner({
               </div>
 
               <h3
+                key={activeShow.id + '-title'}
                 onClick={() => onOpenDetails(activeShow)}
                 className="text-lg sm:text-2xl font-black text-white tracking-tight line-clamp-1 hover:text-amber-400 transition-colors cursor-pointer"
               >
@@ -184,7 +233,7 @@ export default function MainPageReleaseRadarBanner({
           </div>
 
           {/* Right Live Countdown Ticker */}
-          <div className="flex items-center w-full md:w-auto justify-center md:justify-end">
+          <div className="flex items-center w-full lg:w-auto justify-center lg:justify-end">
             {activeShow.parsedDate ? (
               (() => {
                 const clock = getCountdownClock(activeShow.parsedDate);
@@ -235,13 +284,68 @@ export default function MainPageReleaseRadarBanner({
               <button
                 type="button"
                 onClick={() => onOpenDetails(activeShow)}
-                className="bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-lg transition-all"
+                className="bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-lg transition-all cursor-pointer hover:scale-105"
               >
                 View Premiere Details
               </button>
             )}
           </div>
         </div>
+
+        {/* Explicit Navigation Arrows (Visible on mobile & tablet, hover reveal on desktop) */}
+        {upcomingList.length > 1 && (
+          <>
+            <button
+              type="button"
+              id="countdown-nav-prev"
+              onClick={handlePrev}
+              onTouchEnd={handlePrev}
+              aria-label="Previous Premiere Show"
+              title="Previous Premiere Show"
+              className="flex items-center justify-center absolute left-1.5 sm:left-3 top-1/2 -translate-y-1/2 z-30 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-zinc-950/80 hover:bg-black text-white/90 hover:text-white border border-white/25 hover:border-amber-400 shadow-2xl backdrop-blur-md opacity-80 lg:opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+
+            <button
+              type="button"
+              id="countdown-nav-next"
+              onClick={handleNext}
+              onTouchEnd={handleNext}
+              aria-label="Next Premiere Show"
+              title="Next Premiere Show"
+              className="flex items-center justify-center absolute right-1.5 sm:right-3 top-1/2 -translate-y-1/2 z-30 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-zinc-950/80 hover:bg-black text-white/90 hover:text-white border border-white/25 hover:border-amber-400 shadow-2xl backdrop-blur-md opacity-80 lg:opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer"
+            >
+              <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+          </>
+        )}
+
+        {/* Amber Bottom Indicator Track */}
+        {upcomingList.length > 1 && (
+          <div className="flex items-center justify-center gap-1.5 mt-4 pt-2 border-t border-zinc-800/60">
+            {upcomingList.map((item, idx) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentIndex(idx);
+                }}
+                onTouchEnd={(e) => {
+                  e.stopPropagation();
+                  setCurrentIndex(idx);
+                }}
+                aria-label={`Jump to premiere slide ${idx + 1}: ${item.title}`}
+                className={`transition-all duration-300 rounded-full cursor-pointer ${
+                  idx === activeIndex
+                    ? 'w-6 h-1.5 bg-amber-400 shadow-md shadow-amber-950/50'
+                    : 'w-1.5 h-1.5 bg-zinc-700 hover:bg-zinc-500'
+                }`}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
