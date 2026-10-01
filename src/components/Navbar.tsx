@@ -27,6 +27,9 @@ import {
   Settings,
   Users,
   Palette,
+  MessageSquare,
+  HelpCircle,
+  Bug,
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
 import { ShowItem, PRESET_PLATFORMS, AccessibilitySettings, AlertIntervals } from '../types';
@@ -40,9 +43,11 @@ import {
   DEFAULT_PROFILE_USER,
 } from '../utils/userProfile';
 import { getViewerColor, getViewerColorName } from '../utils/profileColors';
+import { APP_VERSION, APP_BUILD_DATE } from '../config/version';
 
 import SettingsCenterModal from './SettingsCenterModal';
 import NetflixProfileSwitcherModal from './NetflixProfileSwitcherModal';
+import FeedbackModal from './FeedbackModal';
 
 interface NavbarProps {
   user: User | null;
@@ -146,6 +151,7 @@ export default function Navbar({
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSettingsCenterModal, setShowSettingsCenterModal] = useState(false);
   const [showNetflixProfileSwitcher, setShowNetflixProfileSwitcher] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [settingsModalTab, setSettingsModalTab] = useState<'all' | 'user' | 'sync' | 'acc' | 'theme' | 'data'>('all');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAccMenu, setShowAccMenu] = useState(false);
@@ -1390,6 +1396,24 @@ export default function Navbar({
                     </button>
 
                     <button
+                      id="account-dropdown-feedback-btn"
+                      type="button"
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        setShowFeedbackModal(true);
+                      }}
+                      className="w-full text-left px-3.5 py-2.5 text-zinc-200 hover:text-white hover:bg-zinc-800/80 flex items-center justify-between cursor-pointer font-medium"
+                    >
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4 text-blue-400" />
+                        <span>Report Issue / Feedback</span>
+                      </div>
+                      <span className="text-[9px] font-bold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700">
+                        {APP_VERSION}
+                      </span>
+                    </button>
+
+                    <button
                       id="account-dropdown-signout-btn"
                       onClick={() => {
                         setShowUserMenu(false);
@@ -1400,6 +1424,17 @@ export default function Navbar({
                       <LogOut className="w-4 h-4" />
                       <span>Sign Out</span>
                     </button>
+
+                    {/* App Version Info in Dropdown Footer */}
+                    <div className="px-3.5 py-2 border-t border-zinc-800/80 bg-zinc-950/40 flex items-center justify-between text-[10px] text-zinc-500 select-none">
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-red-500" />
+                        <span>ShowFlix Tracker</span>
+                      </span>
+                      <span className="font-mono text-zinc-400 bg-zinc-800/80 px-1.5 py-0.5 rounded border border-zinc-700/60 font-semibold">
+                        {APP_VERSION}
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -2018,70 +2053,6 @@ export default function Navbar({
               </div>
             </div>
 
-            {/* Mobile Profile Viewers List */}
-            {customViewers.length > 0 && (
-              <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800/80 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5 text-red-500" />
-                    <span>Viewer Profiles</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      setSettingsModalTab('user');
-                      setShowSettingsCenterModal(true);
-                    }}
-                    className="text-[10px] text-red-400 hover:text-red-300 font-bold transition-colors cursor-pointer flex items-center gap-1"
-                  >
-                    <Palette className="w-3 h-3" />
-                    <span>Colors</span>
-                  </button>
-                </div>
-                <div className="flex gap-1.5 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (onSwitchProfile) onSwitchProfile('');
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
-                      !activeProfile
-                        ? 'bg-zinc-800 text-white border-zinc-600'
-                        : 'bg-zinc-950 text-zinc-400 border-zinc-800'
-                    }`}
-                  >
-                    <span>👥 All</span>
-                  </button>
-                  {customViewers.map((viewer) => {
-                    const isSelected = activeProfile === viewer;
-                    const vColor = getViewerColor(viewer, viewerColors);
-                    return (
-                      <button
-                        key={`mobile-viewer-${viewer}`}
-                        type="button"
-                        onClick={() => {
-                          if (onSwitchProfile) onSwitchProfile(viewer);
-                          setIsMobileMenuOpen(false);
-                        }}
-                        className="px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer shadow-sm"
-                        style={{
-                          backgroundColor: isSelected ? `${vColor}35` : `${vColor}15`,
-                          borderColor: isSelected ? vColor : `${vColor}40`,
-                          color: isSelected ? '#ffffff' : vColor,
-                        }}
-                      >
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: vColor }} />
-                        <span>{viewer}</span>
-                        {isSelected && <Check className="w-3 h-3 text-white" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
             <div className="flex flex-col gap-2 mt-auto">
               <button
                 type="button"
@@ -2097,6 +2068,30 @@ export default function Navbar({
               </button>
 
               <button
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setShowNetflixProfileSwitcher(true);
+                }}
+                className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-white bg-red-600/25 hover:bg-red-600/40 border border-red-500/50 py-2.5 rounded-lg transition-colors cursor-pointer"
+              >
+                <Users className="w-4 h-4 shrink-0 text-red-500" />
+                <span>Switch Profile</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setShowFeedbackModal(true);
+                }}
+                className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-zinc-300 hover:text-white bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 py-2.5 rounded-lg transition-colors cursor-pointer"
+              >
+                <MessageSquare className="w-4 h-4 shrink-0 text-blue-400" />
+                <span>Report Issue / Feedback</span>
+              </button>
+
+              <button
                 id="mobile-signout-btn"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
@@ -2107,6 +2102,17 @@ export default function Navbar({
                 <LogOut className="w-4 h-4 shrink-0" />
                 <span>Sign Out</span>
               </button>
+
+              {/* Mobile Drawer Version Footer */}
+              <div className="pt-2 flex items-center justify-between text-[11px] text-zinc-500 font-medium select-none border-t border-zinc-800/60 mt-1">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-red-500" />
+                  <span>ShowFlix Tracker Pro</span>
+                </span>
+                <span className="font-mono text-zinc-400 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                  {APP_VERSION}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -2164,6 +2170,17 @@ export default function Navbar({
           setSettingsModalTab('user');
           setShowSettingsCenterModal(true);
         }}
+      />
+
+      {/* Report Issue & Feedback Modal */}
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        userEmail={profileEmail}
+        userName={profileDisplayName}
+        totalShowsCount={shows.length}
+        isOnline={online}
+        activeProfile={activeProfile}
       />
     </header>
   );

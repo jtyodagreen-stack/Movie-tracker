@@ -40,6 +40,14 @@ service cloud.firestore {
           && (!('platform' in data) || (data.platform is string && data.platform.size() <= 64));
     }
 
+    function isValidFeedbackReport(data) {
+      return data.id is string && data.id.size() <= 128
+          && data.type is string && data.type.size() <= 64
+          && data.title is string && data.title.size() <= 256
+          && data.description is string && data.description.size() <= 5000
+          && data.createdAt is string && data.createdAt.size() <= 128;
+    }
+
     match /user_settings/{userId} {
       allow get: if isOwner(userId) && isValidId(userId);
       allow list: if isOwner(userId) && isValidId(userId);
@@ -54,6 +62,14 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isValidCustomFilter(request.resource.data) && isValidId(filterId);
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid && isValidCustomFilter(request.resource.data);
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid && isValidId(filterId);
+    }
+
+    match /feedback_reports/{reportId} {
+      allow get: if isValidId(reportId);
+      allow list: if isSignedIn();
+      allow create: if isValidId(reportId) && isValidFeedbackReport(request.resource.data);
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }

@@ -214,7 +214,7 @@ export function detectPlatformFromTitle(title?: string): string | undefined {
 }
 
 /**
- * Searches OMDb API
+ * Searches OMDb API strictly for Movies or Series
  */
 async function searchOMDb(
   query: string,
@@ -234,14 +234,18 @@ async function searchOMDb(
     if (!res.ok) return {};
     const data = await res.json();
     if (data && data.Response === 'True') {
+      const detectedType: ShowType | undefined = data.Type === 'movie' ? 'Movie' : data.Type === 'series' ? 'Series' : undefined;
+      // Strictly ignore any non-movie/non-series (e.g. episode, game, person)
+      if (!detectedType) return {};
+      if (!idMatch && preferredType && detectedType !== preferredType) return {};
+
       const posterUrl = data.Poster && data.Poster !== 'N/A' ? data.Poster : undefined;
       const synopsis = data.Plot && data.Plot !== 'N/A' ? data.Plot : undefined;
       const year = data.Year && data.Year !== 'N/A' ? data.Year.substring(0, 4) : undefined;
       const genre = data.Genre && data.Genre !== 'N/A' ? data.Genre.split(',')[0].trim() : undefined;
       const title = data.Title && data.Title !== 'N/A' ? data.Title : undefined;
-      const type = data.Type === 'movie' ? 'Movie' : 'Series';
       const imdbId = data.imdbID;
-      return { posterUrl, synopsis, year, genre, title, type, imdbId };
+      return { posterUrl, synopsis, year, genre, title, type: detectedType, imdbId };
     }
   } catch {
     // Ignore error
@@ -250,9 +254,12 @@ async function searchOMDb(
 }
 
 /**
- * Searches TVMaze API (100% free, unmetered, comprehensive TV database with HD posters & schedule)
+ * Searches TVMaze API (TV Series only)
  */
-async function searchTVMaze(query: string): Promise<LiveSearchItem[]> {
+async function searchTVMaze(query: string, preferredType?: ShowType): Promise<LiveSearchItem[]> {
+  // TVMaze is exclusively for TV series. Skip if searching for movies.
+  if (preferredType === 'Movie') return [];
+
   try {
     const cleanQ = query.trim();
     if (!cleanQ) return [];
@@ -301,16 +308,23 @@ async function searchTVMaze(query: string): Promise<LiveSearchItem[]> {
 }
 
 /**
- * Searches Wikipedia API (100% global coverage for movies, classics, anime, and shows with HD media posters)
+ * Searches Wikipedia API strictly for Movies or TV Series (Never People/Cast/Soundtracks)
  */
-async function searchWikipedia(query: string): Promise<LiveSearchItem[]> {
+async function searchWikipedia(query: string, preferredType?: ShowType): Promise<LiveSearchItem[]> {
   try {
     const cleanQ = query.trim();
     if (!cleanQ || cleanQ.length < 2) return [];
 
+    const searchQualifier =
+      preferredType === 'Movie'
+        ? ' film'
+        : preferredType === 'Series'
+        ? ' TV series OR television series'
+        : ' film OR television series';
+
     const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrsearch=${encodeURIComponent(
-      cleanQ + ' film OR television series'
-    )}&gsrlimit=5&prop=pageimages|extracts|info&pithumbsize=1000&exintro=1&explaintext=1`;
+      cleanQ + searchQualifier
+    )}&gsrlimit=6&prop=pageimages|extracts|info&pithumbsize=1000&exintro=1&explaintext=1`;
 
     const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
     if (!res.ok) return [];
@@ -325,18 +339,93 @@ async function searchWikipedia(query: string): Promise<LiveSearchItem[]> {
       const page = pages[pageId];
       if (!page || !page.title) continue;
 
+      const titleLower = page.title.toLowerCase();
+      const extractLower = (page.extract || '').toLowerCase();
+
+      // Filter out people, cast, biographies, characters, soundtrack, list articles, filmographies, registry, writers
+      if (
+        titleLower.includes('disambiguation') ||
+        titleLower.includes('(writer)') ||
+        titleLower.includes('(actor)') ||
+        titleLower.includes('(actress)') ||
+        titleLower.includes('(director)') ||
+        titleLower.includes('(producer)') ||
+        titleLower.includes('list of') ||
+        titleLower.includes('soundtrack') ||
+        titleLower.includes('discography') ||
+        titleLower.includes('filmography') ||
+        titleLower.includes('registry') ||
+        titleLower.includes('awards') ||
+        titleLower.includes('accolades') ||
+        titleLower.includes('character') ||
+        titleLower.includes('box office') ||
+        titleLower.includes('reception of') ||
+        titleLower.includes('production of') ||
+        extractLower.includes('is an actor') ||
+        extractLower.includes('is an actress') ||
+        extractLower.includes('was an actor') ||
+        extractLower.includes('was an actress') ||
+        extractLower.includes('is a filmmaker') ||
+        extractLower.includes('is a director') ||
+        extractLower.includes('is a writer') ||
+        extractLower.includes('is a screenwriter') ||
+        extractLower.includes('is a creator') ||
+        extractLower.includes('is a producer') ||
+        extractLower.includes('is a composer') ||
+        extractLower.includes('is a comedian') ||
+        extractLower.includes('is a fictional character') ||
+        extractLower.includes('is a character') ||
+        extractLower.includes('born ') ||
+        extractLower.startsWith('he is ') ||
+        extractLower.startsWith('she is ')
+      ) {
+        continue;
+      }
+
+      const isMovie =
+        titleLower.endsWith('(film)') ||
+        titleLower.endsWith('(movie)') ||
+        titleLower.includes('(film)') ||
+        titleLower.includes('(movie)') ||
+        extractLower.includes('is a film') ||
+        extractLower.includes('is a feature film') ||
+        extractLower.includes('is an upcoming film') ||
+        extractLower.includes('is an animated film') ||
+        extractLower.includes('is an american film') ||
+        extractLower.includes('is a british film');
+
+      const isSeries =
+        titleLower.endsWith('(tv series)') ||
+        titleLower.endsWith('(series)') ||
+        titleLower.endsWith('(television series)') ||
+        titleLower.endsWith('(miniseries)') ||
+        titleLower.includes('(tv series)') ||
+        titleLower.includes('(television series)') ||
+        extractLower.includes('is an american television series') ||
+        extractLower.includes('is a television series') ||
+        extractLower.includes('is a tv series') ||
+        extractLower.includes('is a drama television series') ||
+        extractLower.includes('is an animated series') ||
+        extractLower.includes('is a miniseries') ||
+        extractLower.includes('is a sitcom');
+
+      // Strictly enforce Movie or Series only
+      if (!isMovie && !isSeries) continue;
+      if (preferredType === 'Movie' && !isMovie) continue;
+      if (preferredType === 'Series' && !isSeries) continue;
+
       let cleanTitle = page.title
-        .replace(/\s*\((film|movie|TV series|series|miniseries|anime|season \d+)[^)]*\)/i, '')
+        .replace(/\s*\((film|movie|TV series|series|miniseries|anime|season \d+|franchise)[^)]*\)/i, '')
         .trim();
 
       const posterUrl = page.thumbnail?.source || '';
       const synopsis = page.extract ? page.extract.substring(0, 300).trim() + '...' : undefined;
-      const isMovie = page.title.toLowerCase().includes('film') || page.title.toLowerCase().includes('movie');
+      const detectedType: ShowType = isMovie ? 'Movie' : 'Series';
 
       results.push({
         id: `wiki-${page.pageid}`,
         title: cleanTitle,
-        type: isMovie ? 'Movie' : 'Series',
+        type: detectedType,
         posterUrl,
         backdropUrl: posterUrl,
         synopsis,
@@ -352,7 +441,7 @@ async function searchWikipedia(query: string): Promise<LiveSearchItem[]> {
 }
 
 /**
- * Searches IMDb's official suggestion engine across multiple formats and endpoints
+ * Searches IMDb's official suggestion engine strictly for Movies or TV Series (Never People/Cast/Games/Others)
  */
 export async function searchIMDb(
   query: string,
@@ -372,6 +461,7 @@ export async function searchIMDb(
     if (omdbData.posterUrl || omdbData.title) {
       const matchTitle = omdbData.title || trimmed;
       const detectedPlatform = detectPlatformFromTitle(matchTitle);
+      const resType: ShowType = omdbData.type || preferredType || 'Series';
       bestMatch = {
         posterUrl: omdbData.posterUrl || getPosterForShow(matchTitle, omdbData.genre || 'Drama'),
         backdropUrl: omdbData.posterUrl || getBackdropForShow(matchTitle, omdbData.genre || 'Drama'),
@@ -379,7 +469,7 @@ export async function searchIMDb(
         year: omdbData.year,
         genre: omdbData.genre,
         synopsis: omdbData.synopsis,
-        type: omdbData.type || preferredType || 'Series',
+        type: resType,
         imdbId: omdbData.imdbId,
         detectedPlatform,
         source: 'imdb',
@@ -389,7 +479,7 @@ export async function searchIMDb(
         id: `omdb-${omdbData.imdbId || '1'}`,
         title: matchTitle,
         year: omdbData.year,
-        type: omdbData.type || preferredType || 'Series',
+        type: resType,
         posterUrl: omdbData.posterUrl || getPosterForShow(matchTitle, omdbData.genre || 'Drama'),
         backdropUrl: omdbData.posterUrl,
         genre: omdbData.genre,
@@ -404,7 +494,7 @@ export async function searchIMDb(
         title: matchTitle,
         posterUrl: omdbData.posterUrl || getPosterForShow(matchTitle, omdbData.genre || 'Drama'),
         year: omdbData.year,
-        type: omdbData.type || preferredType || 'Series',
+        type: resType,
         source: 'IMDb',
         detectedPlatform,
       });
@@ -446,15 +536,33 @@ export async function searchIMDb(
 
     const cleanQuery = cleanString(trimmed);
 
-    // Process IMDb response items
+    // Process IMDb response items strictly for Movies & TV Series
     if (imdbData && Array.isArray(imdbData.d)) {
       for (const item of imdbData.d) {
         if (!item || !item.l) continue;
-        const qLower = (item.q || item.qid || '').toLowerCase();
-        
-        // Strict Filter: Exclude people, actors, directors, writers, video games, podcasts, music albums, etc.
+
+        // STRICT TITLE REQUIREMENT:
+        // In IMDb suggestions, title entities ALWAYS have an ID starting with 'tt' (e.g. tt1375666).
+        // Cast/people/actors ALWAYS have an ID starting with 'nm' (e.g. nm0000138).
+        // Any ID not starting with 'tt' MUST BE REJECTED.
+        if (!item.id || typeof item.id !== 'string' || !item.id.startsWith('tt')) {
+          continue;
+        }
+
+        const qLower = (item.q || '').toLowerCase();
+        const qid = (item.qid || '').toLowerCase();
+
+        // Strict Filter: Exclude people, actors, actresses, directors, writers, video games, podcasts, music albums, shorts, videos, episodes
         if (
-          item.qid === 'person' ||
+          qid === 'person' ||
+          qid === 'videogame' ||
+          qid === 'podcastseries' ||
+          qid === 'podcastepisode' ||
+          qid === 'musicvideo' ||
+          qid === 'tvepisode' ||
+          qid === 'video' ||
+          qid === 'short' ||
+          qid === 'tvshort' ||
           qLower.includes('actor') ||
           qLower.includes('actress') ||
           qLower.includes('director') ||
@@ -463,26 +571,51 @@ export async function searchIMDb(
           qLower.includes('video game') ||
           qLower.includes('podcast') ||
           qLower.includes('music') ||
-          qLower.includes('game')
+          qLower.includes('game') ||
+          qLower.includes('episode') ||
+          qLower.includes('short') ||
+          qLower.includes('video')
         ) {
           continue;
         }
 
-        const titleName = String(item.l).trim();
-        const cleanTitle = cleanString(titleName);
+        // Strict Movie definition: feature film or TV movie
+        const isMovie =
+          qid === 'movie' ||
+          qid === 'tvmovie' ||
+          qLower === 'feature' ||
+          qLower === 'tv movie' ||
+          qLower.startsWith('feature') ||
+          qLower.startsWith('tv movie');
 
-        const isMovie = qLower.includes('feature') || qLower.includes('movie') || qLower.includes('film');
-        const isSeries = qLower.includes('series') || qLower.includes('tv') || qLower.includes('mini') || qLower.includes('episode') || qLower.includes('show');
-        
-        // Focus strictly on movies and series/TV
-        if (!isMovie && !isSeries && qLower && !qLower.includes('feature') && !qLower.includes('series') && !qLower.includes('tv')) {
+        // Strict Series definition: TV series or TV mini-series
+        const isSeries =
+          qid === 'tvseries' ||
+          qid === 'tvminiseries' ||
+          qLower === 'tv series' ||
+          qLower === 'tv mini-series' ||
+          qLower.startsWith('tv series') ||
+          qLower.startsWith('tv mini-series');
+
+        // Must strictly be a feature movie or TV series
+        if (!isMovie && !isSeries) {
           continue;
         }
 
         const detectedType: ShowType = isMovie ? 'Movie' : 'Series';
 
-        const year = (cleanTitle === cleanQuery && omdbData.year) ? omdbData.year : (item.y ? String(item.y) : item.yr ? String(item.yr).split('–')[0].trim() : omdbData.year);
-        
+        const titleName = String(item.l).trim();
+        const cleanTitle = cleanString(titleName);
+
+        const year =
+          cleanTitle === cleanQuery && omdbData.year
+            ? omdbData.year
+            : item.y
+            ? String(item.y)
+            : item.yr
+            ? String(item.yr).split('–')[0].trim()
+            : omdbData.year;
+
         let rawPoster = item.i?.imageUrl || '';
         if (rawPoster) {
           rawPoster = rawPoster.replace(/_V1_.*\.jpg$/, '_V1_FMjpg_UX1000_.jpg');
@@ -494,13 +627,12 @@ export async function searchIMDb(
 
         if (!liveItems.some((li) => cleanString(li.title) === cleanTitle)) {
           liveItems.push({
-            id: `imdb-${item.id || Math.random()}`,
+            id: `imdb-${item.id}`,
             title: titleName,
             year,
             type: detectedType,
             posterUrl,
             backdropUrl,
-            cast: item.s,
             platform: detectedPlatform,
             imdbId: item.id,
             source: 'imdb',
@@ -509,14 +641,13 @@ export async function searchIMDb(
 
         if (!candidates.some((c) => cleanString(c.title) === cleanTitle)) {
           candidates.push({
-            id: `imdb-${item.id || Math.random()}`,
+            id: `imdb-${item.id}`,
             title: titleName,
             posterUrl,
             year,
             type: detectedType,
             source: 'IMDb',
             detectedPlatform,
-            cast: item.s,
           });
         }
 
@@ -528,7 +659,6 @@ export async function searchIMDb(
           genre: omdbData.genre,
           synopsis: omdbData.synopsis,
           type: detectedType,
-          cast: item.s,
           imdbId: item.id,
           detectedPlatform,
           source: 'imdb',
@@ -545,12 +675,13 @@ export async function searchIMDb(
     // 3. Fallback to TVMaze & Wikipedia if IMDb results are sparse
     if (liveItems.length < 4) {
       const [tvmazeItems, wikiItems] = await Promise.all([
-        searchTVMaze(trimmed),
-        searchWikipedia(trimmed),
+        searchTVMaze(trimmed, preferredType),
+        searchWikipedia(trimmed, preferredType),
       ]);
 
       for (const item of tvmazeItems) {
         if (!liveItems.some((li) => cleanString(li.title) === cleanString(item.title))) {
+          if (preferredType && item.type !== preferredType) continue;
           liveItems.push(item);
           candidates.push({
             id: item.id,
@@ -580,6 +711,7 @@ export async function searchIMDb(
 
       for (const item of wikiItems) {
         if (!liveItems.some((li) => cleanString(li.title) === cleanString(item.title))) {
+          if (preferredType && item.type !== preferredType) continue;
           liveItems.push(item);
           candidates.push({
             id: item.id,
@@ -615,7 +747,7 @@ export async function searchIMDb(
 }
 
 /**
- * Live search suggestions with 100% guarantee
+ * Live search suggestions with strict Movie or Series only filtering
  */
 export async function searchLiveSuggestions(
   query: string,
@@ -631,9 +763,18 @@ export async function searchLiveSuggestions(
 
   try {
     const imdbRes = await searchIMDb(trimmed, preferredType);
-    let items = imdbRes.liveItems.slice(0, 10);
+    let items = imdbRes.liveItems;
+    // Prioritize preferredType if specified, while retaining all matching Movies and Series
+    if (preferredType) {
+      items.sort((a, b) => {
+        if (a.type === preferredType && b.type !== preferredType) return -1;
+        if (b.type === preferredType && a.type !== preferredType) return 1;
+        return 0;
+      });
+    }
+    items = items.slice(0, 10);
 
-    // If still empty, add default candidate
+    // If still empty, add typed entry fallback with preferredType
     if (items.length === 0) {
       items = [
         {
@@ -698,7 +839,8 @@ export async function autoFetchPoster(
     }
   }
 
-  const imdbRes = await searchIMDb(trimmed, preferredType);
+  const effectiveType = trimmed.match(/(tt\d+)/i) ? undefined : preferredType;
+  const imdbRes = await searchIMDb(trimmed, effectiveType);
   let finalResult: PosterSearchResult | null = imdbRes.result;
 
   if (finalResult) {
@@ -743,6 +885,17 @@ export async function autoFetchPoster(
 }
 
 /**
+ * Returns IMDb Search URL strictly filtered for Movies and Series (feature, tv_series)
+ */
+export function getImdbSearchUrl(title?: string): string {
+  const trimmed = title?.trim();
+  if (!trimmed) {
+    return 'https://www.imdb.com/search/title/?title_type=tv_series,feature';
+  }
+  return `https://www.imdb.com/search/title/?title_type=tv_series,feature&text=${encodeURIComponent(trimmed)}`;
+}
+
+/**
  * Returns direct IMDb URL for title (e.g. https://www.imdb.com/title/tt1234567/).
  */
 export async function getOrFetchImdbUrl(
@@ -777,5 +930,5 @@ export async function getOrFetchImdbUrl(
     console.warn('IMDb ID resolve notice:', err);
   }
 
-  return `https://www.imdb.com/find?q=${encodeURIComponent(trimmed)}`;
+  return getImdbSearchUrl(trimmed);
 }

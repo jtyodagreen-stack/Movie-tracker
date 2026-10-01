@@ -359,6 +359,14 @@ export default function App() {
       return {};
     }
   });
+  const [viewerAvatars, setViewerAvatars] = useState<Record<string, string>>(() => {
+    try {
+      const cached = localStorage.getItem('showflix_viewer_avatars_v1');
+      return cached ? JSON.parse(cached) : {};
+    } catch {
+      return {};
+    }
+  });
   const [activeProfile, setActiveProfile] = useState<string>(() => {
     try {
       return localStorage.getItem('showflix_active_profile') || '';
@@ -366,6 +374,13 @@ export default function App() {
       return '';
     }
   });
+
+  const handleUpdateViewerAvatars = (newAvatars: Record<string, string>) => {
+    setViewerAvatars(newAvatars);
+    try {
+      localStorage.setItem('showflix_viewer_avatars_v1', JSON.stringify(newAvatars));
+    } catch {}
+  };
 
   const profileFilteredShows = useMemo(() => {
     let list = shows;
@@ -3501,6 +3516,8 @@ export default function App() {
         onUpdateCustomViewers={handleUpdateCustomViewers}
         viewerColors={viewerColors}
         onUpdateViewerColors={handleUpdateViewerColors}
+        viewerAvatars={viewerAvatars}
+        onUpdateViewerAvatars={handleUpdateViewerAvatars}
         alertIntervals={alertIntervals}
         onUpdateAlertIntervals={handleUpdateAlertIntervals}
         spreadsheetId={spreadsheetId}

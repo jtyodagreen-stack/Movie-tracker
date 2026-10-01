@@ -19,6 +19,10 @@ import {
   Sparkles,
   WifiOff,
   Bell,
+  MessageSquare,
+  HelpCircle,
+  Bug,
+  Info,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -42,6 +46,8 @@ import {
   getViewerColor,
   getViewerColorName,
 } from '../utils/profileColors';
+import { APP_VERSION, APP_BUILD_DATE, APP_RELEASE_NOTES } from '../config/version';
+import FeedbackModal from './FeedbackModal';
 
 interface SettingsCenterModalProps {
   isOpen: boolean;
@@ -166,6 +172,7 @@ export default function SettingsCenterModal({
 
   // Local storage profile picture customization options
   const [customAvatarUri, setCustomAvatarUri] = useState<string>('');
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const activeUser = user || DEFAULT_PROFILE_USER;
   const isConnected = Boolean(spreadsheetId && sheetTitle);
@@ -394,24 +401,24 @@ export default function SettingsCenterModal({
     >
       <div
         id="settings-center-modal-dialog"
-        className="relative w-full max-w-4xl bg-[#141414] border-0 rounded-2xl shadow-2xl overflow-hidden text-white animate-in zoom-in-95 duration-200 flex flex-col md:max-h-[90vh]"
+        className="relative w-full max-w-4xl bg-[#141414] border-0 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden text-white animate-in zoom-in-95 duration-200 flex flex-col max-h-[92dvh] sm:max-h-[90vh]"
         style={{ border: 'none', outline: 'none' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4.5 border-b border-zinc-900 bg-gradient-to-r from-zinc-900 to-zinc-900/80 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-600/10 border border-red-500/30 flex items-center justify-center text-red-500 shadow-lg">
-              <Palette className="w-5 h-5" />
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4.5 border-b border-zinc-900 bg-gradient-to-r from-zinc-900 to-zinc-900/80 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-red-600/10 border border-red-500/30 flex items-center justify-center text-red-500 shadow-lg shrink-0">
+              <Palette className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+              <h3 className="text-sm sm:text-lg font-black text-white flex items-center gap-1.5 sm:gap-2">
                 <span>ShowFlix Settings Center</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-red-500 bg-red-500/10 px-2.5 py-0.5 rounded border border-red-500/20">
+                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-red-500 bg-red-500/10 px-2 sm:px-2.5 py-0.5 rounded border border-red-500/20">
                   Control Panel
                 </span>
               </h3>
-              <p className="text-xs text-zinc-400">
+              <p className="text-[11px] sm:text-xs text-zinc-400 line-clamp-1">
                 Configure your profiles, sync preferences, display themes, and inclusive settings.
               </p>
             </div>
@@ -419,64 +426,65 @@ export default function SettingsCenterModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
+            className="p-1.5 sm:p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+            aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 overflow-y-auto overscroll-contain space-y-6 flex-1 bg-zinc-950/20 border-0">
+        <div className="p-3.5 sm:p-6 overflow-y-auto overscroll-contain space-y-4 sm:space-y-6 flex-1 bg-zinc-950/20 border-0">
           
           {/* VIEW A: CENTRAL GRID DASHBOARD (3x2 Grid matching the user's rough Paint sketch) */}
           {activeTab === 'all' && (
-            <div className="space-y-4.5">
+            <div className="space-y-3.5 sm:space-y-4.5">
               {/* Mini Box Metrics Display Row on Control Panel Home (Matching Quick Metrics Tab) */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 select-none">
-                <div className="bg-zinc-900/90 border border-zinc-800/80 p-2.5 rounded-xl text-center shadow-sm">
-                  <span className="text-[9px] text-zinc-400 uppercase font-bold tracking-wider block">Total</span>
-                  <span className="text-base font-black text-white">{shows.length}</span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5 sm:gap-2 select-none">
+                <div className="bg-zinc-900/90 border border-zinc-800/80 p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-center shadow-sm">
+                  <span className="text-[8px] sm:text-[9px] text-zinc-400 uppercase font-bold tracking-wider block">Total</span>
+                  <span className="text-sm sm:text-base font-black text-white">{shows.length}</span>
                 </div>
-                <div className="bg-zinc-900/90 border border-zinc-800/80 p-2.5 rounded-xl text-center shadow-sm">
-                  <span className="text-[9px] text-amber-400/90 uppercase font-bold tracking-wider block">Watching</span>
-                  <span className="text-base font-black text-amber-400">{shows.filter((s) => s.status === '⏳ Watching').length}</span>
+                <div className="bg-zinc-900/90 border border-zinc-800/80 p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-center shadow-sm">
+                  <span className="text-[8px] sm:text-[9px] text-amber-400/90 uppercase font-bold tracking-wider block">Watching</span>
+                  <span className="text-sm sm:text-base font-black text-amber-400">{shows.filter((s) => s.status === '⏳ Watching').length}</span>
                 </div>
-                <div className="bg-zinc-900/90 border border-zinc-800/80 p-2.5 rounded-xl text-center shadow-sm">
-                  <span className="text-[9px] text-emerald-400/90 uppercase font-bold tracking-wider block">Completed</span>
-                  <span className="text-base font-black text-emerald-400">{shows.filter((s) => s.status === '✅ Watched').length}</span>
+                <div className="bg-zinc-900/90 border border-zinc-800/80 p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-center shadow-sm">
+                  <span className="text-[8px] sm:text-[9px] text-emerald-400/90 uppercase font-bold tracking-wider block">Completed</span>
+                  <span className="text-sm sm:text-base font-black text-emerald-400">{shows.filter((s) => s.status === '✅ Watched').length}</span>
                 </div>
-                <div className="bg-zinc-900/90 border border-zinc-800/80 p-2.5 rounded-xl text-center shadow-sm">
-                  <span className="text-[9px] text-red-400/90 uppercase font-bold tracking-wider block">Progress</span>
-                  <span className="text-base font-black text-red-400">
+                <div className="bg-zinc-900/90 border border-zinc-800/80 p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-center shadow-sm">
+                  <span className="text-[8px] sm:text-[9px] text-red-400/90 uppercase font-bold tracking-wider block">Progress</span>
+                  <span className="text-sm sm:text-base font-black text-red-400">
                     {shows.length > 0 ? Math.round((shows.filter((s) => s.status === '✅ Watched').length / shows.length) * 100) : 0}%
                   </span>
                 </div>
-                <div className="bg-zinc-900/90 border border-zinc-800/80 p-2.5 rounded-xl text-center shadow-sm">
-                  <span className="text-[9px] text-purple-400/90 uppercase font-bold tracking-wider block">Movies</span>
-                  <span className="text-base font-black text-purple-300">{shows.filter((s) => s.type === 'Movie').length}</span>
+                <div className="bg-zinc-900/90 border border-zinc-800/80 p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-center shadow-sm">
+                  <span className="text-[8px] sm:text-[9px] text-purple-400/90 uppercase font-bold tracking-wider block">Movies</span>
+                  <span className="text-sm sm:text-base font-black text-purple-300">{shows.filter((s) => s.type === 'Movie').length}</span>
                 </div>
-                <div className="bg-zinc-900/90 border border-zinc-800/80 p-2.5 rounded-xl text-center shadow-sm">
-                  <span className="text-[9px] text-blue-400/90 uppercase font-bold tracking-wider block">Series</span>
-                  <span className="text-base font-black text-blue-300">{shows.filter((s) => s.type === 'Series').length}</span>
+                <div className="bg-zinc-900/90 border border-zinc-800/80 p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-center shadow-sm">
+                  <span className="text-[8px] sm:text-[9px] text-blue-400/90 uppercase font-bold tracking-wider block">Series</span>
+                  <span className="text-sm sm:text-base font-black text-blue-300">{shows.filter((s) => s.type === 'Series').length}</span>
                 </div>
-                <div className="bg-zinc-900/90 border border-zinc-800/80 p-2.5 rounded-xl text-center shadow-sm">
-                  <span className="text-[9px] text-amber-400/90 uppercase font-bold tracking-wider block">Wishlist</span>
-                  <span className="text-base font-black text-amber-300">{shows.filter((s) => s.isWishlist).length}</span>
+                <div className="bg-zinc-900/90 border border-zinc-800/80 p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-center shadow-sm">
+                  <span className="text-[8px] sm:text-[9px] text-amber-400/90 uppercase font-bold tracking-wider block">Wishlist</span>
+                  <span className="text-sm sm:text-base font-black text-amber-300">{shows.filter((s) => s.isWishlist).length}</span>
                 </div>
-                <div className="bg-zinc-900/90 border border-zinc-800/80 p-2.5 rounded-xl text-center shadow-sm">
-                  <span className="text-[9px] text-sky-400/90 uppercase font-bold tracking-wider block">Coming Soon</span>
-                  <span className="text-base font-black text-sky-300">
+                <div className="bg-zinc-900/90 border border-zinc-800/80 p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-center shadow-sm">
+                  <span className="text-[8px] sm:text-[9px] text-sky-400/90 uppercase font-bold tracking-wider block">Coming Soon</span>
+                  <span className="text-sm sm:text-base font-black text-sky-300">
                     {shows.filter((s) => Boolean(s.releaseDate || s.releaseNote || s.nextAirDate || s.nextAirTimestamp)).length}
                   </span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4.5">
               
               {/* CARD 1: User Profile Settings (user) */}
               <div
                 onClick={() => setActiveTab('user')}
-                className="group relative p-5 rounded-2xl bg-zinc-900/80 border-0 hover:border-red-500/60 shadow-lg cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
+                className="group relative p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-zinc-900/80 border-0 hover:border-red-500/60 shadow-lg cursor-pointer transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.99]"
               >
                 <div className="flex items-center justify-between mb-3.5">
                   <div className="w-9 h-9 rounded-xl bg-red-600/15 border border-red-500/30 flex items-center justify-center text-red-500 group-hover:bg-red-600 group-hover:text-white transition-all duration-200">
@@ -548,7 +556,7 @@ export default function SettingsCenterModal({
               {/* CARD 5: Data Backup & Reset (data) */}
               <div
                 onClick={() => setActiveTab('data')}
-                className="group relative p-5 rounded-2xl bg-zinc-900/80 border-0 hover:border-red-500/60 shadow-lg cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
+                className="group relative p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-zinc-900/80 border-0 hover:border-red-500/60 shadow-lg cursor-pointer transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.99]"
               >
                 <div className="flex items-center justify-between mb-3.5">
                   <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-all duration-200">
@@ -561,6 +569,26 @@ export default function SettingsCenterModal({
                   Download offline JSON backups of your tracking, force sync live data, or reset local app cached data.
                 </p>
                 <span className="inline-block text-[10px] text-emerald-400 font-bold mt-3 underline decoration-dotted">Open backup tools &rarr;</span>
+              </div>
+
+              {/* CARD 6: Report Issue & Give Feedback */}
+              <div
+                onClick={() => setShowFeedbackModal(true)}
+                className="group relative p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-zinc-900/80 border-0 hover:border-blue-500/60 shadow-lg cursor-pointer transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.99]"
+              >
+                <div className="flex items-center justify-between mb-3.5">
+                  <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-all duration-200">
+                    <MessageSquare className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-mono font-bold text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700/60 group-hover:border-blue-500/40 transition-colors">
+                    {APP_VERSION}
+                  </span>
+                </div>
+                <h4 className="text-sm font-black text-zinc-100 group-hover:text-white transition-colors">💬 Feedback & Issue Report</h4>
+                <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+                  Report bugs, request new features, test system diagnostics, or send developer feedback.
+                </p>
+                <span className="inline-block text-[10px] text-blue-400 font-bold mt-3 underline decoration-dotted">Open feedback dialog &rarr;</span>
               </div>
 
             </div>
@@ -1167,6 +1195,33 @@ export default function SettingsCenterModal({
                   </button>
                 </div>
 
+                {/* 3. App Version & System Specs */}
+                <div className="md:col-span-2 p-4 rounded-xl bg-zinc-900/90 border border-zinc-800 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-red-500" />
+                      <h5 className="text-xs font-bold text-white">ShowFlix System Version & Diagnostics</h5>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold bg-zinc-800 text-zinc-300 px-2.5 py-1 rounded-full border border-zinc-700">
+                      {APP_VERSION} • {APP_BUILD_DATE}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400">
+                    Current active build features Netflix-style profiles, Google Sheets 2-way sync, inclusive accessibility modes, and real-time offline tracking.
+                  </p>
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowFeedbackModal(true)}
+                      className="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>Report Issue or Give Feedback</span>
+                    </button>
+                    <span className="text-[10px] text-zinc-500 font-mono">Build 2026.10</span>
+                  </div>
+                </div>
+
               </div>
             </div>
           )}
@@ -1174,10 +1229,20 @@ export default function SettingsCenterModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4.5 bg-zinc-900 border-t border-zinc-900 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-1.5 text-[11px] text-zinc-400 font-medium">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-            <span>ShowFlix settings dashboard synced automatically.</span>
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4.5 bg-zinc-900 border-t border-zinc-900 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5 text-[11px] text-zinc-400 font-medium">
+            <button
+              type="button"
+              onClick={() => setShowFeedbackModal(true)}
+              className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 transition-colors cursor-pointer font-bold"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Report Issue / Feedback</span>
+            </button>
+            <span className="text-zinc-600 hidden sm:inline">•</span>
+            <span className="hidden sm:inline-flex items-center gap-1">
+              <span className="font-mono text-zinc-500">{APP_VERSION}</span>
+            </span>
           </div>
           <button
             type="button"
@@ -1188,6 +1253,17 @@ export default function SettingsCenterModal({
           </button>
         </div>
       </div>
+
+      {/* Embedded Feedback Modal */}
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        userEmail={getProfileEmail(user)}
+        userName={getProfileDisplayName(user)}
+        totalShowsCount={shows.length}
+        isOnline={isOnline}
+        activeProfile={activeProfile}
+      />
     </div>
   );
 }

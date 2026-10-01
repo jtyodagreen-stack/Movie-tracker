@@ -1,10 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { X, Plus, Star, Sparkles, Save, Image as ImageIcon, Loader2, Check, Search, Film, Tv, Calendar, Clock, RotateCcw, Tag, AlertTriangle } from 'lucide-react';
+import { X, Plus, Star, Sparkles, Save, Image as ImageIcon, Loader2, Check, Search, Film, Tv, Calendar, Clock, RotateCcw, Tag, AlertTriangle, ExternalLink } from 'lucide-react';
 import { ShowItem, ShowType, WatchStatus, PRESET_PLATFORMS } from '../types';
 import { getBackdropForShow, getPosterForShow } from '../data/mediaAssets';
 import ImageUploader from './ImageUploader';
 import { normalizeSeasonStr, normalizeEpisodeStr, normalizePlatform, parseGoogleSheetsDate } from '../services/sheetsService';
-import { autoFetchPoster, searchLiveSuggestions, LiveSearchItem, PosterCandidate, PosterSearchResult } from '../services/posterService';
+import { autoFetchPoster, searchLiveSuggestions, getImdbSearchUrl, LiveSearchItem, PosterCandidate, PosterSearchResult } from '../services/posterService';
 import { fetchLiveTvMazeInfo, TvMazeShowInfo, TvMazeEpisode } from '../services/tvMazeService';
 import { extractDateOnly, extractTimeOnly, combineDateAndTime } from '../utils/dateUtils';
 import { enableShowNotificationSilent } from '../services/notificationService';
@@ -763,9 +763,16 @@ export default function AddShowModal({
                     </span>
                   )}
                 </label>
-                <span className="text-[10px] text-zinc-500 font-medium flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-amber-400" /> IMDb Live Search
-                </span>
+                <a
+                  href={getImdbSearchUrl(title)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 hover:underline cursor-pointer transition-colors"
+                  title="Open IMDb Movies & Series search in new tab"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>Open IMDb (Movies/Series) ↗</span>
+                </a>
               </div>
               <div className="relative">
                 <input
@@ -863,6 +870,22 @@ export default function AddShowModal({
                         </button>
                       );
                     })}
+
+                    {/* Direct IMDb Filtered Search Footer */}
+                    <div className="px-3 py-2 bg-zinc-950/95 border-t border-zinc-800 flex items-center justify-between">
+                      <span className="text-[10px] text-zinc-400 font-medium flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-amber-400" /> Movies &amp; Series only
+                      </span>
+                      <a
+                        href={getImdbSearchUrl(title)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>Search on IMDb ↗</span>
+                      </a>
+                    </div>
                   </div>
                 )}
               </div>

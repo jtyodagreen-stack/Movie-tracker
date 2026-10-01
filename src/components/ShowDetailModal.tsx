@@ -580,7 +580,7 @@ export default function ShowDetailModal({
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85), 0 0 40px 4px rgba(0, 0, 0, 0.5)',
           zIndex: 10,
         }}
-        className="relative w-full max-w-3xl max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-[#181818] border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-3xl max-h-[92dvh] sm:max-h-[88vh] flex flex-col bg-[#181818] border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Hero Backdrop Banner */}

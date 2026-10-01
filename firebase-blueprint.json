@@ -79,6 +79,50 @@
         }
       },
       "required": ["userId", "name"]
+    },
+    "feedback_report": {
+      "title": "FeedbackReport",
+      "description": "User submitted issue reports, bug reports, and feedback",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique report identifier"
+        },
+        "type": {
+          "type": "string",
+          "description": "Category (bug, feature, sync, general)"
+        },
+        "title": {
+          "type": "string",
+          "description": "Subject or title of the feedback"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of the issue or feedback"
+        },
+        "severity": {
+          "type": "string",
+          "description": "Severity level for bugs"
+        },
+        "email": {
+          "type": "string",
+          "description": "Contact email of the reporter"
+        },
+        "userName": {
+          "type": "string",
+          "description": "Display name of the reporter"
+        },
+        "appVersion": {
+          "type": "string",
+          "description": "ShowFlix application version at time of report"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when report was created"
+        }
+      },
+      "required": ["id", "type", "title", "description", "createdAt"]
     }
   },
   "firestore": {
@@ -89,6 +133,10 @@
     "/custom_filters/{filterId}": {
       "schema": "custom_filter",
       "description": "Stores user-defined custom filters"
+    },
+    "/feedback_reports/{reportId}": {
+      "schema": "feedback_report",
+      "description": "Stores submitted user feedback and bug reports"
     }
   }
 }
