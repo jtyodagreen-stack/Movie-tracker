@@ -184,7 +184,7 @@ export default function LiveCountdownBanner({
           {/* Right Column: Ticking Live Countdown Clock Box */}
           <div className="flex flex-col items-center w-full md:items-end md:w-auto gap-3 shrink-0">
             {/* Clock Ticker Units Grid */}
-            <div className="bg-zinc-900/90 border border-red-500/50 rounded-xl p-3.5 shadow-2xl backdrop-blur-md flex items-center justify-center gap-2 sm:gap-3 w-full sm:w-auto">
+            <div translate="no" className="notranslate bg-zinc-900/90 border border-red-500/50 rounded-xl p-3.5 shadow-2xl backdrop-blur-md flex items-center justify-center gap-2 sm:gap-3 w-full sm:w-auto">
               {/* Days */}
               <div className="flex flex-col items-center justify-center min-w-[50px] sm:min-w-[62px] p-2 bg-zinc-950 rounded-lg border border-zinc-800">
                 <span className="text-2xl sm:text-4xl font-black font-mono text-white tracking-wider">
@@ -193,7 +193,7 @@ export default function LiveCountdownBanner({
                 <span className="text-[9px] uppercase font-bold text-zinc-400 mt-0.5">Days</span>
               </div>
 
-              <span className="text-lg font-bold text-red-500">:</span>
+              <span className="text-lg font-bold" style={{ color: '#ef4444' }}>:</span>
 
               {/* Hours */}
               <div className="flex flex-col items-center justify-center min-w-[50px] sm:min-w-[62px] p-2 bg-zinc-950 rounded-lg border border-zinc-800">
@@ -203,7 +203,7 @@ export default function LiveCountdownBanner({
                 <span className="text-[9px] uppercase font-bold text-zinc-400 mt-0.5">Hours</span>
               </div>
 
-              <span className="text-lg font-bold text-red-500">:</span>
+              <span className="text-lg font-bold" style={{ color: '#ef4444' }}>:</span>
 
               {/* Minutes */}
               <div className="flex flex-col items-center justify-center min-w-[50px] sm:min-w-[62px] p-2 bg-zinc-950 rounded-lg border border-zinc-800">
@@ -213,14 +213,25 @@ export default function LiveCountdownBanner({
                 <span className="text-[9px] uppercase font-bold text-zinc-400 mt-0.5">Mins</span>
               </div>
 
-              <span className="text-lg font-bold text-red-500">:</span>
+              <span className="text-lg font-bold" style={{ color: '#ef4444' }}>:</span>
 
               {/* Seconds */}
-              <div className="flex flex-col items-center justify-center min-w-[50px] sm:min-w-[62px] p-2 bg-zinc-950 rounded-lg border border-zinc-800 ring-1 ring-red-500/30">
-                <span className="text-2xl sm:text-4xl font-black font-mono text-red-500 tracking-wider animate-pulse">
+              <div
+                className="flex flex-col items-center justify-center min-w-[50px] sm:min-w-[62px] p-2 bg-zinc-950 rounded-lg border border-zinc-800"
+                style={{ outline: '1px solid rgba(239, 68, 68, 0.4)' }}
+              >
+                <span
+                  className="text-2xl sm:text-4xl font-black font-mono tracking-wider animate-pulse"
+                  style={{ color: '#ef4444' }}
+                >
                   {String(countdown.seconds).padStart(2, '0')}
                 </span>
-                <span className="text-[9px] uppercase font-bold text-red-400 mt-0.5">Secs</span>
+                <span
+                  className="text-[9px] uppercase font-bold mt-0.5"
+                  style={{ color: '#f87171' }}
+                >
+                  Secs
+                </span>
               </div>
             </div>
 

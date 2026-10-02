@@ -8,7 +8,6 @@ import { autoFetchPoster, searchLiveSuggestions, getImdbSearchUrl, LiveSearchIte
 import { fetchLiveTvMazeInfo, TvMazeShowInfo, TvMazeEpisode } from '../services/tvMazeService';
 import { extractDateOnly, extractTimeOnly, combineDateAndTime } from '../utils/dateUtils';
 import { enableShowNotificationSilent } from '../services/notificationService';
-import { getViewerColor } from '../utils/profileColors';
 
 interface AddShowModalProps {
   isOpen: boolean;
@@ -86,7 +85,7 @@ const TvMazeEpisodeCountdown = ({ airstamp }: { airstamp: string }) => {
   }
 
   return (
-    <div className="flex items-center gap-1.5 font-mono text-xs bg-zinc-950/70 py-1 px-3 rounded-md border border-zinc-800">
+    <div translate="no" className="notranslate flex items-center gap-1.5 font-mono text-xs bg-zinc-950/70 py-1 px-3 rounded-md border border-zinc-800">
       <span className="text-zinc-500 font-sans text-xs uppercase font-bold tracking-wider mr-1">Starts In:</span>
       <span className="text-amber-400 font-bold">{timeLeft.d}d</span>
       <span className="text-zinc-600">:</span>
@@ -660,7 +659,7 @@ export default function AddShowModal({
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between shrink-0 gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded bg-[#E50914] flex items-center justify-center text-white font-bold shrink-0 shadow-md">
+            <div className="w-8 h-8 rounded bg-[red-600] flex items-center justify-center text-white font-bold shrink-0 shadow-md">
               <Plus className="w-5 h-5" />
             </div>
             <div className="min-w-0">
@@ -1209,25 +1208,7 @@ export default function AddShowModal({
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="new-show-who" className="text-xs font-bold text-zinc-400 uppercase tracking-widest block ml-1">Viewer (Who)</label>
-                    {who && (
-                      <span
-                        className="text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1"
-                        style={{
-                          backgroundColor: `${getViewerColor(who, viewerColors)}20`,
-                          color: getViewerColor(who, viewerColors),
-                          borderColor: `${getViewerColor(who, viewerColors)}50`,
-                        }}
-                      >
-                        <span
-                          className="w-1.5 h-1.5 rounded-full"
-                          style={{ backgroundColor: getViewerColor(who, viewerColors) }}
-                        />
-                        {who}
-                      </span>
-                    )}
-                  </div>
+                  <label htmlFor="new-show-who" className="text-xs font-bold text-zinc-400 uppercase tracking-widest block ml-1">Viewer (Who)</label>
                   <select
                     id="new-show-who"
                     value={who}
@@ -1468,7 +1449,7 @@ export default function AddShowModal({
               className={`flex items-center gap-1.5 text-xs sm:text-sm font-bold px-5 py-2.5 rounded-md shadow-lg transition-all ${
                 Boolean(duplicateShowItem && duplicateError)
                   ? 'bg-red-950 text-red-300 border-2 border-red-600 cursor-not-allowed shadow-red-950/50'
-                  : 'bg-[#E50914] hover:bg-[#B80710] text-white shadow-red-900/30 cursor-pointer'
+                  : 'bg-red-600 hover:bg-red-700 text-white shadow-red-900/30 cursor-pointer'
               }`}
             >
               <Plus className="w-4 h-4" />

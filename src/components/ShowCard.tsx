@@ -7,6 +7,7 @@ import { calculateShowProgress } from '../utils/showMetrics';
 import { isNotificationEnabled, toggleShowNotification, isShowOutNow, isFutureRelease } from '../services/notificationService';
 import { fetchLiveTvMazeInfo } from '../services/tvMazeService';
 import { getViewerColor } from '../utils/profileColors';
+import { getPriorityIndicator } from '../utils/priorityUtils';
 
 interface ShowCardProps {
   show: ShowItem;
@@ -30,14 +31,14 @@ export default function ShowCard({
   viewerColors,
 }: ShowCardProps) {
   const [isHovered, setIsHovered] = useState(false);
-  const [isNotifActive, setIsNotifActive] = useState(() => isNotificationEnabled(show.id));
+  const [isNotifActive, setIsNotifActive] = useState(() => isNotificationEnabled(show));
   const [liveAirstamp, setLiveAirstamp] = useState<string | null>(null);
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setIsNotifActive(isNotificationEnabled(show.id));
+    setIsNotifActive(isNotificationEnabled(show));
     
     const handleNotifChange = (e: any) => {
       if (e.detail.showId === show.id) {
@@ -131,28 +132,43 @@ export default function ShowCard({
     }
   };
 
-  const handleMouseEnter = () => {
-    if (typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches) {
-      setIsHovered(true);
-      
-      // True Netflix Hover: wait 450ms before opening the expanded portal, or 50ms if another portal is already active
-      if (onHoverEnter && cardRef.current) {
-        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-        const isAnyPortalActive = !!document.querySelector('.netflix-hover-portal-active');
-        const delay = isAnyPortalActive ? 50 : 450;
-        
-        hoverTimeoutRef.current = setTimeout(() => {
-          if (cardRef.current) {
-            const rect = cardRef.current.getBoundingClientRect();
-            onHoverEnter(show, {
-              top: rect.top,
-              left: rect.left,
-              width: rect.width,
-              height: rect.height,
-            });
-          }
-        }, delay);
+  const isTouchActiveRef = useRef(false);
+
+  const triggerHover = () => {
+    if (!onHoverEnter || !cardRef.current || isTouchActiveRef.current) return;
+    
+    // Check if another portal is already open for seamless glide between cards
+    const isAnyPortalActive = typeof document !== 'undefined' && !!document.querySelector('.netflix-hover-portal-active');
+    const delay = isAnyPortalActive ? 40 : 320;
+
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      if (cardRef.current) {
+        const rect = cardRef.current.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          onHoverEnter(show, {
+            top: rect.top,
+            left: rect.left,
+            width: rect.width,
+            height: rect.height,
+          });
+        }
       }
+    }, delay);
+  };
+
+  const handleMouseEnter = () => {
+    // Only block if pure touch event is actively dragging
+    if (isTouchActiveRef.current) return;
+    setIsHovered(true);
+    triggerHover();
+  };
+
+  const handleMouseMove = () => {
+    if (isTouchActiveRef.current) return;
+    if (!hoverTimeoutRef.current && !isHovered) {
+      setIsHovered(true);
+      triggerHover();
     }
   };
 
@@ -196,6 +212,9 @@ export default function ShowCard({
   const isWatching = show.status === '⏳ Watching';
   const isMovie = show.type === 'Movie';
 
+  // Visually display all Priority indicator types (🔴 High, 🟡 Medium, 🟢 Low, or custom)
+  const priorityIndicator = getPriorityIndicator(show.priority, show.isWishlist);
+
   return (
     <div
       ref={cardRef}
@@ -204,10 +223,19 @@ export default function ShowCard({
       className={`group relative cursor-pointer hover-lift-card focus:outline-none select-none touch-manipulation active:scale-[0.98] transition-transform ${
         className || 'flex-shrink-0 w-44 sm:w-56 md:w-64'
       }`}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
+      onTouchStart={(e) => {
+        isTouchActiveRef.current = true;
+        handleTouchStart(e);
+      }}
+      onTouchEnd={(e) => {
+        handleTouchEnd(e);
+        setTimeout(() => {
+          isTouchActiveRef.current = false;
+        }, 500);
+      }}
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
+      onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -227,18 +255,28 @@ export default function ShowCard({
         />
 
         {/* Top Badges */}
-        <div className="absolute top-2 left-2 right-2 flex items-start justify-between gap-1 pointer-events-none">
-          <div className="flex flex-col gap-1 items-start max-w-[130px]">
-            <div className="flex items-center gap-1 flex-wrap">
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/75 text-zinc-200 backdrop-blur-sm border border-zinc-700/50 truncate">
-                {show.platform}
-              </span>
-              {show.isWishlist && (
-                <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500 text-black border border-amber-400 shadow-sm shrink-0">
-                  🎁 Wishlist
-                </span>
-              )}
-            </div>
+        <div className="absolute top-2 left-2 right-2 flex items-start justify-between gap-1 pointer-events-none z-10">
+          <div className="flex flex-col gap-1 items-start min-w-0 flex-1">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/75 text-zinc-200 backdrop-blur-sm border border-zinc-700/50 truncate max-w-full">
+              {show.platform}
+            </span>
+            {(show.isWishlist || priorityIndicator) && (
+              <div className="flex items-center gap-1 flex-nowrap max-w-full">
+                {show.isWishlist && (
+                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500/95 text-black border border-amber-400 shadow-sm shrink-0">
+                    🎁 Wishlist
+                  </span>
+                )}
+                {priorityIndicator && (
+                  <span
+                    className={`text-[9px] px-1.5 py-0.5 rounded border shrink-0 flex items-center gap-0.5 ${priorityIndicator.className}`}
+                    title={`Priority: ${priorityIndicator.tooltip}`}
+                  >
+                    {priorityIndicator.label}
+                  </span>
+                )}
+              </div>
+            )}
             {(show.releaseDate || liveAirstamp) && (
               isShowOutNow(show) ? (
                 <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500 text-black border border-emerald-400 shadow-md shrink-0 flex items-center gap-1 animate-pulse">
@@ -257,16 +295,23 @@ export default function ShowCard({
               )
             )}
           </div>
-          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-zinc-900/90 text-zinc-300 border border-zinc-700">
-            {show.genre.split('/')[0].trim()}
-          </span>
+          {show.genre && (
+            <span
+              className="text-[9px] sm:text-[10px] font-semibold px-1.5 py-0.5 rounded bg-zinc-900/90 text-zinc-300 border border-zinc-700/80 shrink-0 whitespace-nowrap shadow-md max-w-[50%] truncate"
+              title={show.genre}
+            >
+              {show.genre.includes('/') ? show.genre.split('/')[0].trim() : show.genre.split(',')[0].trim()}
+            </span>
+          )}
         </div>
 
         {/* Bottom Progress Bar */}
         {isWatching && (
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-zinc-800">
             <div
-              className="h-full bg-[#E50914] transition-all"
+              data-progress-bar="true"
+              data-preserve-theme="true"
+              className="h-full bg-[#E50914] preserve-theme-color progress-bar-fill transition-all"
               style={{ width: `${progress}%` }}
             />
           </div>

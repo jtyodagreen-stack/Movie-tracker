@@ -2202,13 +2202,28 @@ export async function moveShowBetweenTabs(
     releaseNote: show.releaseNote,
   };
 
-  const appendRes = await appendSheetRow(
-    spreadsheetId,
-    actualTargetSheet,
-    showToAppend,
-    targetHeaders,
-    accessToken
-  );
+  // Check if title is already in target sheet (e.g. from rapid double-click or previous sync)
+  let targetRowNumber: number | undefined = undefined;
+  try {
+    const existingTargetRow = await findRowNumberByTitle(spreadsheetId, actualTargetSheet, show.title, accessToken);
+    if (existingTargetRow) {
+      console.warn(`"${show.title}" already exists in target sheet "${actualTargetSheet}" at row ${existingTargetRow}. Skipping duplicate append.`);
+      targetRowNumber = existingTargetRow;
+    }
+  } catch (e) {
+    console.warn('Could not check target sheet for existing title:', e);
+  }
+
+  if (!targetRowNumber) {
+    const appendRes = await appendSheetRow(
+      spreadsheetId,
+      actualTargetSheet,
+      showToAppend,
+      targetHeaders,
+      accessToken
+    );
+    targetRowNumber = appendRes.rowNumber;
+  }
 
   // 4. Delete from original sheet (find by title first to ensure accurate index)
   let sourceRow: number | undefined = undefined;
@@ -2231,7 +2246,7 @@ export async function moveShowBetweenTabs(
     });
   }
 
-  return { newRowNumber: appendRes.rowNumber, targetSheetName: actualTargetSheet };
+  return { newRowNumber: targetRowNumber, targetSheetName: actualTargetSheet };
 }
 
 

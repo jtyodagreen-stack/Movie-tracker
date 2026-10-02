@@ -19,10 +19,6 @@ import {
   Sparkles,
   WifiOff,
   Bell,
-  MessageSquare,
-  HelpCircle,
-  Bug,
-  Info,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -40,14 +36,13 @@ import {
   GOOGLE_AVATAR_DATA_URI,
   DEFAULT_PROFILE_USER,
 } from '../utils/userProfile';
-import { ShowItem, AccessibilitySettings, AlertIntervals } from '../types';
+import { ShowItem, AccessibilitySettings, AlertIntervals, PREDEFINED_ACCENT_THEMES } from '../types';
+import { applyAccentTheme, getAccentTheme } from '../utils/themeManager';
 import {
   PROFILE_COLOR_PALETTE,
   getViewerColor,
   getViewerColorName,
 } from '../utils/profileColors';
-import { APP_VERSION, APP_BUILD_DATE, APP_RELEASE_NOTES } from '../config/version';
-import FeedbackModal from './FeedbackModal';
 
 interface SettingsCenterModalProps {
   isOpen: boolean;
@@ -123,7 +118,14 @@ export default function SettingsCenterModal({
   setAccessibilitySettings,
   defaultTab = 'all',
 }: SettingsCenterModalProps) {
-  const [activeTab, setActiveTab] = useState<'all' | 'user' | 'sync' | 'acc' | 'alerts' | 'data' | 'stats'>(defaultTab === 'theme' ? 'alerts' : (defaultTab as any));
+  const [activeTab, setActiveTab] = useState<'all' | 'user' | 'sync' | 'acc' | 'alerts' | 'data' | 'stats' | 'help'>(defaultTab === 'theme' ? 'alerts' : (defaultTab as any));
+
+  // Resolved active accent theme
+  const activeTheme = getAccentTheme(accessibilitySettings.accentColor);
+
+  // Help & Support form state
+  const [helpMessage, setHelpMessage] = useState('');
+  const [helpReportType, setHelpReportType] = useState<'bug' | 'feature' | 'feedback' | 'support'>('bug');
 
   // Synchronize tab if defaultTab changes when open
   useEffect(() => {
@@ -172,7 +174,6 @@ export default function SettingsCenterModal({
 
   // Local storage profile picture customization options
   const [customAvatarUri, setCustomAvatarUri] = useState<string>('');
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const activeUser = user || DEFAULT_PROFILE_USER;
   const isConnected = Boolean(spreadsheetId && sheetTitle);
@@ -417,6 +418,9 @@ export default function SettingsCenterModal({
                 <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-red-500 bg-red-500/10 px-2 sm:px-2.5 py-0.5 rounded border border-red-500/20">
                   Control Panel
                 </span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700/60 font-medium">
+                  v1.0.0
+                </span>
               </h3>
               <p className="text-[11px] sm:text-xs text-zinc-400 line-clamp-1">
                 Configure your profiles, sync preferences, display themes, and inclusive settings.
@@ -454,8 +458,8 @@ export default function SettingsCenterModal({
                   <span className="text-sm sm:text-base font-black text-emerald-400">{shows.filter((s) => s.status === '✅ Watched').length}</span>
                 </div>
                 <div className="bg-zinc-900/90 border border-zinc-800/80 p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-center shadow-sm">
-                  <span className="text-[8px] sm:text-[9px] text-red-400/90 uppercase font-bold tracking-wider block">Progress</span>
-                  <span className="text-sm sm:text-base font-black text-red-400">
+                  <span className="text-[8px] sm:text-[9px] text-[#f87171] uppercase font-bold tracking-wider block preserve-theme-color">Progress</span>
+                  <span className="text-sm sm:text-base font-black text-[#f87171] preserve-theme-color">
                     {shows.length > 0 ? Math.round((shows.filter((s) => s.status === '✅ Watched').length / shows.length) * 100) : 0}%
                   </span>
                 </div>
@@ -484,19 +488,19 @@ export default function SettingsCenterModal({
               {/* CARD 1: User Profile Settings (user) */}
               <div
                 onClick={() => setActiveTab('user')}
-                className="group relative p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-zinc-900/80 border-0 hover:border-red-500/60 shadow-lg cursor-pointer transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.99]"
+                className="group relative p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-zinc-900/80 border-0 hover:border-red-500/60 shadow-lg cursor-pointer transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.99] preserve-theme-color"
               >
                 <div className="flex items-center justify-between mb-3.5">
-                  <div className="w-9 h-9 rounded-xl bg-red-600/15 border border-red-500/30 flex items-center justify-center text-red-500 group-hover:bg-red-600 group-hover:text-white transition-all duration-200">
+                  <div className="w-9 h-9 rounded-xl bg-red-600/15 border border-red-500/30 flex items-center justify-center text-red-500 group-hover:bg-red-600 group-hover:text-white transition-all duration-200 preserve-theme-color">
                     <Users className="w-4 h-4" />
                   </div>
-                  <span className="text-[10px] font-mono font-bold text-zinc-500 group-hover:text-red-500 transition-colors">Configure</span>
+                  <span className="text-[10px] font-mono font-bold text-zinc-500 group-hover:text-red-500 transition-colors preserve-theme-color">Configure</span>
                 </div>
-                <h4 className="text-sm font-black text-zinc-100 group-hover:text-white transition-colors">👤 Profile Users & Color Tags</h4>
+                <h4 className="text-sm font-black text-zinc-100 group-hover:text-white transition-colors preserve-theme-color">👤 Profile Users & Color Tags</h4>
                 <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
                   Manage viewer names & visual color tags synced with your Google Sheet.
                 </p>
-                <span className="inline-block text-[10px] text-red-400 font-bold mt-3 underline decoration-dotted">Open profile & color settings &rarr;</span>
+                <span className="inline-block text-[10px] text-red-400 font-bold mt-3 underline decoration-dotted preserve-theme-color">Open profile & color settings &rarr;</span>
               </div>
 
               {/* CARD 2: Google Sheets Sync (sheets) */}
@@ -517,7 +521,7 @@ export default function SettingsCenterModal({
                 <span className="inline-block text-[10px] text-amber-400 font-bold mt-3 underline decoration-dotted">Open sync manager &rarr;</span>
               </div>
 
-              {/* CARD 3: Accessibility & Inclusion (accessibility) */}
+              {/* CARD 3: Personalization & Accessible */}
               <div
                 onClick={() => setActiveTab('acc')}
                 className="group relative p-5 rounded-2xl bg-zinc-900/80 border-0 hover:border-red-500/60 shadow-lg cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
@@ -528,11 +532,13 @@ export default function SettingsCenterModal({
                   </div>
                   <span className="text-[10px] font-mono font-bold text-zinc-500 group-hover:text-purple-400 transition-colors">Configure</span>
                 </div>
-                <h4 className="text-sm font-black text-zinc-100 group-hover:text-white transition-colors">👁️ Inclusive Settings</h4>
+                <h4 className="text-sm font-black text-zinc-100 group-hover:text-white transition-colors">🎨 Personalization / Accessible</h4>
                 <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
-                  Toggle Large / Clear Print, High Contrast WCAG mode, Dyslexia-friendly text fonts, or Reduced Motion.
+                  Theme switcher colour options, Large / Clear Print, High Contrast WCAG mode, Dyslexia-friendly text fonts & reduced motion.
                 </p>
-                <span className="inline-block text-[10px] text-purple-400 font-bold mt-3 underline decoration-dotted">Open inclusive settings &rarr;</span>
+                <div className="flex items-center gap-2 mt-3 flex-wrap">
+                  <span className="inline-block text-[10px] text-purple-400 font-bold underline decoration-dotted">Open personalization &rarr;</span>
+                </div>
               </div>
 
               {/* CARD 4: Alert Intervals (alerts) */}
@@ -556,7 +562,7 @@ export default function SettingsCenterModal({
               {/* CARD 5: Data Backup & Reset (data) */}
               <div
                 onClick={() => setActiveTab('data')}
-                className="group relative p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-zinc-900/80 border-0 hover:border-red-500/60 shadow-lg cursor-pointer transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.99]"
+                className="group relative p-5 rounded-2xl bg-zinc-900/80 border-0 hover:border-red-500/60 shadow-lg cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
               >
                 <div className="flex items-center justify-between mb-3.5">
                   <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-all duration-200">
@@ -571,24 +577,22 @@ export default function SettingsCenterModal({
                 <span className="inline-block text-[10px] text-emerald-400 font-bold mt-3 underline decoration-dotted">Open backup tools &rarr;</span>
               </div>
 
-              {/* CARD 6: Report Issue & Give Feedback */}
+              {/* CARD 6: Help & Support (help) */}
               <div
-                onClick={() => setShowFeedbackModal(true)}
-                className="group relative p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-zinc-900/80 border-0 hover:border-blue-500/60 shadow-lg cursor-pointer transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.99]"
+                onClick={() => setActiveTab('help')}
+                className="group relative p-5 rounded-2xl bg-zinc-900/80 border-0 hover:border-red-500/60 shadow-lg cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
               >
                 <div className="flex items-center justify-between mb-3.5">
-                  <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-all duration-200">
-                    <MessageSquare className="w-4 h-4" />
+                  <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 group-hover:bg-cyan-600 group-hover:text-white transition-all duration-200">
+                    <Sparkles className="w-4 h-4" />
                   </div>
-                  <span className="text-[10px] font-mono font-bold text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700/60 group-hover:border-blue-500/40 transition-colors">
-                    {APP_VERSION}
-                  </span>
+                  <span className="text-[10px] font-mono font-bold text-zinc-500 group-hover:text-cyan-400 transition-colors">Direct</span>
                 </div>
-                <h4 className="text-sm font-black text-zinc-100 group-hover:text-white transition-colors">💬 Feedback & Issue Report</h4>
+                <h4 className="text-sm font-black text-zinc-100 group-hover:text-white transition-colors">Help & Support</h4>
                 <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
-                  Report bugs, request new features, test system diagnostics, or send developer feedback.
+                  Quick guide, report issue, feedback, Contact support. Any report goes straight to app development via email (jtyodagreen@gmail.com).
                 </p>
-                <span className="inline-block text-[10px] text-blue-400 font-bold mt-3 underline decoration-dotted">Open feedback dialog &rarr;</span>
+                <span className="inline-block text-[10px] text-cyan-400 font-bold mt-3 underline decoration-dotted">Open support & report &rarr;</span>
               </div>
 
             </div>
@@ -907,7 +911,7 @@ export default function SettingsCenterModal({
                         onDisconnect();
                         toast.success('Disconnected from Google Sheet');
                       }}
-                      className="bg-red-950 hover:bg-red-900 text-red-300 border border-red-800/40 text-xs font-bold px-3 py-2 rounded-lg"
+                      className="bg-red-950 hover:bg-red-900 text-red-300 border border-red-800/40 text-xs font-bold px-3 py-2 rounded-lg preserve-theme-color"
                     >
                       Disconnect Sheet
                     </button>
@@ -994,8 +998,8 @@ export default function SettingsCenterModal({
             <div className="space-y-5 animate-in fade-in duration-150">
               <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-zinc-900">
                 <div>
-                  <h4 className="text-base font-black text-white">👁️ Inclusive Sizing & Dyslexia Fonts</h4>
-                  <p className="text-xs text-zinc-400">Modify typography sizes, visual accessibility contrast levels, and frame motions.</p>
+                  <h4 className="text-base font-black text-white">🎨 Personalization / Accessible Settings</h4>
+                  <p className="text-xs text-zinc-400">Configure theme switcher colours, typography sizes, contrast levels, and frame motions.</p>
                 </div>
                 <button
                   onClick={() => setActiveTab('all')}
@@ -1006,6 +1010,81 @@ export default function SettingsCenterModal({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* 0. Primary Accent Color & Theme Selector */}
+                <div className="md:col-span-2 p-5 rounded-2xl bg-zinc-900/90 border border-zinc-800/90 space-y-3.5 shadow-lg">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <h5 className="text-sm font-black text-white flex items-center gap-2">
+                        <Palette className="w-4 h-4 text-red-500 preserve-theme-color" />
+                        <span>Primary Accent Color & Theme Switcher</span>
+                      </h5>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        Pick your preferred primary accent color from our predefined theme palette. Applies instantly across all buttons, highlights, badges, and controls.
+                      </p>
+                    </div>
+                    {activeTheme && (
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-950 border border-zinc-800 text-xs font-bold text-white shadow-inner">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full preserve-theme-color"
+                          data-preserve-theme="true"
+                          style={{ backgroundColor: activeTheme.hex }}
+                        />
+                        <span>Active: {activeTheme.name}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-1">
+                    {PREDEFINED_ACCENT_THEMES.map((theme) => {
+                      const currentAccent = accessibilitySettings.accentColor || '#E50914';
+                      const isSelected =
+                        currentAccent.toLowerCase() === theme.hex.toLowerCase() ||
+                        currentAccent.toLowerCase() === theme.id.toLowerCase();
+                      return (
+                        <button
+                          key={theme.id}
+                          type="button"
+                          onClick={() => {
+                            const newSettings = {
+                              ...accessibilitySettings,
+                              accentColor: theme.hex,
+                            };
+                            setAccessibilitySettings(newSettings);
+                            applyAccentTheme(theme.hex);
+                            toast.success(`🎨 Applied theme: ${theme.name}!`);
+                          }}
+                          style={
+                            isSelected
+                              ? {
+                                  borderColor: theme.hex,
+                                  boxShadow: `0 0 16px ${theme.hex}45`,
+                                  outline: `2px solid ${theme.hex}60`,
+                                }
+                              : undefined
+                          }
+                          className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-zinc-800/90'
+                              : 'bg-zinc-950/60 border-zinc-800 hover:bg-zinc-800/70 hover:border-zinc-700'
+                          }`}
+                        >
+                          <div
+                            className="w-4 h-4 rounded-full shrink-0 shadow-sm flex items-center justify-center text-white text-[9px] preserve-theme-color"
+                            data-preserve-theme="true"
+                            style={{ backgroundColor: theme.hex }}
+                          >
+                            {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-white block truncate">{theme.name}</span>
+                            <span className="text-[10px] font-mono text-zinc-500 block">{theme.hex}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 
                 {/* 1. Large Print */}
                 <div className="p-4 rounded-xl bg-zinc-900 border-0 flex items-center justify-between gap-3">
@@ -1195,33 +1274,105 @@ export default function SettingsCenterModal({
                   </button>
                 </div>
 
-                {/* 3. App Version & System Specs */}
-                <div className="md:col-span-2 p-4 rounded-xl bg-zinc-900/90 border border-zinc-800 space-y-3">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-red-500" />
-                      <h5 className="text-xs font-bold text-white">ShowFlix System Version & Diagnostics</h5>
-                    </div>
-                    <span className="text-[10px] font-mono font-bold bg-zinc-800 text-zinc-300 px-2.5 py-1 rounded-full border border-zinc-700">
-                      {APP_VERSION} • {APP_BUILD_DATE}
-                    </span>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW E: HELP & SUPPORT DETAIL PANEL */}
+          {activeTab === 'help' && (
+            <div className="space-y-5 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-zinc-900">
+                <div>
+                  <h4 className="text-base font-black text-white">Help & Support - Quick Guide, Report Issue, Feedback</h4>
+                  <p className="text-xs text-zinc-400">Any report or feedback goes straight to app development via email (jtyodagreen@gmail.com).</p>
+                </div>
+                <button
+                  onClick={() => setActiveTab('all')}
+                  className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-3 py-1.5 rounded-lg"
+                >
+                  &larr; Back to Control Panel
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* 1. Direct Email Developer Box */}
+                <div className="p-5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-4">
+                  <div>
+                    <h5 className="text-sm font-bold text-white flex items-center gap-2">
+                      <span>✉️ Contact App Developer Directly</span>
+                    </h5>
+                    <p className="text-xs text-zinc-400 mt-1">
+                      Have questions, feature requests, or need support? Email developer <span className="text-cyan-400 font-mono font-bold">jtyodagreen@gmail.com</span> directly.
+                    </p>
                   </div>
-                  <p className="text-[11px] text-zinc-400">
-                    Current active build features Netflix-style profiles, Google Sheets 2-way sync, inclusive accessibility modes, and real-time offline tracking.
-                  </p>
-                  <div className="flex items-center justify-between pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowFeedbackModal(true)}
-                      className="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      <span>Report Issue or Give Feedback</span>
-                    </button>
-                    <span className="text-[10px] text-zinc-500 font-mono">Build 2026.10</span>
-                  </div>
+                  <a
+                    href="mailto:jtyodagreen@gmail.com?subject=ShowFlix%20Support%20%2F%20Feedback%20Report&body=Hi%20Jtyodagreen,%0A%0A[Please%20type%20your%20message%20here]%0A%0AApp%20Version:%20v1.0.0"
+                    className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs py-2.5 rounded-lg transition-colors cursor-pointer text-center block shadow-md"
+                  >
+                    Open Email (jtyodagreen@gmail.com)
+                  </a>
                 </div>
 
+                {/* 2. Direct Report / Feedback Form */}
+                <div className="p-5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-3">
+                  <div>
+                    <h5 className="text-sm font-bold text-white">📝 Send Report / Feedback</h5>
+                    <p className="text-xs text-zinc-400 mt-0.5">Type your message below and send it straight to development.</p>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    {(['bug', 'feature', 'feedback', 'support'] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setHelpReportType(t)}
+                        className={`px-2.5 py-1 rounded text-[11px] font-bold uppercase transition-all ${
+                          helpReportType === t ? 'bg-red-600 text-white shadow' : 'bg-zinc-800 text-zinc-400'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+
+                  <textarea
+                    rows={3}
+                    value={helpMessage}
+                    onChange={(e) => setHelpMessage(e.target.value)}
+                    placeholder="Describe the issue, bug, or your feedback here..."
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 placeholder:text-zinc-600"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      if (!helpMessage.trim()) {
+                        toast.error('Please enter a message before sending.');
+                        return;
+                      }
+                      const subject = encodeURIComponent(`ShowFlix [${helpReportType.toUpperCase()}] Report / Support from ${user?.email || 'User'}`);
+                      const body = encodeURIComponent(`Hi Jtyodagreen,\n\nHere is my report / feedback / support query:\n\n${helpMessage.trim()}\n\n---\nUser Email: ${user?.email || 'Anonymous'}\nApp Version: v1.0.0\nDevice: ${navigator.userAgent}`);
+                      window.location.href = `mailto:jtyodagreen@gmail.com?subject=${subject}&body=${body}`;
+                      toast.success('📧 Opening email client to send report straight to jtyodagreen@gmail.com!');
+                      setHelpMessage('');
+                    }}
+                    className="w-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs py-2.5 rounded-lg transition-colors cursor-pointer text-center block shadow-md"
+                  >
+                    Send Report via Email &rarr;
+                  </button>
+                </div>
+
+              </div>
+
+              {/* Quick Guide & FAQ info */}
+              <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800/80 space-y-2 text-xs text-zinc-300">
+                <h6 className="font-bold text-white">📖 Quick Guide & Tips</h6>
+                <ul className="list-disc pl-4 space-y-1 text-zinc-400">
+                  <li><strong>Google Sheets Sync:</strong> Connect your personal Google Sheet to keep your watch library backed up in the cloud.</li>
+                  <li><strong>Profile Tags:</strong> Use profile viewer colors to switch between family members or individual lists instantly.</li>
+                  <li><strong>Upcoming Release Radar:</strong> Automatically highlights shows releasing within 24 hours with active reminder bells.</li>
+                </ul>
               </div>
             </div>
           )}
@@ -1229,19 +1380,12 @@ export default function SettingsCenterModal({
         </div>
 
         {/* Footer */}
-        <div className="px-4 sm:px-6 py-3.5 sm:py-4.5 bg-zinc-900 border-t border-zinc-900 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5 text-[11px] text-zinc-400 font-medium">
-            <button
-              type="button"
-              onClick={() => setShowFeedbackModal(true)}
-              className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 transition-colors cursor-pointer font-bold"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>Report Issue / Feedback</span>
-            </button>
-            <span className="text-zinc-600 hidden sm:inline">•</span>
-            <span className="hidden sm:inline-flex items-center gap-1">
-              <span className="font-mono text-zinc-500">{APP_VERSION}</span>
+        <div className="px-6 py-4.5 bg-zinc-900 border-t border-zinc-900 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 text-[11px] text-zinc-400 font-medium">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+            <span>ShowFlix settings dashboard synced automatically.</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700/60 font-medium">
+              v1.0.0
             </span>
           </div>
           <button
@@ -1253,17 +1397,6 @@ export default function SettingsCenterModal({
           </button>
         </div>
       </div>
-
-      {/* Embedded Feedback Modal */}
-      <FeedbackModal
-        isOpen={showFeedbackModal}
-        onClose={() => setShowFeedbackModal(false)}
-        userEmail={getProfileEmail(user)}
-        userName={getProfileDisplayName(user)}
-        totalShowsCount={shows.length}
-        isOnline={isOnline}
-        activeProfile={activeProfile}
-      />
     </div>
   );
 }

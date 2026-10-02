@@ -342,7 +342,7 @@ export default function EditProfilePhotoModal({
             type="button"
             onClick={handleSave}
             disabled={loading}
-            className="px-5 py-2 text-xs font-bold bg-[#E50914] hover:bg-[#B80710] text-white rounded-lg shadow transition-colors disabled:opacity-50 cursor-pointer"
+            className="px-5 py-2 text-xs font-bold bg-[red-600] hover:bg-[red-700] text-white rounded-lg shadow transition-colors disabled:opacity-50 cursor-pointer"
           >
             Apply Picture
           </button>

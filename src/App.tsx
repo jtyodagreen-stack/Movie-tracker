@@ -15,6 +15,10 @@ import {
 } from './firebase';
 import { ShowItem, WatchStatus, PRESET_PLATFORMS, AccessibilitySettings, AlertIntervals } from './types';
 import { DEFAULT_PROFILE_USER } from './utils/userProfile';
+import { applyAccentTheme, initThemeOnStartup } from './utils/themeManager';
+
+// Run initial theme application immediately upon module evaluation
+initThemeOnStartup();
 import {
   fetchSpreadsheetDetails,
   fetchMultipleSheetRows,
@@ -54,13 +58,15 @@ import ConfirmModal from './components/ConfirmModal';
 import DashboardStats from './components/DashboardStats';
 import MainPageReleaseRadarBanner from './components/MainPageReleaseRadarBanner';
 import ShowcaseSection from './components/ShowcaseSection';
+import InstantShowFlixLoadingScreen from './components/InstantShowFlixLoadingScreen';
 import NetflixHoverPortal from './components/NetflixHoverPortal';
 import {
   checkAndTrigger24hNotifications,
   parseReleaseDateToTimestamp,
   enableShowNotificationSilent,
   getAlertIntervals,
-  saveAlertIntervals
+  saveAlertIntervals,
+  isShowOutNow
 } from './services/notificationService';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { getViewerColor } from './utils/profileColors';
@@ -88,6 +94,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
+  const [showInitialLoadingScreen, setShowInitialLoadingScreen] = useState(true);
   const [user, setUser] = useState<User | null>(() => auth.currentUser || DEFAULT_PROFILE_USER);
   const [shows, setShows] = useState<ShowItem[]>(() => {
     try {
@@ -121,6 +128,7 @@ export default function App() {
   const isResetCheckInProgressRef = useRef(false);
   const lastResetCheckTimeRef = useRef(0);
   const connectingSheetIdRef = useRef<string | null>(null);
+  const movingShowIdsRef = useRef<Set<string>>(new Set());
 
   // Ensure layout is clean on mount and during transitions
   useEffect(() => {
@@ -155,7 +163,15 @@ export default function App() {
     try {
       const saved = localStorage.getItem('showflix_accessibility_settings') || localStorage.getItem('bingebox_accessibility_settings');
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return {
+          contrastMode: 'default',
+          textSize: 'standard',
+          dyslexiaFont: false,
+          reduceMotion: false,
+          accentColor: '#E50914',
+          ...parsed,
+        };
       }
     } catch {
       // Fallback
@@ -165,6 +181,7 @@ export default function App() {
       textSize: 'standard',
       dyslexiaFont: false,
       reduceMotion: false,
+      accentColor: '#E50914',
     };
   });
 
@@ -184,6 +201,11 @@ export default function App() {
       // Ignore
     }
   }, [accessibilitySettings]);
+
+  // Synchronously inject and update theme variables & stylesheet globally
+  useEffect(() => {
+    applyAccentTheme(accessibilitySettings.accentColor);
+  }, [accessibilitySettings.accentColor]);
   const [selectedPlatform, setSelectedPlatform] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
   const [sortOrder, setSortOrder] = useState('title-asc');
@@ -359,14 +381,6 @@ export default function App() {
       return {};
     }
   });
-  const [viewerAvatars, setViewerAvatars] = useState<Record<string, string>>(() => {
-    try {
-      const cached = localStorage.getItem('showflix_viewer_avatars_v1');
-      return cached ? JSON.parse(cached) : {};
-    } catch {
-      return {};
-    }
-  });
   const [activeProfile, setActiveProfile] = useState<string>(() => {
     try {
       return localStorage.getItem('showflix_active_profile') || '';
@@ -374,13 +388,6 @@ export default function App() {
       return '';
     }
   });
-
-  const handleUpdateViewerAvatars = (newAvatars: Record<string, string>) => {
-    setViewerAvatars(newAvatars);
-    try {
-      localStorage.setItem('showflix_viewer_avatars_v1', JSON.stringify(newAvatars));
-    } catch {}
-  };
 
   const profileFilteredShows = useMemo(() => {
     let list = shows;
@@ -438,6 +445,7 @@ export default function App() {
 
   const handleSwitchProfile = (profile: string) => {
     setActiveProfile(profile);
+    setShowInitialLoadingScreen(true);
     try {
       if (profile) {
         localStorage.setItem('showflix_active_profile', profile);
@@ -1699,11 +1707,29 @@ export default function App() {
 
   // Move show from Master Tracker to Wishlist
   const handleMoveToWishlist = async (showToMove: ShowItem) => {
+    if (!showToMove || !showToMove.id) return;
+    if (movingShowIdsRef.current.has(showToMove.id)) {
+      console.warn(`Already moving "${showToMove.title}", ignoring duplicate click.`);
+      return;
+    }
+    movingShowIdsRef.current.add(showToMove.id);
+
     if (!spreadsheetId) {
-      setShows((prev) =>
-        prev.map((s) => (s.id === showToMove.id ? { ...s, isWishlist: true, sheetTabName: wishlistSheetName } : s))
-      );
-      showToast(`Moved "${showToMove.title}" to Wishlist`);
+      try {
+        setShows((prev) => {
+          const updated = prev.map((s) => (s.id === showToMove.id ? { ...s, isWishlist: true, sheetTabName: wishlistSheetName } : s));
+          const seen = new Set<string>();
+          return updated.filter((item) => {
+            const key = `${item.sheetTabName || (item.isWishlist ? 'wishlist' : 'master')}::${item.title.trim().toLowerCase()}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        });
+        showToast(`Moved "${showToMove.title}" to Wishlist`);
+      } finally {
+        movingShowIdsRef.current.delete(showToMove.id);
+      }
       return;
     }
 
@@ -1737,8 +1763,8 @@ export default function App() {
         localStorage.setItem('bingebox_wishlist_sheet_name', res.targetSheetName);
       }
 
-      setShows((prev) =>
-        prev.map((s) =>
+      setShows((prev) => {
+        const updated = prev.map((s) =>
           s.id === showToMove.id
             ? {
                 ...s,
@@ -1750,8 +1776,15 @@ export default function App() {
                 dateAdded: parseGoogleSheetsDate(showToMove.dateAdded || new Date()),
               }
             : s
-        )
-      );
+        );
+        const seen = new Set<string>();
+        return updated.filter((item) => {
+          const key = `${item.sheetTabName || (item.isWishlist ? 'wishlist' : 'master')}::${item.title.trim().toLowerCase()}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      });
       showToast(`🎁 Moved "${showToMove.title}" to "${targetTab}"`);
     } catch (err: any) {
       console.error('Failed to move show to wishlist:', err);
@@ -1770,30 +1803,49 @@ export default function App() {
         showToast(`⚠️ Could not move to wishlist: ${msg}`);
       }
     } finally {
+      movingShowIdsRef.current.delete(showToMove.id);
       setIsSyncing(false);
     }
   };
 
   // Move show from Wishlist to Master Tracker
   const handleMoveToMaster = async (showToMove: ShowItem) => {
+    if (!showToMove || !showToMove.id) return;
+    if (movingShowIdsRef.current.has(showToMove.id)) {
+      console.warn(`Already moving "${showToMove.title}", ignoring duplicate click.`);
+      return;
+    }
+    movingShowIdsRef.current.add(showToMove.id);
+
     if (!spreadsheetId) {
-      setShows((prev) =>
-        prev.map((s) =>
-          s.id === showToMove.id
-            ? {
-                ...s,
-                ...showToMove,
-                isWishlist: false,
-                sheetTabName: sheetName,
-                seasons: normalizeSeasonStr(showToMove.seasons || 'S1'),
-                episodes: normalizeEpisodeStr(showToMove.episodes || 'E1'),
-                maxEp: normalizeEpisodeStr(showToMove.maxEp || 'E8'),
-                status: showToMove.status || '⏳ Watching',
-              }
-            : s
-        )
-      );
-      showToast(`Moved "${showToMove.title}" to Master Tracker`);
+      try {
+        setShows((prev) => {
+          const updated = prev.map((s) =>
+            s.id === showToMove.id
+              ? {
+                  ...s,
+                  ...showToMove,
+                  isWishlist: false,
+                  sheetTabName: sheetName,
+                  seasons: normalizeSeasonStr(showToMove.seasons || 'S1'),
+                  episodes: normalizeEpisodeStr(showToMove.episodes || 'E1'),
+                  maxEp: normalizeEpisodeStr(showToMove.maxEp || 'E8'),
+                  status: showToMove.status || '⏳ Watching',
+                }
+              : s
+          );
+          const seen = new Set<string>();
+          return updated.filter((item) => {
+            const key = `${item.sheetTabName || (item.isWishlist ? 'wishlist' : 'master')}::${item.title.trim().toLowerCase()}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        });
+        showToast(`Moved "${showToMove.title}" to Master Tracker`);
+      } finally {
+        movingShowIdsRef.current.delete(showToMove.id);
+      }
       return;
     }
 
@@ -1827,8 +1879,8 @@ export default function App() {
         localStorage.setItem('bingebox_sheet_name', res.targetSheetName);
       }
 
-      setShows((prev) =>
-        prev.map((s) =>
+      setShows((prev) => {
+        const updated = prev.map((s) =>
           s.id === showToMove.id
             ? {
                 ...s,
@@ -1842,8 +1894,15 @@ export default function App() {
                 status: showToMove.status || '⏳ Watching',
               }
             : s
-        )
-      );
+        );
+        const seen = new Set<string>();
+        return updated.filter((item) => {
+          const key = `${item.sheetTabName || (item.isWishlist ? 'wishlist' : 'master')}::${item.title.trim().toLowerCase()}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      });
       showToast(`📊 Moved "${showToMove.title}" to "${targetTab}"`);
     } catch (err: any) {
       console.error('Failed to move show to master:', err);
@@ -1862,6 +1921,7 @@ export default function App() {
         showToast(`⚠️ Could not move to master tracker: ${msg}`);
       }
     } finally {
+      movingShowIdsRef.current.delete(showToMove.id);
       setIsSyncing(false);
     }
   };
@@ -1910,6 +1970,9 @@ export default function App() {
       list = list.filter((show) => {
         if (activeFilter === 'All Titles') return true;
         if (activeFilter === '🎁 Wishlist' || activeFilter === 'Wishlist') return Boolean(show.isWishlist);
+        if (activeFilter === '🎯 High-Priority Wishlist' || activeFilter === '🎯 High Priority' || activeFilter === 'High Priority') {
+          return Boolean(show.isWishlist) && ((show.priority || '').toLowerCase().includes('high') || (show.priority || '').includes('🔴') || !show.priority);
+        }
         if (activeFilter === 'Series') return show.type === 'Series';
         if (activeFilter === 'Movie') return show.type === 'Movie';
         if (activeFilter === '⏳ Watching') return show.status === '⏳ Watching';
@@ -2184,15 +2247,72 @@ export default function App() {
     () => profileFilteredShows.filter((s) => s.isWishlist),
     [profileFilteredShows]
   );
+  // High-Priority Wishlist Showcase: Highest priority shows from the Wishlist tab to watch next
+  const highPriorityWishlistShows = useMemo(() => {
+    if (!profileFilteredShows || profileFilteredShows.length === 0) return [];
+
+    const wishlist = profileFilteredShows.filter((s) => s.isWishlist);
+    if (wishlist.length === 0) return [];
+
+    // Filter for shows marked with High priority (or default high)
+    const highShows = wishlist.filter((s) => {
+      const p = (s.priority || '').toLowerCase();
+      return p.includes('high') || p.includes('🔴');
+    });
+
+    if (highShows.length > 0) {
+      // Sort High priority shows by rating (top rated first) or row order
+      return [...highShows].sort((a, b) => {
+        const ratingA = a.ratingNum || 0;
+        const ratingB = b.ratingNum || 0;
+        if (ratingA !== ratingB) return ratingB - ratingA;
+        return (a.rowNumber || 0) - (b.rowNumber || 0);
+      });
+    }
+
+    // Fallback: If none are explicitly marked High, order all wishlist shows by priority weight (High > Medium > Low)
+    const priorityWeight = (p?: string) => {
+      const lower = (p || '').toLowerCase();
+      if (lower.includes('high') || lower.includes('🔴')) return 3;
+      if (lower.includes('medium') || lower.includes('mid') || lower.includes('yellow') || lower.includes('🟡')) return 2;
+      if (lower.includes('low') || lower.includes('green') || lower.includes('🟢')) return 1;
+      return 2;
+    };
+
+    return [...wishlist].sort((a, b) => {
+      const diff = priorityWeight(b.priority) - priorityWeight(a.priority);
+      if (diff !== 0) return diff;
+      return (b.ratingNum || 0) - (a.ratingNum || 0);
+    });
+  }, [profileFilteredShows]);
   const comingSoonShows = useMemo(() => {
     const list = profileFilteredShows.filter((s) => Boolean(s.releaseDate || s.releaseNote || s.nextAirDate || s.nextAirTimestamp));
     return [...list].sort((a, b) => {
+      const outNowA = isShowOutNow(a);
+      const outNowB = isShowOutNow(b);
+
+      // 1. "Out Now" titles first
+      if (outNowA && !outNowB) return -1;
+      if (!outNowA && outNowB) return 1;
+
       const tsA = a.releaseDate ? parseReleaseDateToTimestamp(a.releaseDate) : a.nextAirTimestamp || null;
       const tsB = b.releaseDate ? parseReleaseDateToTimestamp(b.releaseDate) : b.nextAirTimestamp || null;
 
-      // Earliest / closest upcoming premiere dates first, later future dates last
+      // 2. Future upcoming dates next
+      const now = Date.now();
+      const aIsFuture = tsA !== null && tsA > now;
+      const bIsFuture = tsB !== null && tsB > now;
+
+      if (aIsFuture && !bIsFuture) return -1;
+      if (!aIsFuture && bIsFuture) return 1;
+
+      // 3. Sort by closest date (earliest first for future, or latest first for past)
       if (tsA !== null && tsB !== null) {
-        return tsA - tsB;
+        if (aIsFuture) {
+          return tsA - tsB; // Earliest future date first
+        } else {
+          return tsB - tsA; // Latest past date first
+        }
       }
       if (tsA !== null) return -1;
       if (tsB !== null) return 1;
@@ -2206,7 +2326,7 @@ export default function App() {
       <div className="bg-[#181818] border border-zinc-800 rounded-2xl p-5 shadow-xl space-y-4">
         <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-red-600/10 border border-red-500/30 flex items-center justify-center text-red-500 shadow-lg shadow-red-950/20">
+            <div className="w-9 h-9 rounded-xl bg-red-600/10 border border-red-500/30 flex items-center justify-center text-red-500 shadow-lg shadow-red-950/20 preserve-theme-color">
               <Table className="w-4 h-4" />
             </div>
             <div>
@@ -2232,7 +2352,7 @@ export default function App() {
                   setSelectedYear('all');
                 }
               }}
-              className={`text-xs px-3 py-1.5 rounded-lg font-mono font-semibold transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] flex items-center gap-1.5 border-solid focus:outline-none ${
+              className={`text-xs px-3 py-1.5 rounded-lg font-mono font-semibold transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] flex items-center gap-1.5 border-solid focus:outline-none preserve-theme-color ${
                 activeFilter === 'All Titles'
                   ? 'bg-red-950/80 border-2 border-red-500 text-white shadow-lg shadow-red-950/60 ring-2 ring-red-500/70'
                   : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:border-red-500/80 active:border-2 active:border-red-500 active:ring-2 active:ring-red-500/50 hover:bg-zinc-800 hover:text-white hover:shadow-lg hover:shadow-red-950/30 hover:-translate-y-0.5'
@@ -2249,14 +2369,14 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActiveFilter((prev) => (prev === 'Movie' ? 'all' : 'Movie'))}
-            className={`text-left rounded-xl p-3 flex items-center gap-3 transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] border-solid focus:outline-none ${
+            className={`text-left rounded-xl p-3 flex items-center gap-3 transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] border-solid focus:outline-none preserve-theme-color ${
               activeFilter === 'Movie'
                 ? 'bg-red-950/80 border-2 border-red-500 shadow-xl shadow-red-950/60 ring-2 ring-red-500/70'
                 : 'bg-zinc-900/60 border border-zinc-800/80 hover:border-red-500/80 active:border-2 active:border-red-500 active:ring-2 active:ring-red-500/50 hover:bg-zinc-900 hover:shadow-lg hover:shadow-red-950/30 hover:-translate-y-0.5'
             }`}
             title="Filter by Movies (click again to clear)"
           >
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm transition-transform duration-200 group-hover:scale-110 ${
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm transition-transform duration-200 group-hover:scale-110 preserve-theme-color ${
               activeFilter === 'Movie' ? 'bg-red-600 text-white' : 'bg-red-500/10 text-red-400'
             }`}>
               🎬
@@ -2270,14 +2390,14 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActiveFilter((prev) => (prev === 'Series' ? 'all' : 'Series'))}
-            className={`text-left rounded-xl p-3 flex items-center gap-3 transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] border-solid focus:outline-none ${
+            className={`text-left rounded-xl p-3 flex items-center gap-3 transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] border-solid focus:outline-none preserve-theme-color ${
               activeFilter === 'Series'
                 ? 'bg-red-950/80 border-2 border-red-500 shadow-xl shadow-red-950/60 ring-2 ring-red-500/70'
                 : 'bg-zinc-900/60 border border-zinc-800/80 hover:border-red-500/80 active:border-2 active:border-red-500 active:ring-2 active:ring-red-500/50 hover:bg-zinc-900 hover:shadow-lg hover:shadow-red-950/30 hover:-translate-y-0.5'
             }`}
             title="Filter by Series (click again to clear)"
           >
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm transition-transform duration-200 group-hover:scale-110 ${
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm transition-transform duration-200 group-hover:scale-110 preserve-theme-color ${
               activeFilter === 'Series' ? 'bg-red-600 text-white' : 'bg-red-500/10 text-red-400'
             }`}>
               📺
@@ -2291,10 +2411,10 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActiveFilter((prev) => (prev === '⏳ Watching' ? 'all' : '⏳ Watching'))}
-            className={`text-left rounded-xl p-3 flex items-center gap-3 transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] border-solid focus:outline-none ${
+            className={`text-left rounded-xl p-3 flex items-center gap-3 transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] border-solid focus:outline-none preserve-theme-color ${
               activeFilter === '⏳ Watching'
                 ? 'bg-amber-950/80 border-2 border-amber-500 shadow-xl shadow-amber-950/60 ring-2 ring-amber-500/70'
-                : 'bg-zinc-900/60 border border-zinc-800/80 hover:border-amber-500/80 active:border-2 active:border-amber-500 active:ring-2 active:ring-amber-500/50 hover:bg-zinc-900 hover:shadow-lg hover:shadow-amber-950/30 hover:-translate-y-0.5'
+                : 'bg-zinc-900/60 border border-zinc-800/80 hover:border-red-500/80 active:border-2 active:border-red-500 active:ring-2 active:ring-red-500/50 hover:bg-zinc-900 hover:shadow-lg hover:shadow-red-950/30 hover:-translate-y-0.5'
             }`}
             title="Filter by Currently Watching (click again to clear)"
           >
@@ -2312,10 +2432,10 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActiveFilter((prev) => (prev === '✅ Watched' ? 'all' : '✅ Watched'))}
-            className={`text-left rounded-xl p-3 flex items-center gap-3 transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] border-solid focus:outline-none ${
+            className={`text-left rounded-xl p-3 flex items-center gap-3 transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] border-solid focus:outline-none preserve-theme-color ${
               activeFilter === '✅ Watched'
                 ? 'bg-emerald-950/80 border-2 border-emerald-500 shadow-xl shadow-emerald-950/60 ring-2 ring-emerald-500/70'
-                : 'bg-zinc-900/60 border border-zinc-800/80 hover:border-emerald-500/80 active:border-2 active:border-emerald-500 active:ring-2 active:ring-emerald-500/50 hover:bg-zinc-900 hover:shadow-lg hover:shadow-emerald-950/30 hover:-translate-y-0.5'
+                : 'bg-zinc-900/60 border border-zinc-800/80 hover:border-red-500/80 active:border-2 active:border-red-500 active:ring-2 active:ring-red-500/50 hover:bg-zinc-900 hover:shadow-lg hover:shadow-red-950/30 hover:-translate-y-0.5'
             }`}
             title="Filter by Watched (click again to clear)"
           >
@@ -2333,10 +2453,10 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActiveFilter((prev) => (prev === '⏰ Coming Soon' ? 'all' : '⏰ Coming Soon'))}
-            className={`text-left rounded-xl p-3 flex items-center gap-3 transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] border-solid focus:outline-none ${
+            className={`text-left rounded-xl p-3 flex items-center gap-3 transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] border-solid focus:outline-none preserve-theme-color ${
               activeFilter === '⏰ Coming Soon'
                 ? 'bg-amber-950/80 border-2 border-amber-500 shadow-xl shadow-amber-950/60 ring-2 ring-amber-500/70'
-                : 'bg-zinc-900/60 border border-zinc-800/80 hover:border-amber-500/80 active:border-2 active:border-amber-500 active:ring-2 active:ring-amber-500/50 hover:bg-zinc-900 hover:shadow-lg hover:shadow-amber-950/30 hover:-translate-y-0.5'
+                : 'bg-zinc-900/60 border border-zinc-800/80 hover:border-red-500/80 active:border-2 active:border-red-500 active:ring-2 active:ring-red-500/50 hover:bg-zinc-900 hover:shadow-lg hover:shadow-red-950/30 hover:-translate-y-0.5'
             }`}
             title="Filter by Coming Soon (click again to clear)"
           >
@@ -2354,10 +2474,10 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActiveFilter((prev) => (prev === '🎁 Wishlist' || prev === 'Wishlist' ? 'all' : '🎁 Wishlist'))}
-            className={`text-left rounded-xl p-3 flex items-center gap-3 transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] border-solid focus:outline-none ${
+            className={`text-left rounded-xl p-3 flex items-center gap-3 transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] border-solid focus:outline-none preserve-theme-color ${
               activeFilter === '🎁 Wishlist' || activeFilter === 'Wishlist'
                 ? 'bg-amber-950/80 border-2 border-amber-500 shadow-xl shadow-amber-950/60 ring-2 ring-amber-500/70'
-                : 'bg-zinc-900/60 border border-zinc-800/80 hover:border-amber-500/80 active:border-2 active:border-amber-500 active:ring-2 active:ring-amber-500/50 hover:bg-zinc-900 hover:shadow-lg hover:shadow-amber-950/30 hover:-translate-y-0.5'
+                : 'bg-zinc-900/60 border border-zinc-800/80 hover:border-red-500/80 active:border-2 active:border-red-500 active:ring-2 active:ring-red-500/50 hover:bg-zinc-900 hover:shadow-lg hover:shadow-red-950/30 hover:-translate-y-0.5'
             }`}
             title="Filter by Wishlist (click again to clear)"
           >
@@ -2383,7 +2503,7 @@ export default function App() {
                 setShowStatsModal(true);
               }
             }}
-            className={`text-left rounded-xl p-3 flex items-center justify-between transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] border-solid focus:outline-none ${
+            className={`text-left rounded-xl p-3 flex items-center justify-between transition-all duration-150 cursor-pointer select-none touch-manipulation active:scale-[0.97] border-solid focus:outline-none preserve-theme-color ${
               showStatsModal
                 ? 'bg-red-950/80 border-2 border-red-500 shadow-xl shadow-red-950/60 ring-2 ring-red-500/70'
                 : 'bg-zinc-900/60 border border-zinc-800/80 hover:border-red-500/80 active:border-2 active:border-red-500 active:ring-2 active:ring-red-500/50 hover:bg-zinc-900 hover:shadow-lg hover:shadow-red-950/30 hover:-translate-y-0.5'
@@ -2644,9 +2764,9 @@ export default function App() {
           isSyncing ? (
             <div className="max-w-md mx-auto px-4 py-32 text-center space-y-6">
               <div className="relative">
-                <div className="w-16 h-16 border-4 border-red-600/10 border-t-red-600 rounded-full animate-spin mx-auto"></div>
+                <div className="w-16 h-16 border-4 border-red-600/10 border-t-red-600 rounded-full animate-spin mx-auto preserve-theme-color"></div>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <Tv className="w-6 h-6 text-red-600 animate-pulse" />
+                  <Tv className="w-6 h-6 text-red-600 animate-pulse preserve-theme-color" />
                 </div>
               </div>
               <div className="space-y-2">
@@ -2709,7 +2829,7 @@ export default function App() {
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3 flex-wrap gap-2">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-red-500" />
+                  <Filter className="w-4 h-4 text-red-500 preserve-theme-color" />
                   <h2 className="text-lg font-bold text-white">
                     {searchQuery
                       ? `Search: "${searchQuery}"`
@@ -2728,6 +2848,8 @@ export default function App() {
                         ? '⭐ Top Rated Titles (4–5 Stars)'
                         : activeFilter === '⏰ Coming Soon' || activeFilter === 'Coming Soon'
                         ? '⏰ Upcoming Release Dates & Premieres'
+                        : activeFilter === '🎯 High-Priority Wishlist' || activeFilter === '🎯 High Priority' || activeFilter === 'High Priority'
+                        ? '🎯 High-Priority Wishlist'
                         : activeFilter === '🎁 Wishlist' || activeFilter === 'Wishlist'
                         ? '🎁 Wishlist'
                         : activeFilter
@@ -2790,6 +2912,8 @@ export default function App() {
                           ? 'Top Rated'
                           : activeFilter === '⏰ Coming Soon' || activeFilter === 'Coming Soon'
                           ? 'Coming Soon'
+                          : activeFilter === '🎯 High-Priority Wishlist' || activeFilter === '🎯 High Priority' || activeFilter === 'High Priority'
+                          ? 'High-Priority Wishlist'
                           : activeFilter === '🎁 Wishlist' || activeFilter === 'Wishlist'
                           ? 'Wishlist'
                           : activeFilter === '⏸️ Paused'
@@ -3214,6 +3338,24 @@ export default function App() {
               }}
             />
 
+            {/* High-Priority Wishlist Shelf */}
+            {highPriorityWishlistShows.length > 0 && (
+              <ShowRow
+                id="high-priority-wishlist-shelf"
+                title="🎯 High-Priority Wishlist"
+                subtitle="The top highest-priority shows from your Wishlist tab that you plan to start watching next."
+                shows={highPriorityWishlistShows.slice(0, 20)}
+                isLoading={isSyncing}
+                onOpenDetails={handleOpenDetails}
+                onIncrementEpisode={handleIncrementEpisode}
+                onToggleStatus={handleToggleStatus}
+                onTitleClick={() => setActiveFilter('🎯 High-Priority Wishlist')}
+                onHoverEnter={handleHoverEnter}
+                onHoverLeave={handleHoverLeave}
+                viewerColors={viewerColors}
+              />
+            )}
+
             {/* Wishlist Sheet Shelf */}
             {wishlistShows.length > 0 && (
               <ShowRow
@@ -3430,6 +3572,10 @@ export default function App() {
 
   return (
     <div
+      style={{
+        ['--theme-accent' as any]: accessibilitySettings.accentColor || '#E50914',
+        ['--app-accent' as any]: accessibilitySettings.accentColor || '#E50914',
+      }}
       className={`min-h-screen ${
         accessibilitySettings.contrastMode === 'high' ? 'high-contrast' : 'bg-[#141414]'
       } ${
@@ -3438,7 +3584,7 @@ export default function App() {
         accessibilitySettings.dyslexiaFont ? 'accessible-dyslexia-font' : ''
       } ${
         accessibilitySettings.reduceMotion ? 'accessible-reduce-motion' : ''
-      } text-white flex flex-col selection:bg-[#E50914] selection:text-white font-sans antialiased`}
+      } text-white flex flex-col selection:bg-[var(--app-accent)] selection:text-white font-sans antialiased`}
     >
       <Toaster position="bottom-center" toastOptions={{
         style: {
@@ -3466,7 +3612,7 @@ export default function App() {
         <button
           id="floating-back-to-top-btn"
           onClick={scrollToTop}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-6 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold shadow-2xl shadow-black/80 hover:scale-105 active:scale-95 transition-all cursor-pointer text-xs sm:text-sm border border-red-400/40 animate-in fade-in slide-in-from-bottom-4 duration-200"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-6 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold shadow-2xl shadow-black/80 hover:scale-105 active:scale-95 transition-all cursor-pointer text-xs sm:text-sm border border-red-500/40 animate-in fade-in slide-in-from-bottom-4 duration-200"
           title="Back to Top"
         >
           <ArrowUp className="w-4 h-4 animate-bounce-subtle" />
@@ -3516,8 +3662,6 @@ export default function App() {
         onUpdateCustomViewers={handleUpdateCustomViewers}
         viewerColors={viewerColors}
         onUpdateViewerColors={handleUpdateViewerColors}
-        viewerAvatars={viewerAvatars}
-        onUpdateViewerAvatars={handleUpdateViewerAvatars}
         alertIntervals={alertIntervals}
         onUpdateAlertIntervals={handleUpdateAlertIntervals}
         spreadsheetId={spreadsheetId}
@@ -3529,7 +3673,7 @@ export default function App() {
         onToggleAutoSync={handleToggleAutoSync}
       />
 
-      <main className={`flex-1 pb-16 w-full max-w-full overflow-x-hidden ${!isAnyFilterActive && !showStatsModal ? 'pt-0' : 'pt-16'}`}>
+      <main className={`flex-1 pb-16 w-full max-w-full overflow-x-hidden ${!isAnyFilterActive && !showStatsModal ? 'pt-0' : showStatsModal ? 'pt-24' : 'pt-16'}`}>
         {renderMainContent()}
       </main>
 
@@ -3538,10 +3682,13 @@ export default function App() {
       <footer className="border-t border-zinc-800/80 bg-[#101010] py-8 pb-28 sm:pb-8 text-zinc-500 text-xs mt-auto">
         <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded bg-[#E50914] flex items-center justify-center font-bold text-white text-xs">
+            <div className="w-5 h-5 rounded bg-[#E50914] flex items-center justify-center font-bold text-white text-[10px] preserve-theme-color">
               N
             </div>
             <span className="font-semibold text-zinc-400">SHOWFLIX Tracker</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800/90 text-zinc-400 border border-zinc-700/60 font-semibold tracking-wider">
+              v1.0.0
+            </span>
             <span>•</span>
             <span>Google Sheets Auto-Sync</span>
           </div>
@@ -3681,6 +3828,15 @@ export default function App() {
             handleUpdateRating(s, num);
           }}
           viewerColors={viewerColors}
+        />
+      )}
+
+      {/* Instant ShowFlix Cinematic Splash Screen */}
+      {showInitialLoadingScreen && (
+        <InstantShowFlixLoadingScreen
+          message={isSyncing ? "Syncing ShowFlix Library..." : "Loading ShowFlix Library..."}
+          minDurationMs={1200}
+          onFinish={() => setShowInitialLoadingScreen(false)}
         />
       )}
     </div>

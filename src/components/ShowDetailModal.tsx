@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import {
   X,
@@ -33,8 +33,8 @@ import { autoFetchPoster, getOrFetchImdbUrl } from '../services/posterService';
 import { extractDateOnly, extractTimeOnly, combineDateAndTime } from '../utils/dateUtils';
 import { isNotificationEnabled, toggleShowNotification, isShowOutNow, isFutureRelease, enableShowNotificationSilent } from '../services/notificationService';
 import { fetchLiveTvMazeInfo, TvMazeShowInfo, TvMazeEpisode } from '../services/tvMazeService';
+import { getPriorityIndicator } from '../utils/priorityUtils';
 import { useNotificationContext } from '../context/NotificationContext';
-import { getViewerColor } from '../utils/profileColors';
 
 const TvMazeEpisodeCountdown = ({ airstamp }: { airstamp: string }) => {
   const [timeLeft, setTimeLeft] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
@@ -198,6 +198,31 @@ export default function ShowDetailModal({
   const [notes, setNotes] = useState(show?.notes || '');
   const [who, setWho] = useState(show?.who || (sheetViewers.length > 0 ? sheetViewers[0] : ''));
   const [isResolvingImdb, setIsResolvingImdb] = useState(false);
+  const [isMovingSheet, setIsMovingSheet] = useState(false);
+
+  const handlePerformMoveToMaster = async () => {
+    if (isMovingSheet || !onMoveToMaster || !show) return;
+    setIsMovingSheet(true);
+    try {
+      await onMoveToMaster(show);
+      onClose();
+    } catch (e) {
+      console.error('Error moving to master:', e);
+      setIsMovingSheet(false);
+    }
+  };
+
+  const handlePerformMoveToWishlist = async () => {
+    if (isMovingSheet || !onMoveToWishlist || !show) return;
+    setIsMovingSheet(true);
+    try {
+      await onMoveToWishlist(show);
+      onClose();
+    } catch (e) {
+      console.error('Error moving to wishlist:', e);
+      setIsMovingSheet(false);
+    }
+  };
 
   const handleOpenImdb = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -277,7 +302,7 @@ export default function ShowDetailModal({
   const [releaseTime, setReleaseTime] = useState<string>(() => extractTimeOnly(show?.releaseDate));
   const [releaseNote, setReleaseNote] = useState<string>(show?.releaseNote || '');
   const { isNotificationEnabled, toggleNotification } = useNotificationContext();
-  const isNotifActive = show ? isNotificationEnabled(show.id) : false;
+  const isNotifActive = show ? isNotificationEnabled(show) : false;
 
   const handleToggleNotif = async () => {
     if (!show) return;
@@ -301,8 +326,11 @@ export default function ShowDetailModal({
     setReleaseDate(combined);
   };
 
+  const currentLoadedShowIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (show) {
+    if (show && show.id !== currentLoadedShowIdRef.current) {
+      currentLoadedShowIdRef.current = show.id;
       setTitle(show.title);
       setType(show.type);
       setPlatform(normalizePlatform(show.platform));
@@ -330,7 +358,7 @@ export default function ShowDetailModal({
       setPosterUrl(url);
       setBackdropUrl(url);
     }
-  }, [show?.id, show?.who, sheetViewers]);
+  }, [show?.id]);
 
   useEffect(() => {
     if (!who && sheetViewers.length > 0) {
@@ -354,15 +382,15 @@ export default function ShowDetailModal({
         const info = await fetchLiveTvMazeInfo(show.title);
         if (isMounted) {
           setTvMazeInfo(info);
-          if (info && info.nextEpisode && !show.releaseDate) {
+          if (info && info.nextEpisode) {
             const nextEp = info.nextEpisode;
             const fullReleaseDate = combineDateAndTime(nextEp.airdate, nextEp.airtime || '00:00');
             const noteText = `S${nextEp.season} E${nextEp.number}: ${nextEp.name}`;
             
-            setReleaseDateOnly(nextEp.airdate);
-            setReleaseTime(nextEp.airtime || '00:00');
-            setReleaseNote(noteText);
-            setReleaseDate(fullReleaseDate);
+            setReleaseDateOnly((prev) => prev || nextEp.airdate);
+            setReleaseTime((prev) => prev || nextEp.airtime || '00:00');
+            setReleaseNote((prev) => prev || noteText);
+            setReleaseDate((prev) => prev || fullReleaseDate);
           }
         }
       } catch (err) {
@@ -551,6 +579,7 @@ export default function ShowDetailModal({
   };
 
   const activeBackdrop = backdropUrl || posterUrl || show.backdropUrl || show.posterUrl || 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?q=80&w=1600&auto=format&fit=crop';
+  const priorityIndicator = getPriorityIndicator(priority || show?.priority, show?.isWishlist);
 
   return (
     <div
@@ -606,9 +635,17 @@ export default function ShowDetailModal({
                 <span>Wishlist</span>
               </span>
             )}
-            {(show.releaseDate || show.releaseNote || releaseDate || releaseNote) && (
+            {priorityIndicator && (
+              <span
+                className={`text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-0.5 sm:py-1 rounded border shadow-xl flex items-center gap-1 ${priorityIndicator.className}`}
+                title={`Priority: ${priorityIndicator.tooltip}`}
+              >
+                {priorityIndicator.label}
+              </span>
+            )}
+            {(show.releaseDate || show.releaseNote || releaseDate || releaseNote || tvMazeInfo?.nextEpisode) && (
               <span className="text-[10px] sm:text-[11px] font-extrabold px-2 sm:px-2.5 py-0.5 sm:py-1 rounded bg-amber-400 text-black border border-amber-300 shadow-md shrink-0 flex items-center gap-1">
-                ⏰ {formatToDDMMYYYY(releaseDate || show.releaseDate || '') || releaseNote || show.releaseNote}
+                ⏰ {formatToDDMMYYYY(releaseDate || show.releaseDate || (tvMazeInfo?.nextEpisode ? combineDateAndTime(tvMazeInfo.nextEpisode.airdate, tvMazeInfo.nextEpisode.airtime || '00:00') : '')) || releaseNote || show.releaseNote || (tvMazeInfo?.nextEpisode ? `S${tvMazeInfo.nextEpisode.season} E${tvMazeInfo.nextEpisode.number}` : '')}
               </span>
             )}
           </div>
@@ -644,7 +681,7 @@ export default function ShowDetailModal({
           {/* Hero Content Overlay */}
           <div className="absolute bottom-3 left-3 right-3 sm:bottom-4 sm:left-6 sm:right-6 flex flex-col justify-end">
             <div className="flex items-center gap-1.5 mb-1 sm:mb-1.5 flex-wrap">
-              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider px-1.5 sm:px-2 py-0.5 rounded bg-[#E50914] text-white">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider px-1.5 sm:px-2 py-0.5 rounded bg-[red-600] text-white">
                 {platform}
               </span>
               <span className="text-[10px] sm:text-xs font-semibold px-1.5 sm:px-2 py-0.5 rounded bg-zinc-900/80 text-zinc-300 border border-zinc-700">
@@ -663,7 +700,7 @@ export default function ShowDetailModal({
         {showImageUploader && (
           <div className="p-4 sm:p-6 bg-zinc-950/90 border-b border-zinc-800 space-y-4 animate-in slide-in-from-top-3 duration-200">
             <div className="flex items-center gap-2">
-                <ImageIcon className="w-5 h-5 text-[#E50914]" />
+                <ImageIcon className="w-5 h-5 text-[red-600]" />
                 <h3 className="text-sm font-bold text-white">Web Image URL</h3>
               </div>
 
@@ -710,13 +747,18 @@ export default function ShowDetailModal({
               <button
                 type="button"
                 id="move-to-master-btn"
-                onClick={async () => {
-                  await onMoveToMaster(show);
-                  onClose();
-                }}
-                className="w-full sm:w-auto flex items-center justify-center gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-md transition-all cursor-pointer shadow"
+                disabled={isMovingSheet}
+                onClick={handlePerformMoveToMaster}
+                className="w-full sm:w-auto flex items-center justify-center gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-md transition-all cursor-pointer shadow"
               >
-                <span>📊 Move to Master Tracker</span>
+                {isMovingSheet ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Moving to Master...</span>
+                  </>
+                ) : (
+                  <span>📊 Move to Master Tracker</span>
+                )}
               </button>
             )}
 
@@ -724,19 +766,24 @@ export default function ShowDetailModal({
               <button
                 type="button"
                 id="move-to-wishlist-btn"
-                onClick={async () => {
-                  await onMoveToWishlist(show);
-                  onClose();
-                }}
-                className="w-full sm:w-auto flex items-center justify-center gap-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-md transition-all cursor-pointer shadow"
+                disabled={isMovingSheet}
+                onClick={handlePerformMoveToWishlist}
+                className="w-full sm:w-auto flex items-center justify-center gap-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-md transition-all cursor-pointer shadow"
               >
-                <span>🎁 Move to Wishlist</span>
+                {isMovingSheet ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Moving to Wishlist...</span>
+                  </>
+                ) : (
+                  <span>🎁 Move to Wishlist</span>
+                )}
               </button>
             )}
           </div>
 
           {/* Release Premiere Info Bar (Identical to Netflix Hover Portal) */}
-          {show && (show.releaseDate || show.releaseNote || releaseDate || releaseNote) && (
+          {show && (show.releaseDate || show.releaseNote || releaseDate || releaseNote || tvMazeInfo?.nextEpisode) && (
             isShowOutNow(show) ? (
               <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold shadow">
                 <div className="flex items-center gap-2">
@@ -748,13 +795,17 @@ export default function ShowDetailModal({
                   RELEASED
                 </span>
               </div>
-            ) : isFutureRelease(show) || (!show.releaseDate && (show.releaseNote || releaseNote)) ? (
+            ) : isFutureRelease(show) || (!show.releaseDate && (show.releaseNote || releaseNote || tvMazeInfo?.nextEpisode)) || Boolean(tvMazeInfo?.nextEpisode) ? (
               <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold flex-wrap">
                 <div className="flex items-center gap-2">
                   <span className="text-sm">⏰</span>
                   <span>
-                    {releaseDate || show.releaseDate ? `Target Premiere: ${formatToDDMMYYYY(releaseDate || show.releaseDate || '')}` : 'Upcoming Release'}
-                    {releaseNote || show.releaseNote ? ` (${releaseNote || show.releaseNote})` : ''}
+                    {releaseDate || show.releaseDate || tvMazeInfo?.nextEpisode
+                      ? `Target Premiere: ${formatToDDMMYYYY(releaseDate || show.releaseDate || (tvMazeInfo?.nextEpisode ? combineDateAndTime(tvMazeInfo.nextEpisode.airdate, tvMazeInfo.nextEpisode.airtime || '00:00') : ''))}`
+                      : 'Upcoming Release'}
+                    {releaseNote || show.releaseNote || tvMazeInfo?.nextEpisode
+                      ? ` (${releaseNote || show.releaseNote || (tvMazeInfo?.nextEpisode ? `S${tvMazeInfo.nextEpisode.season} E${tvMazeInfo.nextEpisode.number}: ${tvMazeInfo.nextEpisode.name}` : '')})`
+                      : ''}
                   </span>
                 </div>
 
@@ -842,10 +893,15 @@ export default function ShowDetailModal({
                   className="w-full bg-zinc-800 rounded-full h-2.5 overflow-hidden border border-zinc-700 shadow-inner"
                 >
                   <div
+                    data-progress-bar="true"
+                    data-preserve-theme="true"
                     className={`h-full transition-all duration-300 ${
-                      status === '✅ Watched' ? 'bg-emerald-500' : 'bg-[#E50914]'
+                      status === '✅ Watched' ? 'bg-emerald-500' : 'bg-[red-600] preserve-theme-color progress-bar-fill'
                     }`}
-                    style={{ width: `${progressPercent}%` }}
+                    style={{
+                      width: `${progressPercent}%`,
+                      backgroundColor: status === '✅ Watched' ? '#10b981' : 'red-600',
+                    }}
                   />
                 </div>
               </div>
@@ -926,10 +982,15 @@ export default function ShowDetailModal({
                     className="w-full bg-zinc-800 rounded-full h-2.5 overflow-hidden border border-zinc-700"
                   >
                     <div
+                      data-progress-bar="true"
+                      data-preserve-theme="true"
                       className={`h-full transition-all duration-300 ${
-                        status === '✅ Watched' ? 'bg-emerald-500' : 'bg-[#E50914]'
+                        status === '✅ Watched' ? 'bg-emerald-500' : 'bg-[red-600] preserve-theme-color progress-bar-fill'
                       }`}
-                      style={{ width: `${progressPercent}%` }}
+                      style={{
+                        width: `${progressPercent}%`,
+                        backgroundColor: status === '✅ Watched' ? '#10b981' : 'red-600',
+                      }}
                     />
                   </div>
                 </div>
@@ -1126,25 +1187,7 @@ export default function ShowDetailModal({
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label htmlFor="detail-who-input" className="text-xs font-bold text-zinc-400 uppercase tracking-widest block ml-1">Viewer (Who)</label>
-                      {who && (
-                        <span
-                          className="text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1"
-                          style={{
-                            backgroundColor: `${getViewerColor(who, viewerColors)}20`,
-                            color: getViewerColor(who, viewerColors),
-                            borderColor: `${getViewerColor(who, viewerColors)}50`,
-                          }}
-                        >
-                          <span
-                            className="w-1.5 h-1.5 rounded-full"
-                            style={{ backgroundColor: getViewerColor(who, viewerColors) }}
-                          />
-                          {who}
-                        </span>
-                      )}
-                    </div>
+                    <label htmlFor="detail-who-input" className="text-xs font-bold text-zinc-400 uppercase tracking-widest block ml-1">Viewer (Who)</label>
                     <select
                       id="detail-who-input"
                       value={who}
@@ -1220,7 +1263,7 @@ export default function ShowDetailModal({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                  <ImageIcon className="w-3.5 h-3.5 text-[#E50914]" />
+                  <ImageIcon className="w-3.5 h-3.5 text-[red-600]" />
                   Title Artwork (Poster / Cover)
                 </label>
                 <div className="flex items-center gap-2">
@@ -1470,7 +1513,7 @@ export default function ShowDetailModal({
               <button
                 id="save-detail-btn"
                 onClick={handleSave}
-                className="flex items-center gap-1.5 bg-[#E50914] hover:bg-[#B80710] text-white text-xs sm:text-sm font-semibold px-5 py-2 rounded-md transition-colors shadow-lg shadow-red-900/30"
+                className="flex items-center gap-1.5 bg-[red-600] hover:bg-[red-700] text-white text-xs sm:text-sm font-semibold px-5 py-2 rounded-md transition-colors shadow-lg shadow-red-900/30"
               >
                 <Save className="w-4 h-4" />
                 <span>Save Changes {sheetConnected ? 'to Sheets' : ''}</span>

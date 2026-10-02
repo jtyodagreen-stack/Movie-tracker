@@ -36,6 +36,7 @@ import {
 import { ShowItem } from '../types';
 import { getOptimizedPoster } from '../utils/imageOptimizer';
 import { calculateShowProgress } from '../utils/showMetrics';
+import { getPriorityIndicator } from '../utils/priorityUtils';
 
 interface DashboardStatsProps {
   shows: ShowItem[];
@@ -312,9 +313,9 @@ export default function DashboardStats({
   }, [filteredShows]);
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white">
+    <div className="bg-[#141414] text-white">
       {/* Top Sticky Navigation Bar */}
-      <div className="sticky top-16 z-30 bg-[#181818]/95 backdrop-blur-md border-b border-zinc-800 shadow-xl">
+      <div className="sticky top-0 z-30 bg-[#181818]/95 backdrop-blur-md border-b border-zinc-800 shadow-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-500 shrink-0">
@@ -364,18 +365,18 @@ export default function DashboardStats({
       </div>
 
       {/* Main Dashboard Body */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-6 space-y-6">
         {/* KPI Banner Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {/* Total Titles (Red theme) */}
-          <div className="bg-[#181818] border border-red-900/50 hover:border-red-600/70 rounded-xl p-4 shadow-md shadow-red-950/20 transition-all">
+          <div className="bg-[#181818] border border-red-900/50 hover:border-red-600/70 rounded-xl p-4 shadow-md shadow-red-950/20 transition-all preserve-theme-color">
             <div className="flex items-center justify-between text-red-400 mb-2">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-red-400">
+              <span style={{ color: '#f87171' }} className="text-[10px] uppercase font-bold tracking-wider">
                 {filterType === 'Series' ? 'Total Series' : filterType === 'Movie' ? 'Total Movies' : 'Total Library'}
               </span>
-              <Layers className="w-4 h-4 text-red-500" />
+              <Layers style={{ color: '#ef4444' }} className="w-4 h-4" />
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-red-500">{stats.total}</div>
+            <div style={{ color: '#ef4444' }} className="text-2xl sm:text-3xl font-black">{stats.total}</div>
             <div className="text-[11px] text-zinc-400 mt-1 flex items-center gap-1">
               {filterType === 'Series' ? (
                 <span>{stats.seriesCount} Series</span>
@@ -426,12 +427,12 @@ export default function DashboardStats({
           </div>
 
           {/* Wishlist */}
-          <div className="bg-[#181818] border border-red-900/40 hover:border-red-600/50 rounded-xl p-4 shadow-md transition-all">
+          <div className="bg-[#181818] border border-red-900/40 hover:border-red-600/50 rounded-xl p-4 shadow-md transition-all preserve-theme-color">
             <div className="flex items-center justify-between text-red-400 mb-2">
-              <span className="text-[10px] uppercase font-bold tracking-wider">Wishlist</span>
-              <Bookmark className="w-4 h-4 text-red-500" />
+              <span style={{ color: '#f87171' }} className="text-[10px] uppercase font-bold tracking-wider">Wishlist</span>
+              <Bookmark style={{ color: '#ef4444' }} className="w-4 h-4" />
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-red-500">{stats.wishlist}</div>
+            <div style={{ color: '#ef4444' }} className="text-2xl sm:text-3xl font-black">{stats.wishlist}</div>
             <div className="text-[11px] text-zinc-400 mt-1">
               Queued to watch next
             </div>
@@ -519,7 +520,7 @@ export default function DashboardStats({
                 <span className="text-sm font-extrabold text-white">{stats.watching}</span>
               </div>
               <div className="bg-zinc-900/60 rounded-lg p-2 border border-zinc-800">
-                <span className="text-[10px] text-red-400 block font-bold">Wishlist</span>
+                <span style={{ color: '#f87171' }} className="text-[10px] block font-bold">Wishlist</span>
                 <span className="text-sm font-extrabold text-white">{stats.wishlist}</span>
               </div>
             </div>
@@ -790,11 +791,29 @@ export default function DashboardStats({
                           <h4 className="text-sm font-bold text-white group-hover:text-amber-400 transition-colors truncate">
                             {show.title}
                           </h4>
-                          <div className="flex items-center gap-2 text-[11px] text-zinc-400 mt-0.5">
-                            <span className="px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
-                              {show.platform}
-                            </span>
-                            <span>{show.type === 'Movie' ? 'Movie' : `${show.seasons} • Ep ${cur}/${max}`}</span>
+                          <div className="flex flex-row items-center gap-1 text-[11px] text-zinc-400 mt-0.5 whitespace-nowrap">
+                            {show.platform && (
+                              <span className="px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 shrink-0">
+                                {show.platform}
+                              </span>
+                            )}
+                            <div className="flex flex-row items-center gap-1 shrink-0">
+                              {show.isWishlist && (
+                                <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-500/95 text-black border border-amber-400 shadow-sm shrink-0">
+                                  🎁 Wishlist
+                                </span>
+                              )}
+                              {(() => {
+                                const p = getPriorityIndicator(show.priority, show.isWishlist);
+                                if (!p) return null;
+                                return (
+                                  <span className={`text-[9px] px-1.5 py-0.2 rounded border shrink-0 ${p.className}`} title={p.tooltip}>
+                                    {p.label}
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                            <span className="truncate">{show.type === 'Movie' ? 'Movie' : `${show.seasons} • Ep ${cur}/${max}`}</span>
                           </div>
                           <div className="w-36 bg-zinc-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
                             <div
@@ -869,6 +888,20 @@ export default function DashboardStats({
                             {show.title}
                           </h4>
                           <div className="flex items-center gap-2 text-[11px] text-zinc-400 mt-1 flex-wrap">
+                            {show.isWishlist && (
+                              <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-500/95 text-black border border-amber-400 shadow-sm shrink-0">
+                                🎁 Wishlist
+                              </span>
+                            )}
+                            {(() => {
+                              const p = getPriorityIndicator(show.priority, show.isWishlist);
+                              if (!p) return null;
+                              return (
+                                <span className={`text-[9px] px-1.5 py-0.2 rounded border shrink-0 ${p.className}`} title={p.tooltip}>
+                                  {p.label}
+                                </span>
+                              );
+                            })()}
                              <div className="flex items-center gap-0.5 bg-zinc-950/70 px-1.5 py-0.5 rounded border border-zinc-800">
                               {[1, 2, 3, 4, 5].map((i) => (
                                 <Star

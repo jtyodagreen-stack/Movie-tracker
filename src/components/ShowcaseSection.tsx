@@ -5,6 +5,7 @@ import { useNotificationContext } from '../context/NotificationContext';
 import { getOptimizedPoster } from '../utils/imageOptimizer';
 import { calculateShowProgress } from '../utils/showMetrics';
 import { isShowOutNow, parseReleaseDateToTimestamp } from '../services/notificationService';
+import { getPriorityIndicator } from '../utils/priorityUtils';
 
 interface ShowcaseSectionProps {
   shows: ShowItem[];
@@ -51,18 +52,32 @@ export default function ShowcaseSection({
     return shows
       .filter((s) => Boolean(s.releaseDate || s.releaseNote || s.nextAirDate || s.nextAirTimestamp))
       .sort((a, b) => {
+        const outNowA = isShowOutNow(a);
+        const outNowB = isShowOutNow(b);
+
+        // 1. "Out Now" titles first
+        if (outNowA && !outNowB) return -1;
+        if (!outNowA && outNowB) return 1;
+
+        // 2. For other titles, check future vs past
         const now = Date.now();
         const tsA = (a.releaseDate ? parseReleaseDateToTimestamp(a.releaseDate) : a.nextAirTimestamp) || 0;
         const tsB = (b.releaseDate ? parseReleaseDateToTimestamp(b.releaseDate) : b.nextAirTimestamp) || 0;
 
-        // Future upcoming dates first
         const aIsFuture = tsA > now;
         const bIsFuture = tsB > now;
 
         if (aIsFuture && !bIsFuture) return -1;
         if (!aIsFuture && bIsFuture) return 1;
 
-        if (tsA && tsB) return tsA - tsB;
+        // 3. Sort by closest date (earliest first for future, or latest first for past)
+        if (tsA && tsB) {
+          if (aIsFuture) {
+            return tsA - tsB; // Earliest future date first
+          } else {
+            return tsB - tsA; // Latest past date first
+          }
+        }
         if (tsA) return -1;
         if (tsB) return 1;
         return (a.releaseNote || a.title).localeCompare(b.releaseNote || b.title);
@@ -129,13 +144,29 @@ export default function ShowcaseSection({
                           <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-amber-400 transition-colors truncate">
                             {show.title}
                           </h4>
-                          <div className="flex items-center gap-1.5 text-[10px] text-zinc-400 mt-0.5">
+                          <div className="flex flex-row items-center gap-1 text-[10px] text-zinc-400 mt-0.5 truncate whitespace-nowrap">
                             {show.platform && (
-                              <span className="px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+                              <span className="px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 shrink-0">
                                 {show.platform}
                               </span>
                             )}
-                            <span>{show.type === 'Movie' ? 'Movie' : `${show.seasons} • Ep ${cur}/${max}`}</span>
+                            <div className="flex flex-row items-center gap-1 shrink-0">
+                              {show.isWishlist && (
+                                <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-500/95 text-black border border-amber-400 shadow-sm shrink-0">
+                                  🎁 Wishlist
+                                </span>
+                              )}
+                              {(() => {
+                                const p = getPriorityIndicator(show.priority, show.isWishlist);
+                                if (!p) return null;
+                                return (
+                                  <span className={`text-[9px] px-1.5 py-0.2 rounded border shrink-0 ${p.className}`} title={p.tooltip}>
+                                    {p.label}
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                            <span className="truncate">{show.type === 'Movie' ? 'Movie' : `${show.seasons} • Ep ${cur}/${max}`}</span>
                           </div>
                           <div className="w-32 bg-zinc-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
                             <div
@@ -222,7 +253,23 @@ export default function ShowcaseSection({
                           <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-yellow-400 transition-colors truncate">
                             {show.title}
                           </h4>
-                          <div className="flex items-center gap-1.5 text-[10px] text-zinc-400 mt-1 flex-wrap">
+                          <div className="flex flex-row items-center gap-1 text-[10px] text-zinc-400 mt-1 whitespace-nowrap">
+                            <div className="flex flex-row items-center gap-1">
+                              {show.isWishlist && (
+                                <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-500/95 text-black border border-amber-400 shadow-sm shrink-0">
+                                  🎁 Wishlist
+                                </span>
+                              )}
+                              {(() => {
+                                const p = getPriorityIndicator(show.priority, show.isWishlist);
+                                if (!p) return null;
+                                return (
+                                  <span className={`text-[9px] px-1.5 py-0.2 rounded border shrink-0 ${p.className}`} title={p.tooltip}>
+                                    {p.label}
+                                  </span>
+                                );
+                              })()}
+                            </div>
                             <div className="flex items-center gap-0.5 bg-zinc-950/70 px-1.5 py-0.5 rounded border border-zinc-800">
                               {[1, 2, 3, 4, 5].map((i) => (
                                 <Star
@@ -238,7 +285,7 @@ export default function ShowcaseSection({
                                 {stars === 5 ? '5/5' : `${stars}/5`}
                               </span>
                             </div>
-                            {show.genre && <span className="truncate max-w-[80px]">• {show.genre}</span>}
+                            {show.genre && <span className="truncate max-w-[120px] sm:max-w-none">• {show.genre}</span>}
                           </div>
                         </div>
                       </div>
@@ -308,12 +355,28 @@ export default function ShowcaseSection({
                           <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-amber-400 transition-colors truncate">
                             {show.title}
                           </h4>
-                          <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                          <div className="flex flex-row items-center gap-1.5 text-[10px] whitespace-nowrap">
                             {show.platform && (
                               <span className="px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
                                 {show.platform}
                               </span>
                             )}
+                            <div className="flex flex-row items-center gap-1">
+                              {show.isWishlist && (
+                                <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-500/95 text-black border border-amber-400 shadow-sm shrink-0">
+                                  🎁 Wishlist
+                                </span>
+                              )}
+                              {(() => {
+                                const p = getPriorityIndicator(show.priority, show.isWishlist);
+                                if (!p) return null;
+                                return (
+                                  <span className={`text-[9px] px-1.5 py-0.2 rounded border shrink-0 ${p.className}`} title={p.tooltip}>
+                                    {p.label}
+                                  </span>
+                                );
+                              })()}
+                            </div>
                             {outNow ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-300 bg-emerald-950/90 border border-emerald-600/80 px-2 py-0.5 rounded shadow animate-pulse">
                                 🎉 OUT NOW!

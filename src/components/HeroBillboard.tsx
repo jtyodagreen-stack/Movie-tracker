@@ -5,6 +5,7 @@ import 'react-loading-skeleton/dist/skeleton.css';
 import { ShowItem } from '../types';
 import { getOptimizedBackdrop, getOptimizedPoster } from '../utils/imageOptimizer';
 import { calculateShowProgress } from '../utils/showMetrics';
+import { getPriorityIndicator } from '../utils/priorityUtils';
 
 interface HeroBillboardProps {
   show: ShowItem | null;
@@ -177,7 +178,7 @@ export default function HeroBillboard({
           <div className="relative max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 w-full h-full flex flex-col md:flex-row items-start md:items-center justify-end md:justify-between pb-6 sm:pb-12 lg:pb-16 z-10 pt-20 sm:pt-28 gap-4 sm:gap-8">
             <div className="max-w-2xl space-y-3 sm:space-y-4">
               <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-                <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-bold uppercase tracking-wider bg-red-600 text-white shadow-md">
+                <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-bold uppercase tracking-wider bg-red-600 text-white shadow-md preserve-theme-color">
                   Featured {show.type}
                 </div>
                 {show.isWishlist && (
@@ -185,6 +186,15 @@ export default function HeroBillboard({
                     🎁 Wishlist
                   </span>
                 )}
+                {(() => {
+                  const p = getPriorityIndicator(show.priority, show.isWishlist);
+                  if (!p) return null;
+                  return (
+                    <span className={`text-[10px] sm:text-[11px] px-2 py-0.5 rounded border shadow-lg flex items-center gap-1 ${p.className}`} title={p.tooltip}>
+                      {p.label}
+                    </span>
+                  );
+                })()}
                 <span className="px-2 py-0.5 rounded text-[11px] sm:text-xs font-semibold bg-zinc-800/90 text-zinc-200 border border-zinc-700 backdrop-blur-sm">
                   {show.platform}
                 </span>
@@ -243,8 +253,13 @@ export default function HeroBillboard({
               {progressPercent > 0 && (
                 <div className="w-full max-w-md bg-zinc-800/90 rounded-full h-1.5 overflow-hidden border border-zinc-700/50">
                   <div
-                    style={{ width: `${progressPercent}%` }}
-                    className={`h-full ${isWatched ? 'bg-emerald-500' : 'bg-[#E50914]'}`}
+                    data-progress-bar="true"
+                    data-preserve-theme="true"
+                    style={{
+                      width: `${progressPercent}%`,
+                      backgroundColor: isWatched ? '#10b981' : '#E50914',
+                    }}
+                    className="h-full preserve-theme-color progress-bar-fill transition-all"
                   />
                 </div>
               )}

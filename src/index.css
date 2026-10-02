@@ -55,8 +55,8 @@ html {
 }
 
 @keyframes subtle-bounce-pulse {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-4px) scale(1.1); }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
 }
 
 .animate-bounce-subtle {
@@ -74,25 +74,21 @@ html {
 /* Smooth Hover Animation Utilities */
 @layer utilities {
   .hover-lift-card {
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: transform 0.2s ease-out;
   }
   .hover-lift-card:hover {
-    transform: translateY(-6px) scale(1.02);
+    transform: translateY(-2px);
   }
 
   .hover-glow-btn {
-    transition: all 0.25s ease-in-out;
-  }
-  .hover-glow-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.5);
+    transition: background-color 0.15s ease-out;
   }
 
   .hover-scale-icon {
-    transition: transform 0.2s ease;
+    transition: opacity 0.15s ease-out;
   }
   .hover-scale-icon:hover {
-    transform: scale(1.12);
+    opacity: 0.8;
   }
 }
 
@@ -136,25 +132,21 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 /* Custom keyframes for premium flashing "OUT NOW" countdown states */
 @keyframes outNowFlash {
   0%, 100% {
-    background-color: rgba(16, 185, 129, 0.15);
-    border-color: rgba(16, 185, 129, 0.4);
-    box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+    background-color: rgba(16, 185, 129, 0.2);
+    border-color: rgba(16, 185, 129, 0.5);
   }
   50% {
-    background-color: rgba(16, 185, 129, 0.35);
-    border-color: rgba(52, 211, 153, 0.9);
-    box-shadow: 0 0 25px rgba(52, 211, 153, 0.6);
+    background-color: rgba(16, 185, 129, 0.25);
+    border-color: rgba(16, 185, 129, 0.7);
   }
 }
 
 @keyframes bannerOutNowFlash {
   0%, 100% {
-    border-color: rgba(16, 185, 129, 0.3);
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 12px rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.4);
   }
   50% {
-    border-color: rgba(52, 211, 153, 0.7);
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 24px rgba(52, 211, 153, 0.35);
+    border-color: rgba(16, 185, 129, 0.6);
   }
 }
 
@@ -334,11 +326,194 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 /* Ken Burns panning/zooming effect for authentic cinematic feel */
 @keyframes kenburns-pan-zoom {
-  0% {
+  0%, 100% {
     transform: scale(1) translate(0, 0);
   }
-  100% {
-    transform: scale(1.18) translate(-1.5%, -1%);
-  }
+}
+
+/* Global Dynamic Theme Accent Variables & Overrides */
+:root {
+  --theme-accent: #E50914;
+  --theme-accent-hover: #B91C1C;
+  --theme-accent-rgb: 229, 9, 20;
+  --app-accent: #E50914;
+  --app-accent-hover: #B91C1C;
+  --app-accent-rgb: 229, 9, 20;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):not(.progress-bar-fill):not([data-progress-bar]):is(
+  .bg-red-600,
+  .bg-red-500,
+  .bg-red-700,
+  .bg-\[\#E50914\],
+  .bg-\[\#e50914\],
+  .accent-theme-bg
+) {
+  background-color: var(--theme-accent) !important;
+}
+
+/* Original Progress Bars - Always preserve authentic Netflix red */
+.progress-bar-fill,
+[data-progress-bar="true"] {
+  background-color: #E50914 !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .hover\:bg-red-500:hover,
+  .hover\:bg-red-600:hover,
+  .hover\:bg-red-700:hover,
+  .hover\:bg-\[\#B80710\]:hover,
+  .hover\:bg-\[\#b80710\]:hover
+) {
+  background-color: var(--theme-accent-hover) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .text-red-500,
+  .text-red-600,
+  .text-red-400,
+  .text-\[\#E50914\],
+  .text-\[\#e50914\],
+  .accent-theme-text
+) {
+  color: var(--theme-accent) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .hover\:text-red-500:hover,
+  .hover\:text-red-400:hover,
+  .hover\:text-red-300:hover,
+  .hover\:text-\[\#E50914\]:hover,
+  .hover\:text-\[\#e50914\]:hover
+) {
+  color: var(--theme-accent) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .border-red-500,
+  .border-red-600,
+  .border-red-400,
+  .border-red-500\/80,
+  .border-red-600\/80,
+  .border-red-500\/50,
+  .border-red-600\/50,
+  .border-\[\#E50914\],
+  .border-\[\#e50914\],
+  .accent-theme-border
+) {
+  border-color: var(--theme-accent) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .focus-within\:border-red-500,
+  .focus-within\:border-red-600,
+  .focus-within\:border-red-500\/80,
+  .focus-within\:border-red-600\/80
+):focus-within {
+  border-color: var(--theme-accent) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .hover\:border-red-500:hover,
+  .hover\:border-red-600:hover,
+  .hover\:border-red-500\/80:hover,
+  .hover\:border-red-600\/80:hover,
+  .hover\:border-\[\#E50914\]:hover
+) {
+  border-color: var(--theme-accent) !important;
+}
+
+.group:hover :not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .group-hover\:border-red-500,
+  .group-hover\:border-red-600
+) {
+  border-color: var(--theme-accent) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .focus\:border-red-500:focus,
+  .focus\:border-red-600:focus,
+  .focus\:border-\[\#E50914\]:focus
+) {
+  border-color: var(--theme-accent) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .ring-red-500,
+  .ring-red-400,
+  .ring-red-600,
+  .ring-red-500\/50,
+  .ring-red-600\/50,
+  .ring-red-500\/70,
+  .ring-red-600\/70,
+  .focus\:ring-red-500:focus,
+  .focus\:ring-red-600:focus,
+  .focus-within\:ring-red-500:focus-within,
+  .focus-within\:ring-red-600:focus-within,
+  .focus-within\:ring-red-500\/50:focus-within,
+  .focus-within\:ring-red-600\/50:focus-within,
+  .focus-within\:ring-red-500\/70:focus-within,
+  .focus-within\:ring-red-600\/70:focus-within
+) {
+  --tw-ring-color: rgba(var(--app-accent-rgb), 0.5) !important;
+  outline-color: var(--theme-accent) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .bg-red-950,
+  .bg-red-950\/80,
+  .bg-red-950\/60,
+  .bg-red-950\/40
+) {
+  background-color: rgba(var(--theme-accent-rgb), 0.28) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .bg-red-600\/10,
+  .bg-red-500\/10,
+  .bg-red-600\/15,
+  .bg-red-600\/20,
+  .bg-red-500\/20,
+  .bg-\[\#E50914\]\/10,
+  .bg-\[\#E50914\]\/20
+) {
+  background-color: rgba(var(--theme-accent-rgb), 0.14) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .border-red-500\/30,
+  .border-red-500\/20,
+  .border-red-500\/40,
+  .border-red-500\/50,
+  .border-red-500\/80,
+  .border-\[\#E50914\]\/30,
+  .border-\[\#E50914\]\/50
+) {
+  border-color: rgba(var(--theme-accent-rgb), 0.45) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .shadow-red-900\/20,
+  .shadow-red-900\/30,
+  .shadow-red-900\/40,
+  .shadow-red-950\/60,
+  .shadow-red-950\/30
+) {
+  box-shadow: 0 10px 22px -3px rgba(var(--theme-accent-rgb), 0.35) !important;
+}
+
+.from-red-600 {
+  --tw-gradient-from: var(--theme-accent) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(var(--theme-accent-rgb), 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-red-600 {
+  --tw-gradient-to: var(--theme-accent) var(--tw-gradient-to-position) !important;
+}
+
+::selection {
+  background-color: #E50914 !important;
+  color: #ffffff !important;
 }
 

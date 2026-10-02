@@ -527,12 +527,12 @@ export default function Navbar({
             }}
             className="flex items-center gap-2 group text-left cursor-pointer focus:outline-none shrink-0"
           >
-            <div className="w-9 h-9 rounded bg-[#E50914] flex items-center justify-center font-black text-white text-xl tracking-tighter shadow-lg shadow-red-900/30 group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded bg-red-600 flex items-center justify-center font-black text-white text-xl tracking-tighter shadow-lg shadow-red-900/30 group-hover:scale-105 transition-transform preserve-theme-color">
               N
             </div>
             <div className="flex flex-col">
               <span className="font-extrabold text-base sm:text-lg xl:text-xl tracking-wider text-white uppercase flex items-center gap-1.5">
-                SHOW<span className="text-[#E50914]">FLIX</span>
+                SHOW<span className="text-red-600 preserve-theme-color">FLIX</span>
               </span>
               <span className="text-[10px] text-zinc-400 font-medium tracking-tight -mt-1 hidden sm:inline">
                 Personal Streaming Tracker
@@ -661,7 +661,7 @@ export default function Navbar({
               <Tv className="w-3.5 h-3.5" />
               <span>Watching</span>
               {watchingCount > 0 && (
-                <span className="text-[11px] bg-red-600/40 text-red-200 font-bold px-1.5 py-0.2 rounded border border-red-500/30">
+                <span className="text-[11px] bg-red-600/40 text-red-200 font-bold px-1.5 py-0.2 rounded border border-red-500/30 preserve-theme-color">
                   {watchingCount}
                 </span>
               )}
@@ -714,7 +714,7 @@ export default function Navbar({
             >
               {showSearch ? (
                 <div className="relative">
-                  <div className="flex items-center bg-[#202020] border border-zinc-700 rounded-full px-3 py-1.5 transition-all w-52 sm:w-64 shadow-lg focus-within:border-red-500/80 focus-within:ring-1 focus-within:ring-red-500/50">
+                  <div className="flex items-center bg-[#202020] border border-zinc-700 hover:border-red-500 focus-within:border-red-500 rounded-full px-3 py-1.5 transition-all w-52 sm:w-64 shadow-lg focus-within:ring-1 focus-within:ring-red-500/50">
                     <Search className="w-3.5 h-3.5 text-red-500 mr-1.5 shrink-0" />
                     <input
                       ref={searchInputRef}
@@ -1026,7 +1026,7 @@ export default function Navbar({
               <button
                 id="nav-add-title-btn"
                 onClick={onOpenAdd}
-                className="flex items-center gap-1 bg-[#E50914] hover:bg-[#B80710] text-white text-xs font-semibold px-3 py-1.5 rounded-md transition-colors shadow-md shadow-red-900/40 whitespace-nowrap cursor-pointer shrink-0"
+                className="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md transition-colors shadow-md shadow-red-900/40 border border-red-500/20 whitespace-nowrap cursor-pointer shrink-0 preserve-theme-color"
               >
                 <Plus className="w-4 h-4 shrink-0" />
                 <span>Add Show</span>
@@ -1090,7 +1090,7 @@ export default function Navbar({
                         }
                         className={`px-2 py-1.5 rounded text-xs font-medium border text-center transition-colors cursor-pointer ${
                           accessibilitySettings.contrastMode === 'default'
-                            ? 'bg-[#E50914] text-white border-red-500 font-bold'
+                            ? 'bg-[red-600] text-white border-red-500 font-bold'
                             : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700'
                         }`}
                       >
@@ -1235,12 +1235,12 @@ export default function Navbar({
                   title="Account & Sync Settings"
                   aria-label="Account Profile and Settings"
                 >
-                <div className="relative">
+                <div className="relative border-2 border-white/20 group-hover:border-red-500 rounded-full p-[1px] transition-all">
                   <img
                     id="user-profile-btn-avatar"
                     src={profilePictureUrl}
                     alt={profileDisplayName || 'User Profile Picture'}
-                    className="w-8 h-8 rounded-full sm:w-9 sm:h-9 object-cover ring-2 ring-white/20 group-hover:ring-red-500 transition-all shadow-sm"
+                    className="w-8 h-8 rounded-full sm:w-9 sm:h-9 object-cover transition-all shadow-sm"
                     referrerPolicy="no-referrer"
                     onError={(e) => {
                       if (e.currentTarget.src !== GOOGLE_AVATAR_DATA_URI) {
@@ -1306,7 +1306,8 @@ export default function Navbar({
                               id="account-dropdown-profile-pic"
                               src={profilePictureUrl}
                               alt={profileDisplayName || 'Account Profile Picture'}
-                              className="w-10 h-10 rounded-full object-cover ring-2 ring-red-500/70 shadow-md"
+                              className="w-10 h-10 rounded-full object-cover ring-2 shadow-md"
+                              style={{ ['--tw-ring-color' as any]: 'var(--theme-accent)' }}
                               referrerPolicy="no-referrer"
                               onError={(e) => {
                                 if (e.currentTarget.src !== GOOGLE_AVATAR_DATA_URI) {
@@ -1356,7 +1357,7 @@ export default function Navbar({
                       className="w-full text-left px-3.5 py-2.5 text-zinc-300 hover:text-white hover:bg-zinc-800/80 flex items-center justify-between cursor-pointer font-medium"
                     >
                       <div className="flex items-center gap-2">
-                        <BarChart3 className="w-4 h-4 text-red-500" />
+                        <BarChart3 className="w-4 h-4 text-red-500 preserve-theme-color" />
                         <span>Stats & Analytics</span>
                       </div>
                       <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
@@ -1373,7 +1374,7 @@ export default function Navbar({
                       className="w-full text-left px-3.5 py-2.5 text-zinc-200 hover:text-white hover:bg-zinc-800/80 flex items-center justify-between cursor-pointer font-medium"
                     >
                       <div className="flex items-center gap-2">
-                        <Settings className="w-4 h-4 text-amber-400" />
+                        <Settings className="w-4 h-4 text-red-500 preserve-theme-color" />
                         <span>Settings</span>
                       </div>
                       <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
@@ -1389,28 +1390,10 @@ export default function Navbar({
                       className="w-full text-left px-3.5 py-2.5 text-zinc-200 hover:text-white hover:bg-zinc-800/80 flex items-center justify-between cursor-pointer font-medium"
                     >
                       <div className="flex items-center gap-2">
-                        <Users className="w-4 h-4 text-red-500" />
+                        <Users className="w-4 h-4 text-red-500 preserve-theme-color" />
                         <span>Switch Profile</span>
                       </div>
                       <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
-                    </button>
-
-                    <button
-                      id="account-dropdown-feedback-btn"
-                      type="button"
-                      onClick={() => {
-                        setShowUserMenu(false);
-                        setShowFeedbackModal(true);
-                      }}
-                      className="w-full text-left px-3.5 py-2.5 text-zinc-200 hover:text-white hover:bg-zinc-800/80 flex items-center justify-between cursor-pointer font-medium"
-                    >
-                      <div className="flex items-center gap-2">
-                        <MessageSquare className="w-4 h-4 text-blue-400" />
-                        <span>Report Issue / Feedback</span>
-                      </div>
-                      <span className="text-[9px] font-bold text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700">
-                        {APP_VERSION}
-                      </span>
                     </button>
 
                     <button
@@ -1419,7 +1402,7 @@ export default function Navbar({
                         setShowUserMenu(false);
                         onSignOut();
                       }}
-                      className="w-full text-left px-3.5 py-2.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 flex items-center gap-2 cursor-pointer transition-colors"
+                      className="w-full text-left px-3.5 py-2.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 flex items-center gap-2 cursor-pointer transition-colors preserve-theme-color"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>Sign Out</span>
@@ -1504,7 +1487,7 @@ export default function Navbar({
                         }
                         className={`px-2 py-1.5 rounded text-xs font-medium border text-center transition-colors cursor-pointer ${
                           accessibilitySettings.contrastMode === 'default'
-                            ? 'bg-[#E50914] text-white border-red-500 font-bold'
+                            ? 'bg-[red-600] text-white border-red-500 font-bold'
                             : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700'
                         }`}
                       >
@@ -1612,7 +1595,7 @@ export default function Navbar({
               <button
                 id="mobile-quick-add-btn"
                 onClick={onOpenAdd}
-                className="flex items-center gap-1 bg-[#E50914] hover:bg-[#B80710] text-white text-xs font-semibold px-2.5 py-1.5 rounded-md transition-colors shadow-md shadow-red-900/30 cursor-pointer"
+                className="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-md transition-colors shadow-md shadow-red-900/30 cursor-pointer preserve-theme-color"
                 title="Add Show"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -1832,7 +1815,7 @@ export default function Navbar({
                 }}
                 className={`w-full text-left px-3 py-2 rounded-md text-xs font-medium flex items-center justify-between transition-colors cursor-pointer ${
                   activeFilter === 'all' && selectedPlatform === 'all'
-                    ? 'bg-[#E50914] text-white font-bold'
+                    ? 'bg-red-600 text-white font-bold'
                     : 'bg-zinc-900 text-zinc-300 hover:text-white hover:bg-zinc-800'
                 }`}
               >
@@ -1845,7 +1828,7 @@ export default function Navbar({
                 onClick={() => handleMobileNavClick('Series')}
                 className={`w-full text-left px-3 py-2 rounded-md text-xs font-medium flex items-center justify-between transition-colors ${
                   activeFilter === 'Series'
-                    ? 'bg-[#E50914] text-white font-bold'
+                    ? 'bg-red-600 text-white font-bold'
                     : 'bg-zinc-900 text-zinc-300 hover:text-white hover:bg-zinc-800'
                 }`}
               >
@@ -1861,7 +1844,7 @@ export default function Navbar({
                 onClick={() => handleMobileNavClick('Movie')}
                 className={`w-full text-left px-3 py-2 rounded-md text-xs font-medium flex items-center justify-between transition-colors ${
                   activeFilter === 'Movie'
-                    ? 'bg-[#E50914] text-white font-bold'
+                    ? 'bg-red-600 text-white font-bold'
                     : 'bg-zinc-900 text-zinc-300 hover:text-white hover:bg-zinc-800'
                 }`}
               >
@@ -1918,7 +1901,7 @@ export default function Navbar({
                 <span>🎁 Wishlist</span>
                 {wishlistCount > 0 && (
                   <span className="text-[10px] bg-amber-950 text-amber-300 font-bold px-1.5 py-0.5 rounded border border-amber-700/50">
-                    {wishlistCount} titles
+                    {wishlistCount}
                   </span>
                 )}
               </button>
@@ -1964,7 +1947,7 @@ export default function Navbar({
                 }}
                 className={`text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
                   selectedPlatform === 'all' && activeFilter === 'All Titles'
-                    ? 'bg-[#E50914] text-white font-bold'
+                    ? 'bg-red-600 text-white font-bold'
                     : 'bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800'
                 }`}
               >
@@ -2012,7 +1995,8 @@ export default function Navbar({
                       id="mobile-drawer-profile-pic"
                       src={profilePictureUrl}
                       alt={profileDisplayName || 'Mobile Profile Picture'}
-                      className="w-10 h-10 rounded-full object-cover ring-2 ring-red-500/70 shadow-sm"
+                      className="w-10 h-10 rounded-full object-cover ring-2 shadow-sm"
+                      style={{ ['--tw-ring-color' as any]: 'var(--theme-accent)' }}
                       referrerPolicy="no-referrer"
                       onError={(e) => {
                         if (e.currentTarget.src !== GOOGLE_AVATAR_DATA_URI) {
@@ -2063,7 +2047,7 @@ export default function Navbar({
                 }}
                 className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-zinc-300 hover:text-white bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 py-2.5 rounded-lg transition-colors cursor-pointer"
               >
-                <Settings className="w-4 h-4 shrink-0" />
+                <Settings className="w-4 h-4 shrink-0 text-red-500" />
                 <span>Settings</span>
               </button>
 
@@ -2073,22 +2057,10 @@ export default function Navbar({
                   setIsMobileMenuOpen(false);
                   setShowNetflixProfileSwitcher(true);
                 }}
-                className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-white bg-red-600/25 hover:bg-red-600/40 border border-red-500/50 py-2.5 rounded-lg transition-colors cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-zinc-300 hover:text-white bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 py-2.5 rounded-lg transition-colors cursor-pointer"
               >
                 <Users className="w-4 h-4 shrink-0 text-red-500" />
                 <span>Switch Profile</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
-                  setShowFeedbackModal(true);
-                }}
-                className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-zinc-300 hover:text-white bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 py-2.5 rounded-lg transition-colors cursor-pointer"
-              >
-                <MessageSquare className="w-4 h-4 shrink-0 text-blue-400" />
-                <span>Report Issue / Feedback</span>
               </button>
 
               <button
@@ -2097,9 +2069,9 @@ export default function Navbar({
                   setIsMobileMenuOpen(false);
                   onSignOut();
                 }}
-                className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-red-400 hover:text-red-300 bg-red-950/40 hover:bg-red-900/40 border border-red-800/40 py-2.5 rounded-lg transition-colors cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-red-400 hover:text-red-300 bg-red-950/40 hover:bg-red-900/40 border border-red-800/40 py-2.5 rounded-lg transition-colors cursor-pointer preserve-theme-color"
               >
-                <LogOut className="w-4 h-4 shrink-0" />
+                <LogOut className="w-4 h-4 shrink-0 preserve-theme-color" />
                 <span>Sign Out</span>
               </button>
 

@@ -62,7 +62,7 @@ export default function ImageUploader({
       <div className="flex items-center justify-between">
         <div>
           <label className="text-xs font-semibold text-zinc-200 flex items-center gap-1.5">
-            <LinkIcon className="w-3.5 h-3.5 text-[#E50914]" />
+            <LinkIcon className="w-3.5 h-3.5 text-[red-600]" />
             <span>{label}</span>
           </label>
           {description && <p className="text-[11px] text-zinc-400 mt-0.5">{description}</p>}
@@ -87,14 +87,14 @@ export default function ImageUploader({
                 }
               }}
               placeholder="https://m.media-amazon.com/images/... or poster image URL"
-              className="w-full bg-zinc-950 border border-zinc-700 rounded-md px-3 py-2 text-base text-white placeholder:text-zinc-500 focus:outline-none focus:border-[#E50914] transition-colors"
+              className="w-full bg-zinc-950 border border-zinc-700 rounded-md px-3 py-2 text-base text-white placeholder:text-zinc-500 focus:outline-none focus:border-[red-600] transition-colors"
             />
           </div>
 
           <button
             type="button"
             onClick={handleApplyUrl}
-            className="bg-[#E50914] hover:bg-[#B80710] text-white text-xs px-3.5 py-2 rounded-md font-semibold transition-colors shrink-0 shadow-sm"
+            className="bg-[red-600] hover:bg-[red-700] text-white text-xs px-3.5 py-2 rounded-md font-semibold transition-colors shrink-0 shadow-sm"
           >
             Apply URL
           </button>

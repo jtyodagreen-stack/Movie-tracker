@@ -11,6 +11,7 @@ import { isShowOutNow, isFutureRelease, parseReleaseDateToTimestamp } from '../s
 import { useNotificationContext } from '../context/NotificationContext';
 import { fetchLiveTvMazeInfo } from '../services/tvMazeService';
 import { getViewerColor } from '../utils/profileColors';
+import { getPriorityIndicator } from '../utils/priorityUtils';
 
 interface NetflixHoverPortalProps {
   show: ShowItem;
@@ -46,7 +47,7 @@ export default function NetflixHoverPortal({
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [isResolvingImdb, setIsResolvingImdb] = useState(false);
   const { isNotificationEnabled, toggleNotification } = useNotificationContext();
-  const isNotifActive = isNotificationEnabled(show.id);
+  const isNotifActive = isNotificationEnabled(show);
 
   const [liveAirstamp, setLiveAirstamp] = useState<string | null>(null);
   const [liveEpisodeNote, setLiveEpisodeNote] = useState<string | null>(null);
@@ -264,6 +265,12 @@ export default function NetflixHoverPortal({
   const isWatching = show.status === '⏳ Watching';
   const isMovie = show.type === 'Movie';
 
+  // Visually display all Priority indicator types (🔴 High, 🟡 Medium, 🟢 Low, or custom)
+  const priorityIndicator = useMemo(
+    () => getPriorityIndicator(show.priority, show.isWishlist),
+    [show.priority, show.isWishlist]
+  );
+
   // Calculate high match score dynamically based on title characters & ratings for realism
   const matchScore = useMemo(() => {
     const code = show.title.charCodeAt(0) || 75;
@@ -376,16 +383,26 @@ export default function NetflixHoverPortal({
           {/* Floating Action Brand Overlay */}
           <div className="absolute top-2 left-2 right-2 flex items-start justify-between z-20 pointer-events-auto">
             <div className="flex flex-col gap-1 items-start">
-              <div className="flex items-center gap-1 flex-wrap">
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/75 text-zinc-200 backdrop-blur-sm border border-zinc-700/50 shadow-md">
-                  {show.platform}
-                </span>
-                {show.isWishlist && (
-                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500 text-black border border-amber-400 shadow-md shrink-0">
-                    🎁 Wishlist
-                  </span>
-                )}
-              </div>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/75 text-zinc-200 backdrop-blur-sm border border-zinc-700/50 shadow-md">
+                {show.platform}
+              </span>
+              {(show.isWishlist || priorityIndicator) && (
+                <div className="flex items-center gap-1 flex-wrap">
+                  {show.isWishlist && (
+                    <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500/95 text-black border border-amber-400 shadow-md shrink-0">
+                      🎁 Wishlist
+                    </span>
+                  )}
+                  {priorityIndicator && (
+                    <span
+                      className={`text-[9px] px-1.5 py-0.5 rounded border shadow-md shrink-0 flex items-center gap-0.5 ${priorityIndicator.className}`}
+                      title={`Priority: ${priorityIndicator.tooltip}`}
+                    >
+                      {priorityIndicator.label}
+                    </span>
+                  )}
+                </div>
+              )}
               {(show.releaseDate || liveAirstamp) && (
                 isShowOutNow(show) ? (
                   <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500 text-black border border-emerald-400 shadow-md shrink-0 flex items-center gap-1 animate-pulse">
@@ -439,7 +456,9 @@ export default function NetflixHoverPortal({
         {isWatching && (
           <div className="w-full h-1.5 bg-zinc-800">
             <div
-              className="h-full bg-[#E50914] transition-all duration-300"
+              data-progress-bar="true"
+              data-preserve-theme="true"
+              className="h-full bg-[#E50914] preserve-theme-color progress-bar-fill transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>

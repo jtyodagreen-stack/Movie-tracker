@@ -3,7 +3,7 @@ import { Sparkles, Clock, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide
 import { ShowItem } from '../types';
 import { getOptimizedPoster, getOptimizedBackdrop } from '../utils/imageOptimizer';
 import { parseAnyDate, formatToDDMMYYYY } from '../utils/dateUtils';
-import { checkAndTrigger24hNotifications } from '../services/notificationService';
+import { checkAndTrigger24hNotifications, getEffectiveReleaseInfo, isShowOutNow } from '../services/notificationService';
 
 interface MainPageReleaseRadarBannerProps {
   shows: ShowItem[];
@@ -41,10 +41,14 @@ export default function MainPageReleaseRadarBanner({
 
     const parsed = shows
       .filter((s) => Boolean(s.releaseDate || s.releaseNote || s.nextAirDate))
-      .map((s) => ({
-        ...s,
-        parsedDate: parseShowDate(s.releaseDate || s.nextAirDate),
-      }));
+      .map((s) => {
+        const eff = getEffectiveReleaseInfo(s);
+        return {
+          ...s,
+          parsedDate: eff && eff.timestamp !== null ? new Date(eff.timestamp) : parseShowDate(s.releaseDate || s.nextAirDate),
+          effectiveFormattedDate: eff?.formattedDateStr,
+        };
+      });
 
     return parsed.sort((a, b) => {
       const nowMs = now.getTime();
@@ -216,17 +220,19 @@ export default function MainPageReleaseRadarBanner({
               <p className="text-xs text-amber-300/90 font-medium flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                 <span>
-                  {activeShow.releaseNote ||
-                    (activeShow.parsedDate
-                      ? `Target Premiere: ${formatToDDMMYYYY(activeShow.parsedDate)}${
-                          activeShow.parsedDate.getHours() !== 0 ||
-                          activeShow.parsedDate.getMinutes() !== 0
-                            ? ` at ${String(activeShow.parsedDate.getHours()).padStart(2, '0')}:${String(
-                                activeShow.parsedDate.getMinutes()
-                              ).padStart(2, '0')}`
-                            : ''
-                        }`
-                      : 'Airing Soon')}
+                  {activeShow.effectiveFormattedDate
+                    ? `Target Premiere: ${activeShow.effectiveFormattedDate}`
+                    : activeShow.releaseNote ||
+                      (activeShow.parsedDate
+                        ? `Target Premiere: ${formatToDDMMYYYY(activeShow.parsedDate)}${
+                            activeShow.parsedDate.getHours() !== 0 ||
+                            activeShow.parsedDate.getMinutes() !== 0
+                              ? ` at ${String(activeShow.parsedDate.getHours()).padStart(2, '0')}:${String(
+                                  activeShow.parsedDate.getMinutes()
+                                ).padStart(2, '0')}`
+                              : ''
+                          }`
+                        : 'Airing Soon')}
                 </span>
               </p>
             </div>
@@ -249,7 +255,7 @@ export default function MainPageReleaseRadarBanner({
                 }
 
                 return (
-                  <div className="flex items-center gap-2 sm:gap-3 md:gap-4 bg-zinc-950/90 px-3 sm:px-5 py-3 sm:py-3.5 rounded-2xl border border-amber-500/30 shadow-xl">
+                  <div translate="no" className="notranslate flex items-center gap-2 sm:gap-3 md:gap-4 bg-zinc-950/90 px-3 sm:px-5 py-3 sm:py-3.5 rounded-2xl border border-amber-500/30 shadow-xl">
                     <div className="flex flex-col items-center px-1.5 sm:px-3">
                       <span className="text-3xl sm:text-4xl md:text-5xl font-black text-amber-400 font-mono tracking-tight">
                         {String(clock.days).padStart(2, '0')}
@@ -272,10 +278,10 @@ export default function MainPageReleaseRadarBanner({
                     </div>
                     <span className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-600 pb-3">:</span>
                     <div className="flex flex-col items-center px-1.5 sm:px-3">
-                      <span className="text-3xl sm:text-4xl md:text-5xl font-black text-red-400 font-mono tracking-tight">
+                      <span className="text-3xl sm:text-4xl md:text-5xl font-black font-mono tracking-tight animate-pulse" style={{ color: '#ef4444' }}>
                         {String(clock.seconds).padStart(2, '0')}
                       </span>
-                      <span className="text-[11px] sm:text-xs uppercase font-extrabold text-zinc-400 tracking-wider">Secs</span>
+                      <span className="text-[11px] sm:text-xs uppercase font-extrabold tracking-wider" style={{ color: '#f87171' }}>Secs</span>
                     </div>
                   </div>
                 );

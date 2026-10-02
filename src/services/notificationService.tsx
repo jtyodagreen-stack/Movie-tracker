@@ -5,6 +5,22 @@ import { ShowItem, AlertIntervals } from '../types';
 const NOTIF_KEY = 'showtracker_24h_notifications';
 const NOTIFIED_KEY = 'showtracker_sent_notifications';
 const INTERVALS_KEY = 'showtracker_alert_intervals';
+const MUTED_KEY = 'showtracker_muted_notifications';
+
+export function getMutedShowIds(): string[] {
+  try {
+    const raw = localStorage.getItem(MUTED_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveMutedShowIds(ids: string[]) {
+  try {
+    localStorage.setItem(MUTED_KEY, JSON.stringify(ids));
+  } catch (e) {}
+}
 
 export const DEFAULT_ALERT_INTERVALS: AlertIntervals = {
   oneWeek: false,
@@ -39,11 +55,15 @@ export function getNotificationShowIds(): string[] {
 }
 
 export function isNotificationEnabled(showOrId: ShowItem | string, optionalTitle?: string): boolean {
-  const ids = getNotificationShowIds();
-  
   const id = typeof showOrId === 'string' ? showOrId : showOrId.id;
   const title = optionalTitle || (typeof showOrId === 'object' ? showOrId.title : '');
-  
+
+  // 1. Check if explicitly muted / blacklisted
+  const muted = getMutedShowIds();
+  if (id && muted.includes(id)) return false;
+
+  // 2. Check if explicitly enabled
+  const ids = getNotificationShowIds();
   if (ids.includes(id)) return true;
   
   if (title) {
@@ -61,6 +81,17 @@ export function isNotificationEnabled(showOrId: ShowItem | string, optionalTitle
     if (slug && slug.length >= 3 && ids.some((storedId) => storedId.toLowerCase().includes(slug))) {
       return true;
     }
+  }
+
+  // 3. Auto-active if the show has an upcoming / release date
+  if (typeof showOrId === 'object') {
+    const hasRelease = Boolean(
+      showOrId.releaseDate || 
+      showOrId.releaseNote || 
+      showOrId.nextAirDate || 
+      showOrId.nextAirTimestamp
+    );
+    if (hasRelease) return true;
   }
 
   return false;
@@ -227,6 +258,12 @@ export async function toggleShowNotification(showOrItem: ShowItem | { id: string
   let newValue: boolean;
   if (currentlyActive) {
     // Disable notification - only explicit manual toggle removes it!
+    const muted = getMutedShowIds();
+    if (show.id && !muted.includes(show.id)) {
+      muted.push(show.id);
+      saveMutedShowIds(muted);
+    }
+
     const updated = ids.filter((id) => {
       if (id === show.id) return false;
       if (titleKey && id === titleKey) return false;
@@ -264,6 +301,10 @@ export async function toggleShowNotification(showOrItem: ShowItem | { id: string
     );
   } else {
     // Enable notification - store both ID and title key so sync reloads never turn it off
+    const muted = getMutedShowIds();
+    const updatedMuted = muted.filter((id) => id !== show.id);
+    saveMutedShowIds(updatedMuted);
+
     const toAdd = [show.id];
     if (titleKey) toAdd.push(titleKey);
 
@@ -484,4 +525,18 @@ export function checkAndTrigger24hNotifications(shows: ShowItem[]): number {
   });
 
   return sentCount;
+}
+
+export function getEffectiveReleaseInfo(show: ShowItem): { timestamp: number | null; formattedDateStr: string; date: Date | null; label: string; isOut: boolean } {
+  const raw = show.releaseDate || show.releaseNote || show.nextAirDate || '';
+  const timestamp = parseReleaseDateToTimestamp(raw);
+  const now = Date.now();
+  const isOut = timestamp ? timestamp <= now : false;
+  return {
+    timestamp,
+    formattedDateStr: raw,
+    date: timestamp ? new Date(timestamp) : null,
+    label: raw || 'Coming Soon',
+    isOut,
+  };
 }

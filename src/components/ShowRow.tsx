@@ -161,7 +161,7 @@ export default function ShowRow({
                     <button
                       type="button"
                       onClick={emptyState.onAction}
-                      className="inline-flex items-center gap-2 bg-[#E50914] hover:bg-[#B80710] text-white font-bold text-xs sm:text-sm px-4 sm:px-5 py-2.5 rounded-xl shadow-lg shadow-red-950/50 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                      className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs sm:text-sm px-4 sm:px-5 py-2.5 rounded-xl shadow-lg shadow-red-950/50 hover:scale-105 active:scale-95 transition-all cursor-pointer"
                     >
                       <Plus className="w-4 h-4" />
                       <span>{emptyState.actionLabel || 'Add Show'}</span>
