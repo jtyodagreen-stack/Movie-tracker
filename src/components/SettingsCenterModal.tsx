@@ -19,6 +19,7 @@ import {
   Sparkles,
   WifiOff,
   Bell,
+  Search,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -125,7 +126,73 @@ export default function SettingsCenterModal({
 
   // Help & Support form state
   const [helpMessage, setHelpMessage] = useState('');
+  const [helpSubject, setHelpSubject] = useState('');
+  const [helpSenderEmail, setHelpSenderEmail] = useState('');
   const [helpReportType, setHelpReportType] = useState<'bug' | 'feature' | 'feedback' | 'support'>('bug');
+  const [helpSubSection, setHelpSubSection] = useState<'guide' | 'bug' | 'feedback' | 'support'>('guide');
+  const [isSubmittingHelp, setIsSubmittingHelp] = useState(false);
+  const [activeFaq, setActiveFaq] = useState<number | null>(null);
+  const [guideSearchQuery, setGuideSearchQuery] = useState('');
+
+  const handleSendDirectFeedback = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!helpMessage.trim()) {
+      toast.error('Please describe your issue or feedback before sending.');
+      return;
+    }
+
+    setIsSubmittingHelp(true);
+    const toastId = toast.loading('🚀 Dispatching report via Formsubmit...');
+
+    const finalSender = helpSenderEmail.trim() || user?.email || 'user@showflix.app';
+    const finalSubject = helpSubject.trim() || `ShowFlix [${helpReportType.toUpperCase()}] Report`;
+
+    try {
+      // 1. Send via local server endpoint log
+      const serverPromise = fetch('/api/feedback/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: helpReportType,
+          subject: finalSubject,
+          message: helpMessage.trim(),
+          userEmail: finalSender,
+          userAgent: navigator.userAgent,
+        }),
+      }).catch((err) => console.warn('Server feedback log notice:', err));
+
+      // 2. Direct client-side Formsubmit AJAX dispatch directly to developer inbox
+      const formSubmitPromise = fetch('https://formsubmit.co/ajax/jtyodagreen@gmail.com', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          _subject: `[Formsubmit] ${finalSubject}`,
+          _template: 'table',
+          _captcha: 'false',
+          category_type: helpReportType.toUpperCase(),
+          reply_to_email: finalSender,
+          summary_subject: finalSubject,
+          detailed_message: helpMessage.trim(),
+          submitted_at: new Date().toLocaleString(),
+          user_agent: navigator.userAgent,
+          app_version: 'v1.0.0',
+        }),
+      }).catch((err) => console.warn('Formsubmit endpoint notice:', err));
+
+      await Promise.all([serverPromise, formSubmitPromise]);
+
+      toast.success('📧 Delivered securely via Formsubmit!', { id: toastId, duration: 6000 });
+      setHelpMessage('');
+      setHelpSubject('');
+    } catch (err: any) {
+      toast.error('Failed to dispatch report. Please check your network connection.', { id: toastId });
+    } finally {
+      setIsSubmittingHelp(false);
+    }
+  };
 
   // Synchronize tab if defaultTab changes when open
   useEffect(() => {
@@ -1280,100 +1347,369 @@ export default function SettingsCenterModal({
 
           {/* VIEW E: HELP & SUPPORT DETAIL PANEL */}
           {activeTab === 'help' && (
-            <div className="space-y-5 animate-in fade-in duration-150">
-              <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-zinc-900">
+            <div className="space-y-6 animate-in fade-in duration-200 max-w-3xl mx-auto">
+              
+              {/* Header Banner */}
+              <div className="flex items-center justify-between flex-wrap gap-3 pb-4 border-b border-zinc-800">
                 <div>
-                  <h4 className="text-base font-black text-white">Help & Support - Quick Guide, Report Issue, Feedback</h4>
-                  <p className="text-xs text-zinc-400">Any report or feedback goes straight to app development via email (jtyodagreen@gmail.com).</p>
+                  <h4 className="text-lg font-black text-white flex items-center gap-2">
+                    <span>Help & Support Center</span>
+                  </h4>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    User guide, issue reporter, feedback & direct support hotline.
+                  </p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setActiveTab('all')}
-                  className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-3 py-1.5 rounded-lg"
+                  className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-3.5 py-2 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
                 >
                   &larr; Back to Control Panel
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                
-                {/* 1. Direct Email Developer Box */}
-                <div className="p-5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-4">
-                  <div>
-                    <h5 className="text-sm font-bold text-white flex items-center gap-2">
-                      <span>✉️ Contact App Developer Directly</span>
-                    </h5>
-                    <p className="text-xs text-zinc-400 mt-1">
-                      Have questions, feature requests, or need support? Email developer <span className="text-cyan-400 font-mono font-bold">jtyodagreen@gmail.com</span> directly.
-                    </p>
-                  </div>
-                  <a
-                    href="mailto:jtyodagreen@gmail.com?subject=ShowFlix%20Support%20%2F%20Feedback%20Report&body=Hi%20Jtyodagreen,%0A%0A[Please%20type%20your%20message%20here]%0A%0AApp%20Version:%20v1.0.0"
-                    className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs py-2.5 rounded-lg transition-colors cursor-pointer text-center block shadow-md"
-                  >
-                    Open Email (jtyodagreen@gmail.com)
-                  </a>
-                </div>
-
-                {/* 2. Direct Report / Feedback Form */}
-                <div className="p-5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-3">
-                  <div>
-                    <h5 className="text-sm font-bold text-white">📝 Send Report / Feedback</h5>
-                    <p className="text-xs text-zinc-400 mt-0.5">Type your message below and send it straight to development.</p>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    {(['bug', 'feature', 'feedback', 'support'] as const).map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => setHelpReportType(t)}
-                        className={`px-2.5 py-1 rounded text-[11px] font-bold uppercase transition-all ${
-                          helpReportType === t ? 'bg-red-600 text-white shadow' : 'bg-zinc-800 text-zinc-400'
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-
-                  <textarea
-                    rows={3}
-                    value={helpMessage}
-                    onChange={(e) => setHelpMessage(e.target.value)}
-                    placeholder="Describe the issue, bug, or your feedback here..."
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 placeholder:text-zinc-600"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      if (!helpMessage.trim()) {
-                        toast.error('Please enter a message before sending.');
-                        return;
+              {/* 4 Main Section Tabs */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { id: 'guide', label: '📖 Quick Guide', sub: 'How to use ShowFlix', color: 'border-cyan-500/60 bg-cyan-500/15 text-cyan-400' },
+                  { id: 'bug', label: '🐛 Report Issue', sub: 'Bugs & Glitches', color: 'border-[#E50914] bg-[#E50914]/20 text-white preserve-theme-color' },
+                  { id: 'feedback', label: '💬 Send Feedback', sub: 'Ideas & Suggestions', color: 'border-emerald-500/60 bg-emerald-500/15 text-emerald-400' },
+                  { id: 'support', label: '🎧 Contact Support', sub: 'Direct Help', color: 'border-amber-500/60 bg-amber-500/15 text-amber-400' },
+                ].map((tab) => {
+                  const isSelected = helpSubSection === tab.id;
+                  const isBugTab = tab.id === 'bug';
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      data-preserve-theme={isBugTab ? 'true' : undefined}
+                      style={
+                        isSelected && isBugTab
+                          ? { backgroundColor: 'rgba(229, 9, 20, 0.25)', borderColor: '#E50914', color: '#ffffff' }
+                          : undefined
                       }
-                      const subject = encodeURIComponent(`ShowFlix [${helpReportType.toUpperCase()}] Report / Support from ${user?.email || 'User'}`);
-                      const body = encodeURIComponent(`Hi Jtyodagreen,\n\nHere is my report / feedback / support query:\n\n${helpMessage.trim()}\n\n---\nUser Email: ${user?.email || 'Anonymous'}\nApp Version: v1.0.0\nDevice: ${navigator.userAgent}`);
-                      window.location.href = `mailto:jtyodagreen@gmail.com?subject=${subject}&body=${body}`;
-                      toast.success('📧 Opening email client to send report straight to jtyodagreen@gmail.com!');
-                      setHelpMessage('');
-                    }}
-                    className="w-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs py-2.5 rounded-lg transition-colors cursor-pointer text-center block shadow-md"
-                  >
-                    Send Report via Email &rarr;
-                  </button>
+                      onClick={() => {
+                        setHelpSubSection(tab.id as any);
+                        if (tab.id !== 'guide') {
+                          setHelpReportType(tab.id as any);
+                        }
+                      }}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                        isBugTab ? 'preserve-theme-color' : ''
+                      } ${
+                        isSelected
+                          ? `${tab.color} ring-1 ring-white/20 scale-[1.02]`
+                          : 'bg-zinc-900/80 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
+                      }`}
+                    >
+                      <span className="block text-xs font-black">{tab.label}</span>
+                      <span className="block text-[10px] text-zinc-400 mt-0.5 font-medium">{tab.sub}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* SECTION 1: QUICK GUIDE HOW TO USE SHOWFLIX */}
+              {helpSubSection === 'guide' && (
+                <div className="p-5 sm:p-7 rounded-2xl bg-zinc-900/90 border border-zinc-800 space-y-6 shadow-2xl animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between flex-wrap gap-3 border-b border-zinc-800/80 pb-4">
+                    <div>
+                      <h5 className="text-base font-extrabold text-white flex items-center gap-2">
+                        <span>📖 Quick Guide: How to use ShowFlix</span>
+                      </h5>
+                      <p className="text-[11px] text-zinc-400 mt-0.5">
+                        Master tracking shows, Google Sheets sync, profiles, release radar alerts & offline backups.
+                      </p>
+                    </div>
+
+                    {/* Search bar inside Quick Guide */}
+                    <div className="relative w-full sm:w-64">
+                      <input
+                        type="text"
+                        value={guideSearchQuery}
+                        onChange={(e) => setGuideSearchQuery(e.target.value)}
+                        placeholder="Search guide topics..."
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 placeholder:text-zinc-600"
+                      />
+                      <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5" />
+                    </div>
+                  </div>
+
+                  {/* Feature Guide Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-zinc-300">
+                    {[
+                      {
+                        title: '1. Tracking Movies & Series',
+                        badge: 'Library',
+                        color: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+                        desc: 'Click "+ Add Show" to search TMDB for posters, synopsis, and episode counts. Increment watched episodes with 1-click `+` buttons. Reaching the max episode count automatically marks the title as "✅ Watched".',
+                        tags: ['add show', 'episodes', 'library', 'tmdb', 'progress', 'status']
+                      },
+                      {
+                        title: '2. Connecting Google Sheets Sync',
+                        badge: 'Cloud Sync',
+                        color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
+                        desc: 'Sync watch history live to your personal Google Sheet! Paste your Sheet ID/URL in Settings → Google Sheets Sync. ShowFlix updates rows automatically and supports dual MASTER TRACKER and Wishlist tabs.',
+                        tags: ['google sheets', 'sheet id', 'auto sync', 'wishlist', 'realtime', 'cloud']
+                      },
+                      {
+                        title: '3. Multi-User Profiles & Color Badges',
+                        badge: 'Profiles',
+                        color: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
+                        desc: 'Set up distinct viewer profiles (e.g. Me, Alex, Family). Assign custom color badges (Red, Blue, Emerald, Gold, Pink) to color-code or filter titles on your main watch list instantly.',
+                        tags: ['profiles', 'viewer', 'color tags', 'tags', 'multi-user', 'filter']
+                      },
+                      {
+                        title: '4. Release Radar & Episode Alerts',
+                        badge: 'Notifications',
+                        color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+                        desc: 'The Release Radar tab highlights episodes airing within 24 hours with live ticking countdowns. Turn on browser alerts in Alert Preferences to receive native push notifications before premiere time.',
+                        tags: ['release radar', 'episodes', 'alerts', 'notifications', 'premiere', 'airing']
+                      },
+                      {
+                        title: '5. Offline Storage & Data Backups',
+                        badge: 'Backup',
+                        color: 'text-rose-400 bg-rose-500/10 border-rose-500/20',
+                        desc: 'All edits work offline seamlessly. ShowFlix queues changes locally and syncs to Google Sheets when internet restores. You can also export full JSON or CSV backups anytime in Control Panel.',
+                        tags: ['offline', 'backup', 'export', 'import', 'json', 'csv']
+                      },
+                      {
+                        title: '6. Custom Themes & Accessibility',
+                        badge: 'Themes',
+                        color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
+                        desc: 'Tailor your experience with High Contrast visibility mode, Dyslexia-friendly accessible fonts, large WCAG text, and custom theme accent colors (Netflix Red, Ocean Cyan, Cyber Pink, Emerald Green).',
+                        tags: ['themes', 'accent color', 'high contrast', 'dyslexia font', 'accessibility']
+                      }
+                    ]
+                      .filter((item) => {
+                        if (!guideSearchQuery.trim()) return true;
+                        const q = guideSearchQuery.toLowerCase();
+                        return (
+                          item.title.toLowerCase().includes(q) ||
+                          item.desc.toLowerCase().includes(q) ||
+                          item.tags.some((t) => t.includes(q))
+                        );
+                      })
+                      .map((item, idx) => (
+                        <div key={idx} className="p-4 rounded-xl bg-zinc-950/80 border border-zinc-800/80 space-y-2 shadow-sm hover:border-zinc-700 transition-colors">
+                          <div className="flex items-center justify-between font-bold text-xs">
+                            <span className="text-white">{item.title}</span>
+                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${item.color}`}>
+                              {item.badge}
+                            </span>
+                          </div>
+                          <p className="text-zinc-400 leading-relaxed text-[11px]">
+                            {item.desc}
+                          </p>
+                        </div>
+                      ))}
+                  </div>
+
+                  {/* Frequently Asked Questions Accordion */}
+                  <div className="pt-3 border-t border-zinc-800 space-y-3">
+                    <h6 className="font-extrabold text-white text-xs uppercase tracking-wider flex items-center gap-2">
+                      <span>❓ Frequently Asked Questions (FAQ)</span>
+                    </h6>
+
+                    <div className="space-y-2 text-xs">
+                      {[
+                        {
+                          q: 'How do I fix Google Sheets "Permission Denied" or sync errors?',
+                          a: 'Ensure your Google Sheet is shared as "Anyone with the link can edit". In Google Sheets, click Share (top right) → Change to Anyone with the link → Editor. Then click "Force Live Refresh" in Settings.'
+                        },
+                        {
+                          q: 'How do I turn on 24-hour release notifications?',
+                          a: 'Go to Settings → Control Panel → Alert Preferences. Enable the release reminder toggle. When prompted by your browser, grant notification permissions.'
+                        },
+                        {
+                          q: 'Can I import my watch history from CSV or another app?',
+                          a: 'Yes! Go to Settings → Control Panel → Backup & Recovery. Select "Import Data" and choose your CSV or JSON backup file.'
+                        },
+                        {
+                          q: 'How do profile viewer tags work?',
+                          a: 'Go to Settings → Profiles & Color Badges. Create names for family members and pick a color badge. On any show card or details modal, select who is watching to tag it.'
+                        }
+                      ].map((faq, i) => {
+                        const isOpen = activeFaq === i;
+                        return (
+                          <div key={i} className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => setActiveFaq(isOpen ? null : i)}
+                              className="w-full text-left p-3 flex items-center justify-between text-xs font-bold text-zinc-200 hover:text-white transition-colors cursor-pointer"
+                            >
+                              <span>{faq.q}</span>
+                              <span className="text-zinc-500 font-mono text-sm">{isOpen ? '−' : '+'}</span>
+                            </button>
+                            {isOpen && (
+                              <div className="px-3 pb-3 pt-1 text-[11px] text-zinc-400 border-t border-zinc-800/50 leading-relaxed bg-zinc-900/40">
+                                {faq.a}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-cyan-950/20 border border-cyan-500/20 flex items-center justify-between text-xs text-cyan-200/90">
+                    <span>Have a question not covered here? Switch to the Report Issue, Send Feedback, or Contact Support tabs above!</span>
+                  </div>
                 </div>
+              )}
 
-              </div>
+              {/* SECTION 2, 3, 4: FORMSUBMIT FORMS (REPORT ISSUE / SEND FEEDBACK / CONTACT SUPPORT) */}
+              {helpSubSection !== 'guide' && (
+                <div className="p-5 sm:p-7 rounded-2xl bg-zinc-900/90 border border-zinc-800 space-y-5 shadow-2xl animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between flex-wrap gap-2 border-b border-zinc-800/80 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold ${
+                        helpSubSection === 'bug'
+                          ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                          : helpSubSection === 'feedback'
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      }`}>
+                        {helpSubSection === 'bug' ? '🐛' : helpSubSection === 'feedback' ? '💬' : '🎧'}
+                      </div>
+                      <div>
+                        <h5 className="text-base font-extrabold text-white">
+                          {helpSubSection === 'bug'
+                            ? 'Report an Issue / Bug'
+                            : helpSubSection === 'feedback'
+                            ? 'Send Feature Ideas & Feedback'
+                            : 'Contact Support Directly'}
+                        </h5>
+                      </div>
+                    </div>
+                  </div>
 
-              {/* Quick Guide & FAQ info */}
-              <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800/80 space-y-2 text-xs text-zinc-300">
-                <h6 className="font-bold text-white">📖 Quick Guide & Tips</h6>
-                <ul className="list-disc pl-4 space-y-1 text-zinc-400">
-                  <li><strong>Google Sheets Sync:</strong> Connect your personal Google Sheet to keep your watch library backed up in the cloud.</li>
-                  <li><strong>Profile Tags:</strong> Use profile viewer colors to switch between family members or individual lists instantly.</li>
-                  <li><strong>Upcoming Release Radar:</strong> Automatically highlights shows releasing within 24 hours with active reminder bells.</li>
-                </ul>
-              </div>
+                  <form onSubmit={handleSendDirectFeedback} className="space-y-4">
+                    {/* Email & Subject */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
+                          Your Reply-To Email
+                        </label>
+                        <input
+                          type="email"
+                          value={helpSenderEmail}
+                          onChange={(e) => setHelpSenderEmail(e.target.value)}
+                          placeholder="Enter your email address"
+                          className={`w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none placeholder:text-zinc-600 shadow-inner ${
+                            helpSubSection === 'bug'
+                              ? 'focus:border-red-500 focus:ring-1 focus:ring-red-500/30'
+                              : helpSubSection === 'feedback'
+                              ? 'focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30'
+                              : 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30'
+                          }`}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
+                          Subject Summary
+                        </label>
+                        <input
+                          type="text"
+                          value={helpSubject}
+                          onChange={(e) => setHelpSubject(e.target.value)}
+                          placeholder={
+                            helpSubSection === 'bug'
+                              ? 'e.g. Poster image not loading'
+                              : helpSubSection === 'feedback'
+                              ? 'e.g. Suggestion for custom tags'
+                              : 'e.g. Question about Sheets auto-sync'
+                          }
+                          className={`w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none placeholder:text-zinc-600 shadow-inner ${
+                            helpSubSection === 'bug'
+                              ? 'focus:border-red-500 focus:ring-1 focus:ring-red-500/30'
+                              : helpSubSection === 'feedback'
+                              ? 'focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30'
+                              : 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30'
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Detailed Message */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
+                          {helpSubSection === 'bug'
+                            ? 'Describe Bug & Steps to Reproduce'
+                            : helpSubSection === 'feedback'
+                            ? 'Describe Your Feedback / Feature Request'
+                            : 'Describe How We Can Assist You'}
+                        </label>
+                        <span className="text-[10px] text-zinc-500 font-mono">
+                          {helpMessage.length} / 1000 chars
+                        </span>
+                      </div>
+
+                      <textarea
+                        rows={5}
+                        maxLength={1000}
+                        value={helpMessage}
+                        onChange={(e) => setHelpMessage(e.target.value)}
+                        placeholder={
+                          helpSubSection === 'bug'
+                            ? 'Please detail what happened, what you expected, and steps to reproduce...'
+                            : helpSubSection === 'feedback'
+                            ? 'Share your thoughts, feature ideas, or feedback to improve ShowFlix...'
+                            : 'Ask any questions or request assistance with setting up ShowFlix...'
+                        }
+                        className={`w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3.5 text-xs sm:text-sm text-white focus:outline-none placeholder:text-zinc-600 shadow-inner ${
+                          helpSubSection === 'bug'
+                            ? 'focus:border-red-500 focus:ring-1 focus:ring-red-500/30'
+                            : helpSubSection === 'feedback'
+                            ? 'focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30'
+                            : 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30'
+                        }`}
+                      />
+                    </div>
+
+                    {/* Formsubmit Action Button */}
+                    <button
+                      type="submit"
+                      disabled={isSubmittingHelp || !helpMessage.trim()}
+                      data-preserve-theme={helpSubSection === 'bug' ? 'true' : undefined}
+                      style={
+                        helpSubSection === 'bug'
+                          ? {
+                              backgroundColor: isSubmittingHelp || !helpMessage.trim() ? 'rgba(229, 9, 20, 0.55)' : '#E50914',
+                              color: '#ffffff',
+                              border: '1px solid #E50914',
+                            }
+                          : undefined
+                      }
+                      className={`w-full text-white font-bold text-xs sm:text-sm py-3.5 rounded-xl transition-colors cursor-pointer text-center block disabled:cursor-not-allowed ${
+                        helpSubSection === 'bug'
+                          ? 'preserve-theme-color hover:brightness-110 active:brightness-90'
+                          : helpSubSection === 'feedback'
+                          ? 'bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:bg-emerald-600/50 disabled:opacity-60'
+                          : 'bg-amber-600 hover:bg-amber-500 active:bg-amber-700 disabled:bg-amber-600/50 disabled:opacity-60'
+                      }`}
+                    >
+                      {isSubmittingHelp ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Sending Report...
+                        </span>
+                      ) : (
+                        `🚀 Submit ${
+                          helpSubSection === 'bug'
+                            ? 'Bug Report'
+                            : helpSubSection === 'feedback'
+                            ? 'Feedback'
+                            : 'Support Query'
+                        } \u2192`
+                      )}
+                    </button>
+                  </form>
+                </div>
+              )}
+
             </div>
           )}
 

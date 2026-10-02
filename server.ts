@@ -224,6 +224,85 @@ async function createServer() {
     }
   });
 
+  // Direct feedback and report submission endpoint (Dispatches REAL email to jtyodagreen@gmail.com)
+  app.post('/api/feedback/send', async (req, res) => {
+    try {
+      const { type, message, userEmail, userAgent } = req.body;
+      if (!message || !message.trim()) {
+        return res.status(400).json({ error: 'Message content is required' });
+      }
+
+      const timestamp = new Date().toISOString();
+      const reportEntry = {
+        id: Date.now().toString(36),
+        timestamp,
+        type: type || 'feedback',
+        message: message.trim(),
+        userEmail: userEmail || 'jtyodagreen@gmail.com',
+        userAgent: userAgent || 'ShowFlix Web App',
+        targetRecipient: 'jtyodagreen@gmail.com',
+      };
+
+      console.log('==================================================');
+      console.log('📧 [DIRECT REPORT RECEIVED FOR jtyodagreen@gmail.com]');
+      console.log(JSON.stringify(reportEntry, null, 2));
+      console.log('==================================================');
+
+      // Persist feedback entries to local JSON storage
+      try {
+        const logPath = path.resolve(__dirname, 'feedback_reports.json');
+        let existing: any[] = [];
+        if (fs.existsSync(logPath)) {
+          existing = JSON.parse(fs.readFileSync(logPath, 'utf-8') || '[]');
+        }
+        existing.unshift(reportEntry);
+        fs.writeFileSync(logPath, JSON.stringify(existing, null, 2));
+      } catch (fsErr) {
+        console.warn('Feedback file log notice:', fsErr);
+      }
+
+      // Dispatch REAL email directly to jtyodagreen@gmail.com via FormSubmit service
+      let emailDispatched = false;
+      try {
+        const mailRes = await fetch('https://formsubmit.co/ajax/jtyodagreen@gmail.com', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({
+            _subject: `ShowFlix [${(type || 'Feedback').toUpperCase()}] Report`,
+            _template: 'table',
+            _captcha: 'false',
+            category: type || 'feedback',
+            user_email: userEmail || 'jtyodagreen@gmail.com',
+            report_message: message.trim(),
+            submitted_at: timestamp,
+            app_version: 'v1.0.0',
+          }),
+        });
+
+        if (mailRes.ok) {
+          emailDispatched = true;
+          console.log('✅ Real email dispatched successfully to jtyodagreen@gmail.com');
+        } else {
+          console.warn('Email dispatch service response status:', mailRes.status);
+        }
+      } catch (emailErr) {
+        console.warn('Email dispatch service notice:', emailErr);
+      }
+
+      return res.json({
+        success: true,
+        emailDispatched,
+        message: 'Report sent and emailed directly to jtyodagreen@gmail.com!',
+      });
+    } catch (err: any) {
+      console.error('Direct feedback endpoint error:', err);
+      return res.status(500).json({ error: 'Server error sending report directly.' });
+    }
+  });
+
   const distPath = path.join(__dirname, 'dist');
   const distIndexPath = path.join(distPath, 'index.html');
   const hasDist = fs.existsSync(distIndexPath);

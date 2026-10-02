@@ -1,6 +1,6 @@
 import type { User } from 'firebase/auth';
 
-export const DEFAULT_USER_EMAIL = 'user@gmail.com';
+export const DEFAULT_USER_EMAIL = '';
 export const DEFAULT_USER_NAME = 'User';
 
 // SVG data URI of the official Google Account profile picture
