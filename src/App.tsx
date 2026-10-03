@@ -58,6 +58,7 @@ import ConfirmModal from './components/ConfirmModal';
 import DashboardStats from './components/DashboardStats';
 import MainPageReleaseRadarBanner from './components/MainPageReleaseRadarBanner';
 import ShowcaseSection from './components/ShowcaseSection';
+import DecisionWheelModal from './components/DecisionWheelModal';
 import InstantShowFlixLoadingScreen from './components/InstantShowFlixLoadingScreen';
 import NetflixHoverPortal from './components/NetflixHoverPortal';
 import {
@@ -92,6 +93,31 @@ import {
   ArrowUp,
   ArrowUpDown,
 } from 'lucide-react';
+
+function haveShowsChanged(oldShows: ShowItem[], newShows: ShowItem[]): boolean {
+  if (oldShows.length !== newShows.length) return true;
+  const oldMap = new Map(oldShows.map((s) => [s.id, s]));
+  for (const n of newShows) {
+    const o = oldMap.get(n.id);
+    if (!o) return true;
+    if (
+      o.title !== n.title ||
+      o.status !== n.status ||
+      o.seasons !== n.seasons ||
+      o.episodes !== n.episodes ||
+      o.rating !== n.rating ||
+      o.notes !== n.notes ||
+      o.who !== n.who ||
+      o.platform !== n.platform ||
+      o.genre !== n.genre ||
+      o.type !== n.type ||
+      o.rowNumber !== n.rowNumber
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
 
 export default function App() {
   const [showInitialLoadingScreen, setShowInitialLoadingScreen] = useState(true);
@@ -267,6 +293,7 @@ export default function App() {
   const [settingsModalTab, setSettingsModalTab] = useState<'all' | 'user' | 'sync' | 'acc' | 'theme' | 'data' | 'help' | 'alerts' | 'stats'>('sync');
   const [settingsModalHelpSubSection, setSettingsModalHelpSubSection] = useState<'guide' | 'bug' | 'feedback' | 'support'>('guide');
   const [showStatsModal, setShowStatsModal] = useState(false);
+  const [showDecisionWheelModal, setShowDecisionWheelModal] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   const handleOpenSettingsModal = (
@@ -602,6 +629,22 @@ export default function App() {
     showToast(enabled ? '⚡ Auto-Sync Active: continuous real-time sync' : '⏸ Auto-Sync Paused');
   };
 
+  const [syncOnlyOnWifi, setSyncOnlyOnWifi] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('showflix_sync_only_wifi') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleSyncOnlyOnWifi = (val: boolean) => {
+    setSyncOnlyOnWifi(val);
+    try {
+      localStorage.setItem('showflix_sync_only_wifi', String(val));
+    } catch {}
+    showToast(val ? '📶 Sync only on Wi-Fi Enabled' : '🌐 Cellular Sync Allowed');
+  };
+
   // Featured billboard show index
   const [featuredIndex, setFeaturedIndex] = useState(0);
 
@@ -620,35 +663,83 @@ export default function App() {
     onConfirm: () => {},
   });
 
-  // Notification toast
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const showToast = (msg: string) => {
-    toast(msg);
-  };
+  // Notification toast helper with strict anti-duplicate & single-toast enforcement
+  const lastToastRef = useRef<{ text: string; time: number } | null>(null);
+  const showToast = useCallback((msg: string) => {
+    if (!msg) return;
+    const now = Date.now();
+    // 1. Anti-duplicate check: ignore exact same message if triggered within 2000ms
+    if (lastToastRef.current && lastToastRef.current.text === msg && now - lastToastRef.current.time < 2000) {
+      return;
+    }
+    lastToastRef.current = { text: msg, time: now };
 
-  // Reusable silent/background sync from Google Sheets
+    // 2. Only ONE toast on screen at a time: dismiss active toasts first
+    toast.dismiss();
+
+    // 3. Render new toast cleanly with single ID
+    toast(msg, { id: 'app-global-toast', duration: 3500 });
+  }, []);
+
+  // Reusable simple sync from Google Sheets (No automatic popups or forced reconnect loops)
   const fetchLatestFromSheet = useCallback(
-    async (isSilent = true) => {
+    async (mode: 'initial' | 'manual' | 'background' | 'return' | boolean = 'background') => {
+      const isInitial = mode === 'initial';
+      const isManual = mode === 'manual' || mode === false;
+      const isReturn = mode === 'return';
+      const isBackground = mode === 'background' || mode === true;
+
+      // Rule 1: Offline check
+      if (!navigator.onLine || !isOnline) {
+        if (isInitial || isManual) {
+          showToast('🔌 Offline');
+        }
+        return;
+      }
+
+      // Rule 5: Wi-Fi setting check
+      if (isBackground && syncOnlyOnWifi) {
+        const conn = (navigator as any).connection;
+        const isCellular =
+          conn?.type === 'cellular' ||
+          conn?.effectiveType === '2g' ||
+          conn?.effectiveType === '3g' ||
+          conn?.effectiveType === '4g';
+        if (isCellular) {
+          return;
+        }
+      }
+
       const currentSheetId = spreadsheetId || localStorage.getItem('bingebox_spreadsheet_id');
       const currentSheetName = sheetName || localStorage.getItem('bingebox_sheet_name') || 'MASTER TRACKER';
       const currentWishlistName = wishlistSheetName || localStorage.getItem('bingebox_wishlist_sheet_name') || 'Wishlist';
       const currentShowcaseName = showcaseSheetName || localStorage.getItem('bingebox_showcase_sheet_name') || 'SHOWCASE';
       if (!currentSheetId) return;
 
-      let token = await getAccessToken();
-      if (!token && auth.currentUser) {
-        token = await getAccessToken(true);
+      // Rule 1: Toast on start
+      if (isInitial || isManual) {
+        setIsSyncing(true);
+        showToast('⏱️ Syncing...');
       }
-      if (!token) return;
 
-      if (!isSilent) setIsSyncing(true);
       try {
+        let token = await getAccessToken();
+        if (!token && auth.currentUser) {
+          token = await getAccessToken();
+        }
+        if (!token) {
+          if (isInitial || isManual) {
+            showToast('⚠️ Stale — Refresh page ↻ or tap Reconnect in Settings');
+          }
+          return;
+        }
+
         const tabConfigs = [
           { name: currentSheetName, isWishlist: false },
           { name: currentWishlistName, isWishlist: true },
           { name: currentShowcaseName, isWishlist: false }
         ];
-        
+
         const results = await fetchMultipleSheetRows(currentSheetId, tabConfigs, token);
         const masterParsed = results[currentSheetName] || { shows: [], headers: [], headerRowIndex: 0 };
         const wishlistParsed = results[currentWishlistName] || { shows: [], headers: [], headerRowIndex: 0 };
@@ -660,27 +751,48 @@ export default function App() {
           ...(showcaseParsed.shows || [])
         ];
 
-        // Deduplicate by ID
-        const uniqueShows = Array.from(new Map(combinedShows.map(s => [s.id, s])).values());
+        // Deduplicate & preserve sessionAddedAt and createdTimestamp
+        let sessionMap: Record<string, number> = {};
+        try {
+          sessionMap = JSON.parse(localStorage.getItem('bingebox_session_added') || '{}');
+        } catch {}
 
-        if (uniqueShows.length > 0) {
-          setShows(uniqueShows);
+        const existingShowMap = new Map(showsRef.current.map((s) => [s.id, s]));
+        const finalShows = Array.from(new Map(combinedShows.map(s => [s.id, s])).values()).map((newShow) => {
+          const existing = existingShowMap.get(newShow.id);
+          const normTitle = newShow.title ? newShow.title.trim().toLowerCase() : '';
+          const savedSessionTime = sessionMap[newShow.id] || sessionMap[normTitle];
+          const sessionTime = existing?.sessionAddedAt || newShow.sessionAddedAt || savedSessionTime;
+          const createdTs =
+            existing?.createdTimestamp ||
+            newShow.createdTimestamp ||
+            sessionTime ||
+            (newShow.dateAdded ? parseAnyDate(newShow.dateAdded)?.getTime() : undefined);
+          return {
+            ...newShow,
+            sessionAddedAt: sessionTime,
+            createdTimestamp: createdTs,
+          };
+        });
+
+        const isChanged = haveShowsChanged(showsRef.current, finalShows);
+
+        if (finalShows.length > 0 || isChanged) {
+          setShows(finalShows);
           if (masterParsed.headers && masterParsed.headers.length > 0) {
             setSheetHeaders(masterParsed.headers);
           }
 
-          // Cache all metadata for instant load next time
           setAppDataCache({
-            shows: uniqueShows,
+            shows: finalShows,
             headers: masterParsed.headers,
             spreadsheetId: currentSheetId,
             sheetName: currentSheetName,
             wishlistSheetName: currentWishlistName,
             showcaseSheetName: currentShowcaseName,
-            customViewers: uniqueShows.length > 0 ? customViewers : undefined
+            customViewers: finalShows.length > 0 ? customViewers : undefined
           });
-        } else {
-          // Connected sheet is blank (0 shows): faithfully reflect empty state
+        } else if (finalShows.length === 0 && showsRef.current.length > 0) {
           setShows([]);
           setAppDataCache({
             shows: [],
@@ -693,12 +805,12 @@ export default function App() {
           });
         }
         
-        // Try to sync custom viewers list if a lists tab exists
+        // Sync custom viewers list if lists tab exists
         try {
           const storedTabs = localStorage.getItem('bingebox_available_sheet_tabs');
           const tabs: string[] = storedTabs ? JSON.parse(storedTabs) : availableTabs;
           const listsTab = tabs.find((t) => t.toLowerCase().includes('lists'));
-          if (listsTab && currentSheetId) {
+          if (listsTab && currentSheetId && token) {
             const viewerRes = await fetchCustomViewers(currentSheetId, listsTab, token);
             if (viewerRes?.viewers && viewerRes.viewers.length > 0) {
               setCustomViewers(viewerRes.viewers);
@@ -710,36 +822,40 @@ export default function App() {
             }
           }
         } catch (listsErr) {
-          console.warn('Silent sync custom viewers list fetch notice:', listsErr);
+          // Silent catch
         }
 
-        const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
         setLastSyncedAt(nowStr);
-        if (!isSilent) {
-          const wCount = combinedShows.filter((s) => s.isWishlist).length;
-          showToast(`✅ Synced ${combinedShows.length} shows (${combinedShows.length - wCount} Master, ${wCount} Wishlist)`);
-        }
-      } catch (e: any) {
-        console.warn('Background auto-sync fetch:', e);
-        const msg = e?.message || String(e);
-        if (
-          msg.includes('invalid authentication credentials') ||
-          msg.includes('401') ||
-          msg.includes('403') ||
-          msg.includes('invalid_grant') ||
-          msg.includes('Expected OAuth 2 access token')
-        ) {
-          setCachedAccessToken(null);
-          if (!isSilent) {
-            setShowSyncModal(true);
-            showToast('⚠️ Google Sheets session expired. Please click Connect to re-authenticate.');
+
+        // Feedback Toasts
+        if (isInitial || isManual) {
+          if (isChanged || showsRef.current.length === 0) {
+            showToast(`✅ Synced — Last updated: ${nowStr}`);
+          } else {
+            showToast('✅ Up to date');
+          }
+        } else if (isReturn) {
+          if (isChanged) {
+            showToast(`✅ Synced — Last updated: ${nowStr}`);
+          }
+        } else if (isBackground) {
+          if (isChanged) {
+            showToast('🔄 Updates found — refreshed');
           }
         }
+      } catch (e: any) {
+        console.warn('Sync notice:', e);
+        if (isInitial || isManual) {
+          showToast('⚠️ Stale — Refresh page ↻ or tap Reconnect in Settings');
+        }
       } finally {
-        if (!isSilent) setIsSyncing(false);
+        if (isInitial || isManual) {
+          setIsSyncing(false);
+        }
       }
     },
-    [spreadsheetId, sheetName, wishlistSheetName, showcaseSheetName, availableTabs]
+    [spreadsheetId, sheetName, wishlistSheetName, showcaseSheetName, availableTabs, isOnline, syncOnlyOnWifi]
   );
 
   // Handle Firebase sign-in redirect results on load
@@ -841,10 +957,10 @@ export default function App() {
           }
         }
 
-        // Automatically fetch latest shows from the saved Google Sheet (Background Refresh)
+        // Automatically fetch latest shows from the saved Google Sheet on load
         if (activeSheetId && token) {
-          console.log('[Background Refresh] Auth ready, revalidating sheet data...');
-          fetchLatestFromSheet(true);
+          console.log('[Background Refresh] Auth ready, syncing sheet data...');
+          fetchLatestFromSheet('initial');
         }
       },
       () => {
@@ -854,25 +970,38 @@ export default function App() {
     return () => unsubscribe();
   }, [fetchLatestFromSheet]);
 
-  // Background Auto-Sync: Poll at configured frequency when tab is active and online
+  // Rule 1: Immediate Auto-Sync on Page Load / App Refresh (Runs ONCE clearly)
+  const pageLoadSyncRef = useRef(false);
+  useEffect(() => {
+    const activeSheetId = spreadsheetId || localStorage.getItem('bingebox_spreadsheet_id');
+    if (activeSheetId && !pageLoadSyncRef.current) {
+      pageLoadSyncRef.current = true;
+      if (!navigator.onLine) {
+        showToast('🔌 Offline');
+      } else {
+        fetchLatestFromSheet('initial');
+      }
+    }
+  }, [spreadsheetId, fetchLatestFromSheet]);
+
+  // Rule 5: Background Auto-Sync only if page stays active (not idle)
   useEffect(() => {
     if (!autoSyncEnabled || !spreadsheetId || !isOnline) return;
 
-    const intervalMs = (syncFrequency || 45) * 1000;
+    const intervalMs = (syncFrequency || 900) * 1000;
     const intervalId = setInterval(() => {
       if (document.visibilityState === 'visible' && navigator.onLine) {
-        fetchLatestFromSheet(true);
+        fetchLatestFromSheet('background');
       }
     }, intervalMs);
 
     return () => clearInterval(intervalId);
   }, [autoSyncEnabled, spreadsheetId, syncFrequency, isOnline, fetchLatestFromSheet]);
 
-  // Listen for Google Sheets 403 API permission errors
+  // Listen for Google Sheets 403 API permission notices (No auto-popup ever)
   useEffect(() => {
     const handleGoogleSheets403 = () => {
-      toast.error('⚠️ Permission issue — go to Settings → Reconnect Google Sheets');
-      setShowSyncModal(true);
+      showToast('⚠️ Stale — Refresh page ↻ or tap Reconnect in Settings');
     };
 
     window.addEventListener('google-sheets-403', handleGoogleSheets403);
@@ -881,13 +1010,13 @@ export default function App() {
     };
   }, []);
 
-  // Tab Focus & Visibility Change Auto-Sync: Refresh whenever user switches back to this tab
+  // Rule 4: Every time user returns to tab / page becomes visible -> run fresh sync check
   useEffect(() => {
     if (!autoSyncEnabled || !spreadsheetId) return;
 
     const handleVisibilityOrFocus = () => {
-      if (document.visibilityState === 'visible') {
-        fetchLatestFromSheet(true);
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        fetchLatestFromSheet('return');
       }
     };
 
@@ -1038,16 +1167,26 @@ export default function App() {
         ...(wishlistParsed.shows || []),
         ...(showcaseParsed.shows || [])
       ];
-      // Deduplicate & preserve createdTimestamp from existing in-memory state for instant recency
+      // Deduplicate & preserve sessionAddedAt and createdTimestamp from existing state & localStorage
+      let sessionMap: Record<string, number> = {};
+      try {
+        sessionMap = JSON.parse(localStorage.getItem('bingebox_session_added') || '{}');
+      } catch {}
+
       const existingShowMap = new Map(shows.map((s) => [s.id, s]));
       const finalShows = Array.from(new Map(combinedShows.map(s => [s.id, s])).values()).map((newShow) => {
         const existing = existingShowMap.get(newShow.id);
+        const normTitle = newShow.title ? newShow.title.trim().toLowerCase() : '';
+        const savedSessionTime = sessionMap[newShow.id] || sessionMap[normTitle];
+        const sessionTime = existing?.sessionAddedAt || newShow.sessionAddedAt || savedSessionTime;
         const createdTs =
           existing?.createdTimestamp ||
           newShow.createdTimestamp ||
+          sessionTime ||
           (newShow.dateAdded ? parseAnyDate(newShow.dateAdded)?.getTime() : undefined);
         return {
           ...newShow,
+          sessionAddedAt: sessionTime,
           createdTimestamp: createdTs,
         };
       });
@@ -1631,11 +1770,13 @@ export default function App() {
     const isWishlist = Boolean(newShow.isWishlist);
     const isMovie = newShow.type === 'Movie';
     const targetTab = newShow.sheetTabName || (isWishlist ? wishlistSheetName : sheetName);
+    const now = Date.now();
     const sanitizedShow: ShowItem = {
       ...newShow,
       isWishlist,
       sheetTabName: targetTab,
-      createdTimestamp: newShow.createdTimestamp || Date.now(),
+      sessionAddedAt: now,
+      createdTimestamp: newShow.createdTimestamp || now,
       dateAdded: newShow.dateAdded || getTodayDDMMYYYY(),
       seasons: isMovie || isWishlist ? '' : normalizeSeasonStr(newShow.seasons),
       episodes: isMovie || isWishlist ? '' : normalizeEpisodeStr(newShow.episodes),
@@ -1643,6 +1784,17 @@ export default function App() {
       nextEp: isMovie || isWishlist ? false : Boolean(newShow.nextEp),
       nextSsn: isMovie || isWishlist ? false : Boolean(newShow.nextSsn),
     };
+
+    try {
+      const sessionMap: Record<string, number> = JSON.parse(localStorage.getItem('bingebox_session_added') || '{}');
+      sessionMap[sanitizedShow.id] = now;
+      if (sanitizedShow.title) {
+        sessionMap[sanitizedShow.title.trim().toLowerCase()] = now;
+      }
+      localStorage.setItem('bingebox_session_added', JSON.stringify(sessionMap));
+    } catch (e) {
+      console.warn('Could not store session added show in localStorage', e);
+    }
 
     // 1. Instant optimistic UI update: Show appears on the dashboard immediately with 0ms delay!
     if (sanitizedShow.releaseDate || sanitizedShow.releaseNote) {
@@ -1949,6 +2101,15 @@ export default function App() {
     }
   };
 
+  const handleMarkAsWatchingFromWheel = useCallback((showToUpdate: ShowItem) => {
+    if (showToUpdate.isWishlist || showToUpdate.sheetTabName?.toLowerCase().includes('wishlist')) {
+      handleMoveToMaster({ ...showToUpdate, status: '⏳ Watching' });
+    } else {
+      handleToggleStatus({ ...showToUpdate, status: '⏳ Watching' });
+    }
+    showToast(`⏳ Marked "${showToUpdate.title}" as Watching!`);
+  }, [handleMoveToMaster, handleToggleStatus, showToast]);
+
   // Base list filtered by Search, Category, and Year (used for platform breakdown and final filtered list)
   const baseFilteredList = useMemo(() => {
     const trimmedQuery = searchQuery.trim();
@@ -2197,10 +2358,23 @@ export default function App() {
   const recentlyAddedShows = useMemo(() => {
     if (!profileFilteredShows || profileFilteredShows.length === 0) return [];
 
+    let sessionMap: Record<string, number> = {};
+    try {
+      sessionMap = JSON.parse(localStorage.getItem('bingebox_session_added') || '{}');
+    } catch {}
+
     const copy = [...profileFilteredShows];
 
     copy.sort((a, b) => {
-      // 1. Check exact creation timestamp (higher = added more recently)
+      // 1. Newly added titles in this session ALWAYS take absolute priority and show at the front!
+      const sessA = a.sessionAddedAt || sessionMap[a.id] || (a.title ? sessionMap[a.title.trim().toLowerCase()] : 0) || 0;
+      const sessB = b.sessionAddedAt || sessionMap[b.id] || (b.title ? sessionMap[b.title.trim().toLowerCase()] : 0) || 0;
+
+      if (sessA > 0 || sessB > 0) {
+        if (sessA !== sessB) return sessB - sessA;
+      }
+
+      // 2. Check exact creation timestamp (higher = added more recently)
       const tsA = a.createdTimestamp || (a.dateAdded ? parseAnyDate(a.dateAdded)?.getTime() : null);
       const tsB = b.createdTimestamp || (b.dateAdded ? parseAnyDate(b.dateAdded)?.getTime() : null);
 
@@ -2210,11 +2384,11 @@ export default function App() {
       if (tsA && !tsB) return -1;
       if (!tsA && tsB) return 1;
 
-      // 2. Pending items without rowNumber (newly added, syncing in background) come first
+      // 3. Pending items without rowNumber (newly added, syncing in background) come first
       if (!a.rowNumber && b.rowNumber) return -1;
       if (a.rowNumber && !b.rowNumber) return 1;
 
-      // 3. Higher rowNumber in Google Sheet = appended later = more recent
+      // 4. Higher rowNumber in Google Sheet = appended later = more recent
       if (a.rowNumber && b.rowNumber && a.rowNumber !== b.rowNumber) {
         return b.rowNumber - a.rowNumber;
       }
@@ -2892,6 +3066,17 @@ export default function App() {
                   <span className="text-xs bg-zinc-800 text-zinc-300 px-2.5 py-0.5 rounded-full font-mono font-semibold border border-zinc-700">
                     {filteredShows.length} titles
                   </span>
+                  {(activeFilter === '🎁 Wishlist' || activeFilter === 'Wishlist' || activeFilter === '🎯 High-Priority Wishlist') && wishlistShows.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowDecisionWheelModal(true)}
+                      className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black text-xs px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95 ml-2"
+                      title="Spin Wheel: Randomly pick a show from your Wishlist"
+                    >
+                      <span className="text-sm">🎡</span>
+                      <span>Spin Wishlist Wheel</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Active Filter Chips Breakdown */}
@@ -3400,6 +3585,17 @@ export default function App() {
                 onHoverEnter={handleHoverEnter}
                 onHoverLeave={handleHoverLeave}
                 viewerColors={viewerColors}
+                headerAction={
+                  <button
+                    type="button"
+                    onClick={() => setShowDecisionWheelModal(true)}
+                    className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black text-xs px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95"
+                    title="Spin Wheel: Randomly pick a show from your Wishlist"
+                  >
+                    <span className="text-sm">🎡</span>
+                    <span>Spin Wheel</span>
+                  </button>
+                }
               />
             )}
 
@@ -3617,6 +3813,7 @@ export default function App() {
       } text-white flex flex-col selection:bg-[var(--app-accent)] selection:text-white font-sans antialiased`}
     >
       <Toaster position="bottom-center" toastOptions={{
+        duration: 3500,
         style: {
           background: '#181818',
           color: '#fff',
@@ -3625,17 +3822,6 @@ export default function App() {
       }} />
       {/* Offline Indicator & Sync Queue Processor */}
       <OfflineIndicator onSyncOfflineQueue={handleSyncOfflineQueue} />
-
-      {/* Toast Notification */}
-      {toastMsg && (
-        <div
-          id="app-toast-notification"
-          className="fixed bottom-6 right-6 z-50 bg-zinc-900 border border-zinc-700 text-white text-xs sm:text-sm font-medium px-4 py-3 rounded-lg shadow-2xl flex items-center gap-2.5 animate-in slide-in-from-bottom-5 duration-200"
-        >
-          <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>{toastMsg}</span>
-        </div>
-      )}
 
       {/* Floating Centered Back to Top Button */}
       {showScrollTop && !showStatsModal && (
@@ -3678,7 +3864,7 @@ export default function App() {
         isSyncing={isSyncing}
         lastSyncedAt={lastSyncedAt}
         autoSyncEnabled={autoSyncEnabled}
-        onTriggerSync={() => fetchLatestFromSheet(false)}
+        onTriggerSync={() => fetchLatestFromSheet('manual')}
         accessibilitySettings={accessibilitySettings}
         setAccessibilitySettings={setAccessibilitySettings}
         onOpenDashboard={() => setShowStatsModal(true)}
@@ -3890,7 +4076,9 @@ export default function App() {
           onToggleAutoSync={handleToggleAutoSync}
           syncFrequency={syncFrequency}
           onUpdateSyncFrequency={handleUpdateSyncFrequency}
-          onTriggerSync={() => fetchLatestFromSheet(false)}
+          syncOnlyOnWifi={syncOnlyOnWifi}
+          onToggleSyncOnlyOnWifi={handleToggleSyncOnlyOnWifi}
+          onTriggerSync={() => fetchLatestFromSheet('manual')}
           isOnline={isOnline}
           customViewers={customViewers}
           onUpdateCustomViewers={handleUpdateCustomViewers}
@@ -3904,6 +4092,16 @@ export default function App() {
           setAccessibilitySettings={setAccessibilitySettings}
           defaultTab={settingsModalTab}
           defaultHelpSubSection={settingsModalHelpSubSection}
+        />
+      )}
+
+      {showDecisionWheelModal && (
+        <DecisionWheelModal
+          isOpen={true}
+          onClose={() => setShowDecisionWheelModal(false)}
+          wishlistShows={wishlistShows}
+          onOpenDetails={handleOpenDetails}
+          onMarkAsWatching={handleMarkAsWatchingFromWheel}
         />
       )}
 

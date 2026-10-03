@@ -48,6 +48,8 @@ interface SheetSyncModalProps {
   onToggleAutoSync?: (enabled: boolean) => void;
   syncFrequency?: number;
   onUpdateSyncFrequency?: (freq: number) => void;
+  syncOnlyOnWifi?: boolean;
+  onToggleSyncOnlyOnWifi?: (enabled: boolean) => void;
   onTriggerSync?: () => void;
   isOnline?: boolean;
 }
@@ -69,8 +71,10 @@ export default function SheetSyncModal({
   rowCount,
   autoSyncEnabled = true,
   onToggleAutoSync,
-  syncFrequency = 45,
+  syncFrequency = 900,
   onUpdateSyncFrequency,
+  syncOnlyOnWifi = false,
+  onToggleSyncOnlyOnWifi,
   onTriggerSync,
   isOnline = true,
 }: SheetSyncModalProps) {
@@ -315,27 +319,27 @@ export default function SheetSyncModal({
               </div>
             </div>
 
-            {/* Sync Frequency Control */}
+            {/* Sync Frequency Control & Wi-Fi toggle */}
             {autoSyncEnabled && (
-              <div className="pt-2.5 border-t border-emerald-800/40 space-y-2">
+              <div className="pt-2.5 border-t border-emerald-800/40 space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-emerald-400" />
                     <span>Background Sync Frequency</span>
                   </label>
                   <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/90 border border-emerald-700/50 px-2 py-0.5 rounded">
-                    Every {syncFrequency >= 60 ? `${syncFrequency / 60}m` : `${syncFrequency}s`}
+                    Every {syncFrequency >= 60 ? `${Math.round(syncFrequency / 60)}m` : `${syncFrequency}s`}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 pt-0.5">
                   {[
-                    { label: '15s', value: 15, tag: 'Fast' },
                     { label: '30s', value: 30 },
-                    { label: '45s', value: 45, tag: 'Default' },
                     { label: '1m', value: 60 },
                     { label: '2m', value: 120 },
                     { label: '5m', value: 300 },
+                    { label: '15m', value: 900, tag: 'Default' },
+                    { label: '30m', value: 1800 },
                   ].map((preset) => {
                     const isSelected = syncFrequency === preset.value;
                     return (
@@ -358,6 +362,29 @@ export default function SheetSyncModal({
                       </button>
                     );
                   })}
+                </div>
+
+                {/* Sync only on Wi-Fi toggle */}
+                <div className="flex items-center justify-between pt-2 border-t border-emerald-800/30">
+                  <span className="text-xs font-medium text-emerald-300 flex items-center gap-1.5">
+                    <WifiOff className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Sync only on Wi-Fi (skip mobile data)</span>
+                  </span>
+                  {onToggleSyncOnlyOnWifi && (
+                    <button
+                      type="button"
+                      onClick={() => onToggleSyncOnlyOnWifi(!syncOnlyOnWifi)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        syncOnlyOnWifi ? 'bg-emerald-500' : 'bg-zinc-700'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          syncOnlyOnWifi ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  )}
                 </div>
               </div>
             )}

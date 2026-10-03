@@ -1065,45 +1065,7 @@ export default function Navbar({
               </button>
             )}
 
-            {/* Notification Menu */}
-            <div className="relative shrink-0" ref={notifDropdownRef}>
-              <button
-                onClick={() => setShowNotifMenu(!showNotifMenu)}
-                className={`p-2 transition-colors rounded-full hover:bg-white/10 cursor-pointer ${showNotifMenu ? 'text-white' : 'text-zinc-300'}`}
-                title="Upcoming Release Notifications"
-              >
-                {notificationShows.length > 0 ? (
-                  <BellRing className="w-5 h-5 text-amber-400 animate-pulse" />
-                ) : (
-                  <Bell className="w-5 h-5" />
-                )}
-                {notificationShows.length > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-amber-500 rounded-full" />
-                )}
-              </button>
-              {showNotifMenu && (
-                <div className="absolute right-0 mt-2 w-80 bg-[#181818] border border-zinc-700 rounded-lg shadow-2xl p-4 z-50 text-xs">
-                  <h5 className="font-bold text-white mb-3">Upcoming Notifications ({notificationShows.length})</h5>
-                  <div className="space-y-2 max-h-80 overflow-y-auto">
-                    {notificationShows.length > 0 ? (
-                      notificationShows.map(show => (
-                        <div key={show.id} className="flex items-center gap-3 p-2 rounded bg-zinc-900 border border-zinc-800">
-                          <div className="w-8 h-10 rounded overflow-hidden bg-zinc-800 shrink-0">
-                            <img src={getOptimizedPoster(show.posterUrl || show.backdropUrl)} alt={show.title} className="w-full h-full object-cover" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-white font-bold truncate">{show.title}</div>
-                            <div className="text-amber-400 font-mono text-[10px]">⏰ {isReleaseDatePast(show.releaseDate) && show.nextAirDate ? formatToDDMMYYYY(show.nextAirDate) : show.releaseDate ? formatToDDMMYYYY(show.releaseDate) : 'Soon'}</div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-zinc-500 text-center py-4">No upcoming notifications</div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+
 
             {/* Accessibility Menu */}
             <div className="relative shrink-0" ref={accDropdownRef}>

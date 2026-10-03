@@ -31,6 +31,7 @@ interface ShowRowProps {
   onHoverLeave?: () => void;
   emptyState?: ShowRowEmptyState;
   viewerColors?: Record<string, string>;
+  headerAction?: React.ReactNode;
 }
 
 export default function ShowRow({
@@ -47,6 +48,7 @@ export default function ShowRow({
   onHoverLeave,
   emptyState,
   viewerColors,
+  headerAction,
 }: ShowRowProps) {
   const rowRef = useRef<HTMLDivElement>(null);
 
@@ -93,16 +95,19 @@ export default function ShowRow({
           )}
         </div>
 
-        {onTitleClick && shows.length > 0 && (
-          <button
-            type="button"
-            onClick={onTitleClick}
-            className="text-xs font-semibold text-zinc-400 hover:text-red-400 flex items-center gap-1 transition-colors cursor-pointer shrink-0"
-          >
-            <span>Explore All</span>
-            <ChevronRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-red-400" />
-          </button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {headerAction}
+          {onTitleClick && shows.length > 0 && (
+            <button
+              type="button"
+              onClick={onTitleClick}
+              className="text-xs font-semibold text-zinc-400 hover:text-red-400 flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+            >
+              <span>Explore All</span>
+              <ChevronRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-red-400" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Row Content: Detailed Empty State OR Carousel */}

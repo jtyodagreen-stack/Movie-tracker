@@ -40,6 +40,7 @@ export interface ShowItem {
   priority?: string; // e.g. "High", "Medium", "Low"
   dateAdded?: string; // e.g. "2026-09-21"
   createdTimestamp?: number; // Exact Epoch ms when show was added to tracker
+  sessionAddedAt?: number; // Priority timestamp for newly added titles
   imdbId?: string; // Official IMDb ID (e.g. tt1234567)
   // Live Season Premiere & Weekly Air Schedule Tracking
   nextAirDate?: string; // Formatted as DD-MM-YYYY (e.g. "15-10-2026")

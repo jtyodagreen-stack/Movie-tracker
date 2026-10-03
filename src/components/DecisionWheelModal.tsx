@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, HelpCircle, Check, Play, RefreshCw, Sparkles, AlertCircle, Eye } from 'lucide-react';
+import { X, HelpCircle, Check, RefreshCw, Sparkles, AlertCircle, Eye, Tv } from 'lucide-react';
 import { ShowItem } from '../types';
 
 interface DecisionWheelModalProps {
@@ -8,6 +8,7 @@ interface DecisionWheelModalProps {
   onClose: () => void;
   wishlistShows: ShowItem[];
   onOpenDetails: (show: ShowItem) => void;
+  onMarkAsWatching?: (show: ShowItem) => void;
 }
 
 const WHEEL_COLORS = [
@@ -28,6 +29,7 @@ export default function DecisionWheelModal({
   onClose,
   wishlistShows,
   onOpenDetails,
+  onMarkAsWatching,
 }: DecisionWheelModalProps) {
   // Filter out shows without titles
   const validShows = wishlistShows.filter(s => s.title);
@@ -381,16 +383,29 @@ export default function DecisionWheelModal({
               )}
 
               <div className="flex flex-col gap-2 w-full pt-2">
+                {onMarkAsWatching && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onMarkAsWatching(winner);
+                      onClose();
+                    }}
+                    className="w-full bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black text-xs py-2.5 rounded-xl cursor-pointer transition-colors shadow-md uppercase tracking-wider flex items-center justify-center gap-1.5"
+                  >
+                    <Tv className="w-3.5 h-3.5" />
+                    <span>Mark as Watching</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
                     onOpenDetails(winner);
                     onClose();
                   }}
-                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black text-xs py-2.5 rounded-xl cursor-pointer transition-colors shadow-md uppercase tracking-wider flex items-center justify-center gap-1"
+                  className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-extrabold text-xs py-2.5 rounded-xl cursor-pointer transition-colors shadow-md uppercase tracking-wider flex items-center justify-center gap-1.5 border border-zinc-700"
                 >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>Start Watching / View Info</span>
+                  <Eye className="w-3.5 h-3.5 text-zinc-300" />
+                  <span>View Details & Info</span>
                 </button>
                 <button
                   type="button"
