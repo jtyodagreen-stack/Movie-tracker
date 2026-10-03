@@ -72,7 +72,7 @@ export default function FeedbackModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) {
-      toast.error('Please enter a message before submitting.');
+      toast.error("✏️ Type your message first — can't send empty");
       return;
     }
 
@@ -96,6 +96,7 @@ export default function FeedbackModal({
 
       setIsSuccess(true);
       toast.success('Thank you! Your feedback has been received. 🍿', {
+        duration: 5000,
         style: {
           background: '#181818',
           color: '#fff',
@@ -106,7 +107,7 @@ export default function FeedbackModal({
       console.error('Error submitting feedback:', err);
       // Soft-fail: if Firebase write fails (e.g., rules block it or offline), show success locally
       setIsSuccess(true);
-      toast.success('Feedback saved locally! Thank you for sharing. 🎬');
+      toast.success('Feedback saved locally! Thank you for sharing. 🎬', { duration: 5000 });
     } finally {
       setIsSubmitting(false);
     }

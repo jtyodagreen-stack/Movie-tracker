@@ -517,3 +517,23 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   color: #ffffff !important;
 }
 
+/* Accessibility Overrides for Toasts */
+.accessible-reduce-motion [role="status"],
+.accessible-reduce-motion [role="alert"],
+.accessible-reduce-motion .animate-in,
+.accessible-reduce-motion .animate-out,
+.accessible-reduce-motion .animate-pulse,
+.accessible-reduce-motion .animate-bounce,
+.accessible-reduce-motion #app-toast-notification {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+.accessible-large-text [role="status"],
+.accessible-large-text [role="alert"],
+.accessible-large-text #app-toast-notification {
+  font-size: 1.15em !important;
+  line-height: 1.4 !important;
+}
+

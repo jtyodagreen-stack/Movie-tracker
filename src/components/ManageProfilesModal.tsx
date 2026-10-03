@@ -60,14 +60,14 @@ export default function ManageProfilesModal({
     if (!trimmed) return;
 
     if (currentList.some((v) => v.toLowerCase() === trimmed.toLowerCase())) {
-      toast.error(`"${trimmed}" is already in your profile viewer list.`);
+      toast.error(`👤 "${trimmed}" is already added — try a different name`);
       return;
     }
 
     const updated = [...currentList, trimmed];
     onUpdateCustomViewers(updated);
     setNewViewerName('');
-    toast.success(`✨ Added profile viewer: "${trimmed}"`);
+    toast.success(`✨ Added profile viewer: "${trimmed}"`, { duration: 5000 });
   };
 
   const handleStartEdit = (index: number, currentName: string) => {
@@ -90,13 +90,13 @@ export default function ManageProfilesModal({
 
     setEditingIndex(null);
     setEditingName('');
-    toast.success(`Updated profile name to "${trimmed}"`);
+    toast.success(`✅ Profile renamed to "${trimmed}" — saved`, { duration: 5000 });
   };
 
   const handleRemoveViewer = (index: number) => {
     const nameToRemove = currentList[index];
     if (currentList.length <= 1) {
-      toast.error('You must keep at least one profile name.');
+      toast.error("👤 Can't delete — you need at least one profile");
       return;
     }
 
@@ -107,7 +107,7 @@ export default function ManageProfilesModal({
       onSwitchProfile(updated[0]);
     }
 
-    toast.success(`Removed "${nameToRemove}" from viewers list.`);
+    toast.success(`Removed "${nameToRemove}" from viewers list.`, { duration: 5000 });
   };
 
   return (

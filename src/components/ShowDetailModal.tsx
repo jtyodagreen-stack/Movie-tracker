@@ -30,8 +30,8 @@ import ImageUploader from './ImageUploader';
 import { normalizeSeasonStr, normalizeEpisodeStr, normalizePlatform, parseGoogleSheetsDate } from '../services/sheetsService';
 import { getOptimizedBackdrop } from '../utils/imageOptimizer';
 import { autoFetchPoster, getOrFetchImdbUrl } from '../services/posterService';
-import { extractDateOnly, extractTimeOnly, combineDateAndTime } from '../utils/dateUtils';
-import { isNotificationEnabled, toggleShowNotification, isShowOutNow, isFutureRelease, enableShowNotificationSilent } from '../services/notificationService';
+import { extractDateOnly, extractTimeOnly, combineDateAndTime, formatToDDMMYYYY, formatToYYYYMMDD } from '../utils/dateUtils';
+import { isNotificationEnabled, toggleShowNotification, isShowOutNow, isFutureRelease, isReleaseDatePast, enableShowNotificationSilent } from '../services/notificationService';
 import { fetchLiveTvMazeInfo, TvMazeShowInfo, TvMazeEpisode } from '../services/tvMazeService';
 import { getPriorityIndicator } from '../utils/priorityUtils';
 import { useNotificationContext } from '../context/NotificationContext';
@@ -257,35 +257,6 @@ export default function ShowDetailModal({
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
     return `${day}-${month}-${year}`;
-  };
-
-  const formatToYYYYMMDD = (dateStr: string): string => {
-    if (!dateStr) return '';
-    const str = parseGoogleSheetsDate(dateStr);
-    const parts = str.split('-');
-    if (parts.length === 3) {
-      if (parts[2].length === 4) {
-        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-      }
-      if (parts[0].length === 4) {
-        return str;
-      }
-    }
-    return str;
-  };
-
-  const formatToDDMMYYYY = (dateStr: string): string => {
-    if (!dateStr) return '';
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      if (parts[0].length === 4) {
-        return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
-      }
-      if (parts[2].length === 4) {
-        return dateStr;
-      }
-    }
-    return dateStr;
   };
 
   const isExpiredRelease = useMemo(() => {
@@ -645,7 +616,9 @@ export default function ShowDetailModal({
             )}
             {(show.releaseDate || show.releaseNote || releaseDate || releaseNote || tvMazeInfo?.nextEpisode) && (
               <span className="text-[10px] sm:text-[11px] font-extrabold px-2 sm:px-2.5 py-0.5 sm:py-1 rounded bg-amber-400 text-black border border-amber-300 shadow-md shrink-0 flex items-center gap-1">
-                ⏰ {formatToDDMMYYYY(releaseDate || show.releaseDate || (tvMazeInfo?.nextEpisode ? combineDateAndTime(tvMazeInfo.nextEpisode.airdate, tvMazeInfo.nextEpisode.airtime || '00:00') : '')) || releaseNote || show.releaseNote || (tvMazeInfo?.nextEpisode ? `S${tvMazeInfo.nextEpisode.season} E${tvMazeInfo.nextEpisode.number}` : '')}
+                ⏰ {isReleaseDatePast(releaseDate || show.releaseDate) && tvMazeInfo?.nextEpisode
+                  ? `${formatToDDMMYYYY(tvMazeInfo.nextEpisode.airdate)} • S${tvMazeInfo.nextEpisode.season} E${tvMazeInfo.nextEpisode.number}`
+                  : formatToDDMMYYYY(releaseDate || show.releaseDate || (tvMazeInfo?.nextEpisode ? tvMazeInfo.nextEpisode.airdate : '')) || releaseNote || show.releaseNote || (tvMazeInfo?.nextEpisode ? `S${tvMazeInfo.nextEpisode.season} E${tvMazeInfo.nextEpisode.number}` : '')}
               </span>
             )}
           </div>
@@ -800,10 +773,14 @@ export default function ShowDetailModal({
                 <div className="flex items-center gap-2">
                   <span className="text-sm">⏰</span>
                   <span>
-                    {releaseDate || show.releaseDate || tvMazeInfo?.nextEpisode
-                      ? `Target Premiere: ${formatToDDMMYYYY(releaseDate || show.releaseDate || (tvMazeInfo?.nextEpisode ? combineDateAndTime(tvMazeInfo.nextEpisode.airdate, tvMazeInfo.nextEpisode.airtime || '00:00') : ''))}`
+                    {isReleaseDatePast(releaseDate || show.releaseDate) && tvMazeInfo?.nextEpisode
+                      ? `Next Episode Premiere: ${formatToDDMMYYYY(tvMazeInfo.nextEpisode.airdate)}${tvMazeInfo.nextEpisode.airtime ? ` at ${tvMazeInfo.nextEpisode.airtime}` : ''}`
+                      : releaseDate || show.releaseDate || tvMazeInfo?.nextEpisode
+                      ? `Target Premiere: ${formatToDDMMYYYY(releaseDate || show.releaseDate || (tvMazeInfo?.nextEpisode ? tvMazeInfo.nextEpisode.airdate : ''))}`
                       : 'Upcoming Release'}
-                    {releaseNote || show.releaseNote || tvMazeInfo?.nextEpisode
+                    {isReleaseDatePast(releaseDate || show.releaseDate) && tvMazeInfo?.nextEpisode
+                      ? ` (S${tvMazeInfo.nextEpisode.season} E${tvMazeInfo.nextEpisode.number}: ${tvMazeInfo.nextEpisode.name})`
+                      : releaseNote || show.releaseNote || tvMazeInfo?.nextEpisode
                       ? ` (${releaseNote || show.releaseNote || (tvMazeInfo?.nextEpisode ? `S${tvMazeInfo.nextEpisode.season} E${tvMazeInfo.nextEpisode.number}: ${tvMazeInfo.nextEpisode.name}` : '')})`
                       : ''}
                   </span>
@@ -1414,6 +1391,25 @@ export default function ShowDetailModal({
                             <p className="text-[11px] text-zinc-400">
                               Airing: <span className="text-zinc-200 font-bold">{new Date(tvMazeInfo.nextEpisode.airdate).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}</span> {tvMazeInfo.nextEpisode.airtime && `at ${tvMazeInfo.nextEpisode.airtime}`}
                             </p>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (tvMazeInfo?.nextEpisode) {
+                                  const nextDateOnly = tvMazeInfo.nextEpisode.airdate;
+                                  const nextTime = tvMazeInfo.nextEpisode.airtime || '20:00';
+                                  setReleaseDateOnly(nextDateOnly);
+                                  setReleaseTime(nextTime);
+                                  const combined = combineDateAndTime(nextDateOnly, nextTime);
+                                  setReleaseDate(combined);
+                                  setReleaseNote(`S${tvMazeInfo.nextEpisode.season} E${tvMazeInfo.nextEpisode.number}: ${tvMazeInfo.nextEpisode.name}`);
+                                }
+                              }}
+                              className="text-[11px] font-bold px-2.5 py-1 rounded-md bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 hover:text-white border border-indigo-500/40 transition-all cursor-pointer flex items-center gap-1"
+                              title="Set this next episode as the main countdown date"
+                            >
+                              <span>✨ Set as Countdown Target</span>
+                            </button>
                           </div>
                         </div>
                       ) : (
@@ -1496,7 +1492,9 @@ export default function ShowDetailModal({
             <button
               id="delete-show-btn"
               onClick={() => onDelete(show)}
-              className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 px-3 py-2 rounded transition-colors"
+              data-preserve-theme="true"
+              className="preserve-theme-color flex items-center gap-1.5 text-xs px-3 py-2 rounded transition-colors cursor-pointer hover:bg-red-500/10"
+              style={{ color: '#f87171' }}
             >
               <Trash2 className="w-4 h-4" />
               <span>Delete from Tracker</span>
@@ -1504,16 +1502,11 @@ export default function ShowDetailModal({
 
             <div className="flex items-center gap-2">
               <button
-                id="cancel-detail-btn"
-                onClick={onClose}
-                className="text-xs font-medium text-zinc-400 hover:text-white px-3 py-2 rounded transition-colors"
-              >
-                Close
-              </button>
-              <button
                 id="save-detail-btn"
                 onClick={handleSave}
-                className="flex items-center gap-1.5 bg-[red-600] hover:bg-[red-700] text-white text-xs sm:text-sm font-semibold px-5 py-2 rounded-md transition-colors shadow-lg shadow-red-900/30"
+                data-preserve-theme="true"
+                className="preserve-theme-color flex items-center gap-1.5 text-white text-xs sm:text-sm font-semibold px-5 py-2 rounded-md transition-all cursor-pointer"
+                style={{ backgroundColor: '#E50914', color: '#ffffff', boxShadow: '0 10px 15px -3px rgba(185, 28, 28, 0.35)' }}
               >
                 <Save className="w-4 h-4" />
                 <span>Save Changes {sheetConnected ? 'to Sheets' : ''}</span>

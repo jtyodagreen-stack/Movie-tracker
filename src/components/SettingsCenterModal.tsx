@@ -82,7 +82,8 @@ interface SettingsCenterModalProps {
   // Accessibility
   accessibilitySettings: AccessibilitySettings;
   setAccessibilitySettings: (settings: AccessibilitySettings) => void;
-  defaultTab?: 'all' | 'user' | 'sync' | 'acc' | 'theme' | 'data';
+  defaultTab?: 'all' | 'user' | 'sync' | 'acc' | 'theme' | 'data' | 'help' | 'alerts' | 'stats';
+  defaultHelpSubSection?: 'guide' | 'bug' | 'feedback' | 'support';
 }
 
 export default function SettingsCenterModal({
@@ -118,6 +119,7 @@ export default function SettingsCenterModal({
   accessibilitySettings,
   setAccessibilitySettings,
   defaultTab = 'all',
+  defaultHelpSubSection = 'guide',
 }: SettingsCenterModalProps) {
   const [activeTab, setActiveTab] = useState<'all' | 'user' | 'sync' | 'acc' | 'alerts' | 'data' | 'stats' | 'help'>(defaultTab === 'theme' ? 'alerts' : (defaultTab as any));
 
@@ -125,19 +127,56 @@ export default function SettingsCenterModal({
   const activeTheme = getAccentTheme(accessibilitySettings.accentColor);
 
   // Help & Support form state
+  const [helpFirstName, setHelpFirstName] = useState('');
+  const [helpLastName, setHelpLastName] = useState('');
+  const [userIpAddress, setUserIpAddress] = useState('');
   const [helpMessage, setHelpMessage] = useState('');
   const [helpSubject, setHelpSubject] = useState('');
   const [helpSenderEmail, setHelpSenderEmail] = useState('');
-  const [helpReportType, setHelpReportType] = useState<'bug' | 'feature' | 'feedback' | 'support'>('bug');
-  const [helpSubSection, setHelpSubSection] = useState<'guide' | 'bug' | 'feedback' | 'support'>('guide');
+  const [helpReportType, setHelpReportType] = useState<'bug' | 'feature' | 'feedback' | 'support'>(defaultHelpSubSection !== 'guide' ? defaultHelpSubSection : 'bug');
+  const [helpSubSection, setHelpSubSection] = useState<'guide' | 'bug' | 'feedback' | 'support'>(defaultHelpSubSection);
   const [isSubmittingHelp, setIsSubmittingHelp] = useState(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [guideSearchQuery, setGuideSearchQuery] = useState('');
 
+  // Auto-detect client IP address for Formsubmit reporting
+  useEffect(() => {
+    let isMounted = true;
+    const fetchIp = async () => {
+      try {
+        const res = await fetch('https://api.ipify.org?format=json');
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data?.ip) {
+            setUserIpAddress(data.ip);
+            return;
+          }
+        }
+      } catch {
+        // Try fallback IP provider
+        try {
+          const fallbackRes = await fetch('https://ipapi.co/json/');
+          if (fallbackRes.ok) {
+            const fallbackData = await fallbackRes.json();
+            if (isMounted && fallbackData?.ip) {
+              setUserIpAddress(fallbackData.ip);
+            }
+          }
+        } catch {
+          // Ignore
+        }
+      }
+    };
+    fetchIp();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleSendDirectFeedback = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!helpMessage.trim()) {
-      toast.error('Please describe your issue or feedback before sending.');
+      toast.error('✏️ Write details above — description needed');
       return;
     }
 
@@ -146,6 +185,7 @@ export default function SettingsCenterModal({
 
     const finalSender = helpSenderEmail.trim() || user?.email || 'user@showflix.app';
     const finalSubject = helpSubject.trim() || `ShowFlix [${helpReportType.toUpperCase()}] Report`;
+    const fullName = `${helpFirstName.trim()} ${helpLastName.trim()}`.trim();
 
     try {
       // 1. Send via local server endpoint log
@@ -156,6 +196,10 @@ export default function SettingsCenterModal({
           type: helpReportType,
           subject: finalSubject,
           message: helpMessage.trim(),
+          firstName: helpFirstName.trim(),
+          lastName: helpLastName.trim(),
+          fullName: fullName || undefined,
+          ipAddress: userIpAddress || undefined,
           userEmail: finalSender,
           userAgent: navigator.userAgent,
         }),
@@ -169,10 +213,14 @@ export default function SettingsCenterModal({
           'Accept': 'application/json',
         },
         body: JSON.stringify({
-          _subject: `[Formsubmit] ${finalSubject}`,
+          _subject: `[Formsubmit] ${finalSubject}${fullName ? ` - from ${fullName}` : ''}`,
           _template: 'table',
           _captcha: 'false',
           category_type: helpReportType.toUpperCase(),
+          first_name: helpFirstName.trim() || 'Not specified',
+          last_name: helpLastName.trim() || 'Not specified',
+          full_name: fullName || 'Anonymous User',
+          ip_address: userIpAddress || 'Auto-detected via network',
           reply_to_email: finalSender,
           summary_subject: finalSubject,
           detailed_message: helpMessage.trim(),
@@ -187,8 +235,10 @@ export default function SettingsCenterModal({
       toast.success('📧 Delivered securely via Formsubmit!', { id: toastId, duration: 6000 });
       setHelpMessage('');
       setHelpSubject('');
+      setHelpFirstName('');
+      setHelpLastName('');
     } catch (err: any) {
-      toast.error('Failed to dispatch report. Please check your network connection.', { id: toastId });
+      toast.error('📧 Message not sent — check connection and try again', { id: toastId });
     } finally {
       setIsSubmittingHelp(false);
     }
@@ -198,8 +248,14 @@ export default function SettingsCenterModal({
   useEffect(() => {
     if (isOpen) {
       setActiveTab(defaultTab === 'theme' ? 'alerts' : (defaultTab as any));
+      if (defaultHelpSubSection) {
+        setHelpSubSection(defaultHelpSubSection);
+        if (defaultHelpSubSection !== 'guide') {
+          setHelpReportType(defaultHelpSubSection);
+        }
+      }
     }
-  }, [isOpen, defaultTab]);
+  }, [isOpen, defaultTab, defaultHelpSubSection]);
 
   // Sync Input States
   const [sheetInputVal, setSheetInputVal] = useState(spreadsheetId);
@@ -306,7 +362,7 @@ export default function SettingsCenterModal({
     if (!trimmed) return;
 
     if (currentList.some((v) => v.toLowerCase() === trimmed.toLowerCase())) {
-      toast.error(`"${trimmed}" is already in your profile list.`);
+      toast.error(`👤 "${trimmed}" is already added — try a different name`);
       return;
     }
 
@@ -320,7 +376,7 @@ export default function SettingsCenterModal({
     // Advance to next unused palette color
     const nextIdx = (PROFILE_COLOR_PALETTE.findIndex((c) => c.hex === selectedNewColor) + 1) % PROFILE_COLOR_PALETTE.length;
     setSelectedNewColor(PROFILE_COLOR_PALETTE[nextIdx].hex);
-    toast.success(`✨ Added profile: "${trimmed}" with ${getViewerColorName(selectedNewColor)} tag!`);
+    toast.success(`✨ Added profile: "${trimmed}" with ${getViewerColorName(selectedNewColor)} tag!`, { duration: 5000 });
   };
 
   // Update a single profile's color tag
@@ -330,7 +386,7 @@ export default function SettingsCenterModal({
     if (onUpdateViewerColors) {
       onUpdateViewerColors(updatedColors);
     }
-    toast.success(`🎨 Color tag for "${viewer}" updated to ${getViewerColorName(newColor)}!`);
+    toast.success(`🎨 Color tag for "${viewer}" updated to ${getViewerColorName(newColor)}!`, { duration: 5000 });
   };
 
   // Save edited profile name while preserving their color tag
@@ -359,14 +415,14 @@ export default function SettingsCenterModal({
 
     setEditingIndex(null);
     setEditingName('');
-    toast.success(`Updated profile to "${trimmed}"`);
+    toast.success(`✅ Profile renamed to "${trimmed}" — saved`, { duration: 5000 });
   };
 
   // Remove profile viewer
   const handleRemoveViewer = (index: number) => {
     const nameToRemove = currentList[index];
     if (currentList.length <= 1) {
-      toast.error('You must keep at least one profile.');
+      toast.error("👤 Can't delete — you need at least one profile");
       return;
     }
 
@@ -383,14 +439,14 @@ export default function SettingsCenterModal({
       onSwitchProfile(updated[0]);
     }
 
-    toast.success(`Removed "${nameToRemove}"`);
+    toast.success(`Removed "${nameToRemove}"`, { duration: 5000 });
   };
 
   // Handle full authentication popup and sheet connection/load
   const handleReSync = async () => {
     const cleanId = extractSpreadsheetId(sheetInputVal) || sheetInputVal.trim();
     if (!cleanId) {
-      toast.error('Please paste a valid Google Sheet URL or ID.');
+      toast.error('🔗 Not a valid link — paste your full Google Sheet URL');
       return;
     }
 
@@ -406,10 +462,10 @@ export default function SettingsCenterModal({
       if (onTriggerSync) {
         onTriggerSync();
       }
-      toast.success('⚡ Connected and synced Google Sheets successfully!', { id: 'resync-loader' });
+      toast.success('⚡ Connected and synced Google Sheets successfully!', { id: 'resync-loader', duration: 5000 });
       onClose();
     } catch (err: any) {
-      toast.error(err.message || 'Authentication or connection cancelled.', { id: 'resync-loader' });
+      toast.error('🔐 Connection cancelled — you can try again anytime', { id: 'resync-loader' });
     }
   };
 
@@ -418,7 +474,7 @@ export default function SettingsCenterModal({
     setErrorMsg(null);
     const cleanId = extractSpreadsheetId(sheetInputVal) || sheetInputVal.trim();
     if (!cleanId) {
-      setErrorMsg('Please paste a valid Google Sheet URL or ID.');
+      setErrorMsg('🔗 Not a valid link — paste your full Google Sheet URL');
       return;
     }
 
@@ -427,7 +483,7 @@ export default function SettingsCenterModal({
       if (onTriggerSync) {
         onTriggerSync();
       }
-      toast.success('Connected and synced Google Sheets successfully!');
+      toast.success('Connected and synced Google Sheets successfully!', { duration: 5000 });
       onClose();
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to connect. Verify your URL and permissions.');
@@ -445,9 +501,9 @@ export default function SettingsCenterModal({
       linkElement.setAttribute('href', dataUri);
       linkElement.setAttribute('download', exportFileDefaultName);
       linkElement.click();
-      toast.success('💾 Library backup exported successfully!');
+      toast.success('💾 Library backup exported successfully!', { duration: 5000 });
     } catch (e) {
-      toast.error('Could not export library backup.');
+      toast.error('💾 Export failed — try again in a moment');
     }
   };
 
@@ -455,9 +511,9 @@ export default function SettingsCenterModal({
   const handleForcePullUpdate = () => {
     if (onTriggerSync) {
       onTriggerSync();
-      toast.success('⚡ Requesting full library update from Sheets...');
+      toast.success('⚡ Requesting full library update from Sheets...', { duration: 5000 });
     } else {
-      toast.error('Sync trigger is offline');
+      toast.error("🔌 Offline — will sync when you're back online");
     }
   };
 
@@ -976,7 +1032,7 @@ export default function SettingsCenterModal({
                       type="button"
                       onClick={() => {
                         onDisconnect();
-                        toast.success('Disconnected from Google Sheet');
+                        toast.success('Disconnected from Google Sheet', { duration: 5000 });
                       }}
                       className="bg-red-950 hover:bg-red-900 text-red-300 border border-red-800/40 text-xs font-bold px-3 py-2 rounded-lg preserve-theme-color"
                     >
@@ -993,7 +1049,7 @@ export default function SettingsCenterModal({
                           }
                           onClose();
                         } catch (err: any) {
-                          toast.error(err.message || 'Sign in cancelled.');
+                          toast.error('🔐 Connection cancelled — you can try again anytime');
                         }
                       }}
                       className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold px-4 py-2 rounded-lg cursor-pointer"
@@ -1119,7 +1175,7 @@ export default function SettingsCenterModal({
                             };
                             setAccessibilitySettings(newSettings);
                             applyAccentTheme(theme.hex);
-                            toast.success(`🎨 Applied theme: ${theme.name}!`);
+                            toast.success(`🎨 Theme changed to ${theme.name} — looks great!`, { duration: 5000 });
                           }}
                           style={
                             isSelected
@@ -1585,6 +1641,47 @@ export default function SettingsCenterModal({
                   </div>
 
                   <form onSubmit={handleSendDirectFeedback} className="space-y-4">
+                    {/* First Name & Last Name */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
+                          First Name
+                        </label>
+                        <input
+                          type="text"
+                          value={helpFirstName}
+                          onChange={(e) => setHelpFirstName(e.target.value)}
+                          placeholder="e.g. John"
+                          className={`w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none placeholder:text-zinc-600 shadow-inner ${
+                            helpSubSection === 'bug'
+                              ? 'focus:border-red-500 focus:ring-1 focus:ring-red-500/30'
+                              : helpSubSection === 'feedback'
+                              ? 'focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30'
+                              : 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30'
+                          }`}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
+                          Last Name
+                        </label>
+                        <input
+                          type="text"
+                          value={helpLastName}
+                          onChange={(e) => setHelpLastName(e.target.value)}
+                          placeholder="e.g. Doe"
+                          className={`w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none placeholder:text-zinc-600 shadow-inner ${
+                            helpSubSection === 'bug'
+                              ? 'focus:border-red-500 focus:ring-1 focus:ring-red-500/30'
+                              : helpSubSection === 'feedback'
+                              ? 'focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30'
+                              : 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30'
+                          }`}
+                        />
+                      </div>
+                    </div>
+
                     {/* Email & Subject */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>

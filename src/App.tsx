@@ -190,7 +190,7 @@ export default function App() {
   const handleUpdateAlertIntervals = (intervals: AlertIntervals) => {
     setAlertIntervals(intervals);
     saveAlertIntervals(intervals);
-    toast.success('🔔 Alert preferences updated!');
+    toast.success('🔔 Alert preferences updated!', { duration: 5000 });
   };
 
   // Persist accessibility settings whenever they change
@@ -264,8 +264,19 @@ export default function App() {
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
+  const [settingsModalTab, setSettingsModalTab] = useState<'all' | 'user' | 'sync' | 'acc' | 'theme' | 'data' | 'help' | 'alerts' | 'stats'>('sync');
+  const [settingsModalHelpSubSection, setSettingsModalHelpSubSection] = useState<'guide' | 'bug' | 'feedback' | 'support'>('guide');
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+
+  const handleOpenSettingsModal = (
+    tab: 'all' | 'user' | 'sync' | 'acc' | 'theme' | 'data' | 'help' | 'alerts' | 'stats' = 'sync',
+    subSection: 'guide' | 'bug' | 'feedback' | 'support' = 'guide'
+  ) => {
+    setSettingsModalTab(tab);
+    setSettingsModalHelpSubSection(subSection);
+    setShowSyncModal(true);
+  };
 
   // Track window scroll position for Back to Top
   useEffect(() => {
@@ -860,7 +871,7 @@ export default function App() {
   // Listen for Google Sheets 403 API permission errors
   useEffect(() => {
     const handleGoogleSheets403 = () => {
-      toast.error('⚠️ Google Sheets permission error (403). Please reconnect Google Sheets in Settings.');
+      toast.error('⚠️ Permission issue — go to Settings → Reconnect Google Sheets');
       setShowSyncModal(true);
     };
 
@@ -1027,8 +1038,19 @@ export default function App() {
         ...(wishlistParsed.shows || []),
         ...(showcaseParsed.shows || [])
       ];
-      // Deduplicate
-      const finalShows = Array.from(new Map(combinedShows.map(s => [s.id, s])).values());
+      // Deduplicate & preserve createdTimestamp from existing in-memory state for instant recency
+      const existingShowMap = new Map(shows.map((s) => [s.id, s]));
+      const finalShows = Array.from(new Map(combinedShows.map(s => [s.id, s])).values()).map((newShow) => {
+        const existing = existingShowMap.get(newShow.id);
+        const createdTs =
+          existing?.createdTimestamp ||
+          newShow.createdTimestamp ||
+          (newShow.dateAdded ? parseAnyDate(newShow.dateAdded)?.getTime() : undefined);
+        return {
+          ...newShow,
+          createdTimestamp: createdTs,
+        };
+      });
 
       const matchedSheetObj = meta?.sheets.find(
         (s) => s.title.trim().toLowerCase() === chosenSheet.trim().toLowerCase()
@@ -1613,6 +1635,7 @@ export default function App() {
       ...newShow,
       isWishlist,
       sheetTabName: targetTab,
+      createdTimestamp: newShow.createdTimestamp || Date.now(),
       dateAdded: newShow.dateAdded || getTodayDDMMYYYY(),
       seasons: isMovie || isWishlist ? '' : normalizeSeasonStr(newShow.seasons),
       episodes: isMovie || isWishlist ? '' : normalizeEpisodeStr(newShow.episodes),
@@ -2175,16 +2198,23 @@ export default function App() {
     if (!profileFilteredShows || profileFilteredShows.length === 0) return [];
 
     const copy = [...profileFilteredShows];
+
     copy.sort((a, b) => {
-      const dateA = a.dateAdded ? parseAnyDate(a.dateAdded)?.getTime() : null;
-      const dateB = b.dateAdded ? parseAnyDate(b.dateAdded)?.getTime() : null;
+      // 1. Check exact creation timestamp (higher = added more recently)
+      const tsA = a.createdTimestamp || (a.dateAdded ? parseAnyDate(a.dateAdded)?.getTime() : null);
+      const tsB = b.createdTimestamp || (b.dateAdded ? parseAnyDate(b.dateAdded)?.getTime() : null);
 
-      if (dateA && dateB && dateA !== dateB) {
-        return dateB - dateA;
+      if (tsA && tsB && tsA !== tsB) {
+        return tsB - tsA;
       }
-      if (dateA && !dateB) return -1;
-      if (!dateA && dateB) return 1;
+      if (tsA && !tsB) return -1;
+      if (!tsA && tsB) return 1;
 
+      // 2. Pending items without rowNumber (newly added, syncing in background) come first
+      if (!a.rowNumber && b.rowNumber) return -1;
+      if (a.rowNumber && !b.rowNumber) return 1;
+
+      // 3. Higher rowNumber in Google Sheet = appended later = more recent
       if (a.rowNumber && b.rowNumber && a.rowNumber !== b.rowNumber) {
         return b.rowNumber - a.rowNumber;
       }
@@ -3673,10 +3703,86 @@ export default function App() {
         onToggleAutoSync={handleToggleAutoSync}
       />
 
-      <main className={`flex-1 pb-16 w-full max-w-full overflow-x-hidden ${!isAnyFilterActive && !showStatsModal ? 'pt-0' : showStatsModal ? 'pt-24' : 'pt-16'}`}>
+      <main className={`flex-1 pb-8 w-full max-w-full overflow-x-hidden ${!isAnyFilterActive && !showStatsModal ? 'pt-0' : showStatsModal ? 'pt-24' : 'pt-16'}`}>
         {renderMainContent()}
       </main>
 
+      {/* Bottom Help & Support Banner */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8 mt-6">
+        <div className="rounded-2xl bg-gradient-to-r from-zinc-900 via-zinc-900 to-zinc-950 border border-zinc-800/90 p-5 sm:p-7 flex flex-col md:flex-row items-center justify-between gap-5 shadow-2xl relative overflow-hidden">
+          {/* Subtle ambient glows */}
+          <div className="absolute -top-12 -right-12 w-48 h-48 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="flex items-center gap-4 relative z-10 w-full md:w-auto">
+            <div
+              className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0 preserve-theme-color"
+              data-preserve-theme="true"
+              style={{
+                backgroundColor: 'rgba(229, 9, 20, 0.15)',
+                borderColor: 'rgba(229, 9, 20, 0.35)',
+                borderWidth: '1px',
+                borderStyle: 'solid',
+                color: '#E50914',
+              }}
+            >
+              🎧
+            </div>
+            <div>
+              <h4 className="text-base sm:text-lg font-black text-white tracking-tight">
+                Need Help, Want to Contact Us, or Have an Idea?
+              </h4>
+              <p className="text-xs text-zinc-400 mt-1 max-w-xl leading-relaxed">
+                Explore the Quick Guide, contact our support team directly, report an issue, or share your feedback and feature suggestions.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center flex-wrap gap-2.5 shrink-0 relative z-10 w-full md:w-auto justify-start md:justify-end">
+            {/* 1. Quick Guide */}
+            <button
+              type="button"
+              onClick={() => handleOpenSettingsModal('help', 'guide')}
+              className="px-3.5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white font-bold text-xs border border-zinc-700/70 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <span>📖</span>
+              <span>Quick Guide</span>
+            </button>
+
+            {/* 2. Report Issue */}
+            <button
+              type="button"
+              onClick={() => handleOpenSettingsModal('help', 'bug')}
+              style={{ backgroundColor: '#E50914' }}
+              className="px-4 py-2.5 rounded-xl text-white font-bold text-xs hover:brightness-110 active:brightness-95 transition-all cursor-pointer flex items-center gap-1.5 shadow-md preserve-theme-color"
+              data-preserve-theme="true"
+            >
+              <span>🐛</span>
+              <span>Report Issue</span>
+            </button>
+
+            {/* 3. Send Feedback */}
+            <button
+              type="button"
+              onClick={() => handleOpenSettingsModal('help', 'feedback')}
+              className="px-3.5 py-2.5 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-400 hover:text-emerald-300 font-bold text-xs border border-emerald-600/30 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <span>💬</span>
+              <span>Send Feedback</span>
+            </button>
+
+            {/* 4. Contact Support */}
+            <button
+              type="button"
+              onClick={() => handleOpenSettingsModal('help', 'support')}
+              className="px-3.5 py-2.5 rounded-xl bg-amber-950/40 hover:bg-amber-900/50 text-amber-400 hover:text-amber-300 font-bold text-xs border border-amber-600/30 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <span>🎧</span>
+              <span>Contact Support</span>
+            </button>
+          </div>
+        </div>
+      </section>
 
       {/* Footer */}
       <footer className="border-t border-zinc-800/80 bg-[#101010] py-8 pb-28 sm:pb-8 text-zinc-500 text-xs mt-auto">
@@ -3695,7 +3801,19 @@ export default function App() {
 
           <div className="flex items-center gap-4">
             <button
-              onClick={() => setShowSyncModal(true)}
+              onClick={() => handleOpenSettingsModal('help', 'guide')}
+              className="hover:text-zinc-300 transition-colors cursor-pointer text-cyan-400/90 font-medium"
+            >
+              📖 Help & Support
+            </button>
+            <button
+              onClick={() => handleOpenSettingsModal('help', 'support')}
+              className="hover:text-zinc-300 transition-colors cursor-pointer text-amber-400/90 font-medium"
+            >
+              🎧 Contact Us
+            </button>
+            <button
+              onClick={() => handleOpenSettingsModal('sync')}
               className="hover:text-zinc-300 transition-colors cursor-pointer"
             >
               Google Sheets Settings
@@ -3784,7 +3902,8 @@ export default function App() {
           onUpdateAlertIntervals={handleUpdateAlertIntervals}
           accessibilitySettings={accessibilitySettings}
           setAccessibilitySettings={setAccessibilitySettings}
-          defaultTab="sync"
+          defaultTab={settingsModalTab}
+          defaultHelpSubSection={settingsModalHelpSubSection}
         />
       )}
 

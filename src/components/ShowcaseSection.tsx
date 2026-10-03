@@ -4,8 +4,9 @@ import { ShowItem } from '../types';
 import { useNotificationContext } from '../context/NotificationContext';
 import { getOptimizedPoster } from '../utils/imageOptimizer';
 import { calculateShowProgress } from '../utils/showMetrics';
-import { isShowOutNow, parseReleaseDateToTimestamp } from '../services/notificationService';
+import { isShowOutNow, parseReleaseDateToTimestamp, isReleaseDatePast } from '../services/notificationService';
 import { getPriorityIndicator } from '../utils/priorityUtils';
+import { formatToDDMMYYYY } from '../utils/dateUtils';
 
 interface ShowcaseSectionProps {
   shows: ShowItem[];
@@ -331,7 +332,17 @@ export default function ShowcaseSection({
               <div className="space-y-2.5">
                 {comingSoonList.map((show) => {
                   const outNow = isShowOutNow(show);
-                  const dateStr = outNow ? '🎉 OUT NOW' : (show.releaseDate || show.releaseNote || 'Coming Soon');
+                  const isPast = isReleaseDatePast(show.releaseDate);
+                  const effectiveDate = (isPast && show.nextAirDate) 
+                    ? formatToDDMMYYYY(show.nextAirDate) 
+                    : (!isPast && show.releaseDate) 
+                    ? formatToDDMMYYYY(show.releaseDate) 
+                    : show.nextAirDate 
+                    ? formatToDDMMYYYY(show.nextAirDate) 
+                    : show.releaseDate 
+                    ? formatToDDMMYYYY(show.releaseDate) 
+                    : show.releaseNote || 'Coming Soon';
+                  const dateStr = outNow ? '🎉 OUT NOW' : effectiveDate;
 
                   return (
                     <div
@@ -397,13 +408,13 @@ export default function ShowcaseSection({
                             type="button"
                             onClick={(e) => handleToggleNotif(e, show)}
                             className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                              isNotificationEnabled(show.id)
+                              isNotificationEnabled(show)
                                 ? 'bg-amber-500/20 text-amber-400 border-amber-500/50 hover:bg-amber-500/30 shadow'
                                 : 'bg-zinc-800/80 text-zinc-400 border-zinc-700/60 hover:text-white hover:bg-zinc-700'
                             }`}
-                            title={isNotificationEnabled(show.id) ? '24h Release Alert Active (Click to disable)' : 'Alert me 24 hours before release'}
+                            title={isNotificationEnabled(show) ? '24h Release Alert Active (Click to disable)' : 'Alert me 24 hours before release'}
                           >
-                            {isNotificationEnabled(show.id) ? (
+                            {isNotificationEnabled(show) ? (
                               <BellRing className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
                             ) : (
                               <Bell className="w-3.5 h-3.5" />

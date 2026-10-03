@@ -196,9 +196,10 @@ export function sendOutNowNotificationAlert(show: ShowItem) {
   toast.custom(
     (t) => (
       <div
+        onClick={() => toast.dismiss(t.id)}
         className={`${
           t.visible ? 'animate-in fade-in slide-in-from-top-3' : 'animate-out fade-out'
-        } max-w-md w-full bg-zinc-950 border-2 border-emerald-500/90 shadow-2xl rounded-xl p-4 pointer-events-auto flex items-start gap-3.5 text-white ring-1 ring-emerald-500/40`}
+        } max-w-md w-full bg-zinc-950 border-2 border-emerald-500/90 shadow-2xl rounded-xl p-4 pointer-events-auto flex items-start gap-3.5 text-white ring-1 ring-emerald-500/40 cursor-pointer`}
       >
         <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center shrink-0 text-emerald-400 text-xl font-black shadow animate-bounce">
           🎉
@@ -217,7 +218,7 @@ export function sendOutNowNotificationAlert(show: ShowItem) {
         </div>
       </div>
     ),
-    { duration: 10000 }
+    { duration: 7000 }
   );
 
   // Native Browser Notification
@@ -276,9 +277,10 @@ export async function toggleShowNotification(showOrItem: ShowItem | { id: string
     toast.custom(
       (t) => (
         <div
+          onClick={() => toast.dismiss(t.id)}
           className={`${
             t.visible ? 'animate-in fade-in slide-in-from-top-3' : 'animate-out fade-out'
-          } max-w-md w-full bg-zinc-950 border border-zinc-800 shadow-2xl rounded-xl p-3.5 pointer-events-auto flex items-start gap-3 text-white ring-1 ring-zinc-800/50`}
+          } max-w-md w-full bg-zinc-950 border border-zinc-800 shadow-2xl rounded-xl p-3.5 pointer-events-auto flex items-start gap-3 text-white ring-1 ring-zinc-800/50 cursor-pointer`}
         >
           <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 text-zinc-400 text-lg font-black shadow">
             🔕
@@ -297,7 +299,7 @@ export async function toggleShowNotification(showOrItem: ShowItem | { id: string
           </div>
         </div>
       ),
-      { duration: 3000 }
+      { duration: 4000 }
     );
   } else {
     // Enable notification - store both ID and title key so sync reloads never turn it off
@@ -315,9 +317,10 @@ export async function toggleShowNotification(showOrItem: ShowItem | { id: string
     toast.custom(
       (t) => (
         <div
+          onClick={() => toast.dismiss(t.id)}
           className={`${
             t.visible ? 'animate-in fade-in slide-in-from-top-3' : 'animate-out fade-out'
-          } max-w-md w-full bg-zinc-950 border-2 border-amber-500/80 shadow-2xl shadow-amber-950/40 rounded-xl p-3.5 pointer-events-auto flex items-start gap-3 text-white ring-1 ring-amber-500/40`}
+          } max-w-md w-full bg-zinc-950 border-2 border-amber-500/80 shadow-2xl shadow-amber-950/40 rounded-xl p-3.5 pointer-events-auto flex items-start gap-3 text-white ring-1 ring-amber-500/40 cursor-pointer`}
         >
           <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center shrink-0 text-amber-400 text-lg font-black shadow animate-pulse">
             🔔
@@ -338,7 +341,7 @@ export async function toggleShowNotification(showOrItem: ShowItem | { id: string
           </div>
         </div>
       ),
-      { duration: 4000 }
+      { duration: 5000 }
     );
 
     requestBrowserNotificationPermission();
@@ -458,6 +461,19 @@ export function isFutureRelease(show: ShowItem): boolean {
 }
 
 /**
+ * Checks if a show's release date has already passed and the 24-hour "OUT NOW" window is finished.
+ * This indicates the episode has completed its release window and the show should look for the next upcoming episode.
+ */
+export function isReleaseDatePast(dateStr?: string | null): boolean {
+  if (!dateStr) return false;
+  const targetTime = parseReleaseDateToTimestamp(dateStr);
+  if (!targetTime) return false;
+  const now = Date.now();
+  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+  return now - targetTime > TWENTY_FOUR_HOURS_MS;
+}
+
+/**
  * Checks all shows with notifications enabled:
  * Triggers alerts based on custom intervals.
  */
@@ -539,4 +555,49 @@ export function getEffectiveReleaseInfo(show: ShowItem): { timestamp: number | n
     label: raw || 'Coming Soon',
     isOut,
   };
+}
+
+/**
+ * 📋 Copied to Clipboard Toast (3s)
+ */
+export function notifyCopiedToClipboard() {
+  toast.success('✅ Copied to clipboard — ready to paste', { duration: 3000 });
+}
+
+/**
+ * 💾 Saved to Sheet Toast (4s)
+ */
+export function notifySavedToSheet() {
+  toast.success('✅ Saved to Google Sheet ✓', { duration: 4000 });
+}
+
+/**
+ * 🔄 No Changes Toast (3s)
+ */
+export function notifyNoChangesSync() {
+  toast('Nothing new to sync — already up to date', {
+    duration: 3000,
+    icon: '🔄',
+    style: {
+      background: '#09090b',
+      color: '#38bdf8',
+      border: '1px solid rgba(56, 189, 248, 0.4)',
+    },
+  });
+}
+
+/**
+ * 🕐 Last Synced Toast (2s)
+ */
+export function notifyLastSynced(timeStr?: string) {
+  const displayTime = timeStr || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  toast(`⏱️ Last synced: ${displayTime}`, {
+    duration: 2000,
+    style: {
+      background: '#18181b',
+      color: '#a1a1aa',
+      border: '1px solid #3f3f46',
+      fontSize: '12px',
+    },
+  });
 }

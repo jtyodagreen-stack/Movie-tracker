@@ -6,7 +6,7 @@ import ImageUploader from './ImageUploader';
 import { normalizeSeasonStr, normalizeEpisodeStr, normalizePlatform, parseGoogleSheetsDate } from '../services/sheetsService';
 import { autoFetchPoster, searchLiveSuggestions, getImdbSearchUrl, LiveSearchItem, PosterCandidate, PosterSearchResult } from '../services/posterService';
 import { fetchLiveTvMazeInfo, TvMazeShowInfo, TvMazeEpisode } from '../services/tvMazeService';
-import { extractDateOnly, extractTimeOnly, combineDateAndTime } from '../utils/dateUtils';
+import { extractDateOnly, extractTimeOnly, combineDateAndTime, formatToDDMMYYYY, formatToYYYYMMDD, getTodayDDMMYYYY } from '../utils/dateUtils';
 import { enableShowNotificationSilent } from '../services/notificationService';
 
 interface AddShowModalProps {
@@ -202,43 +202,6 @@ export default function AddShowModal({
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
-
-  const getTodayDDMMYYYY = () => {
-    const d = new Date();
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}-${month}-${year}`;
-  };
-
-  const formatToYYYYMMDD = (dateStr: string): string => {
-    if (!dateStr) return '';
-    const str = parseGoogleSheetsDate(dateStr);
-    const parts = str.split('-');
-    if (parts.length === 3) {
-      if (parts[2].length === 4) {
-        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-      }
-      if (parts[0].length === 4) {
-        return str;
-      }
-    }
-    return str;
-  };
-
-  const formatToDDMMYYYY = (dateStr: string): string => {
-    if (!dateStr) return '';
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      if (parts[0].length === 4) {
-        return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
-      }
-      if (parts[2].length === 4) {
-        return dateStr;
-      }
-    }
-    return dateStr;
-  };
 
   const [dateAdded, setDateAdded] = useState(getTodayDDMMYYYY());
   const [releaseDate, setReleaseDate] = useState('');
@@ -692,11 +655,13 @@ export default function AddShowModal({
               form="add-show-form"
               id="add-top-save-btn"
               disabled={Boolean(duplicateShowItem && duplicateError)}
-              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full shadow-md transition-all ${
+              data-preserve-theme="true"
+              className="preserve-theme-color flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full shadow-md transition-all"
+              style={
                 Boolean(duplicateShowItem && duplicateError)
-                  ? 'bg-red-950 text-red-300 border-2 border-red-600 cursor-not-allowed shadow-red-950/50'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/50 cursor-pointer'
-              }`}
+                  ? { backgroundColor: '#450a0a', color: '#fca5a5', border: '2px solid #dc2626', cursor: 'not-allowed' }
+                  : { backgroundColor: '#059669', color: '#ffffff', border: '1px solid rgba(16, 185, 129, 0.5)', cursor: 'pointer' }
+              }
             >
               <Save className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">{Boolean(duplicateShowItem && duplicateError) ? '🚫 Duplicate' : 'Add Title'}</span>
@@ -920,11 +885,17 @@ export default function AddShowModal({
             return (
               <div
                 id="duplicate-title-warning-box"
-                className="p-4 bg-red-950/95 border-2 border-red-500 rounded-xl space-y-3 text-white shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200"
+                data-preserve-theme="true"
+                className="preserve-theme-color p-4 rounded-xl space-y-3 text-white shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200"
+                style={{ backgroundColor: 'rgba(69, 10, 10, 0.95)', border: '2px solid #ef4444' }}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-red-600/20 border border-red-500 flex items-center justify-center shrink-0 text-red-400 mt-0.5">
+                    <div
+                      data-preserve-theme="true"
+                      className="preserve-theme-color w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+                      style={{ backgroundColor: 'rgba(127, 29, 29, 0.4)', border: '1px solid #ef4444', color: '#f87171' }}
+                    >
                       <AlertTriangle className="w-5 h-5" />
                     </div>
                     <div className="space-y-1 min-w-0">
@@ -932,11 +903,15 @@ export default function AddShowModal({
                         <h4 className="text-sm font-black text-white">
                           Duplicate Found: &ldquo;{activeDuplicate.title}&rdquo;
                         </h4>
-                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-red-600 text-white shadow-sm">
+                        <span
+                          data-preserve-theme="true"
+                          className="preserve-theme-color text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded text-white shadow-sm"
+                          style={{ backgroundColor: '#dc2626' }}
+                        >
                           Already in Library
                         </span>
                       </div>
-                      <p className="text-xs text-red-200/95 leading-relaxed">
+                      <p className="text-xs leading-relaxed" style={{ color: 'rgba(254, 202, 202, 0.95)' }}>
                         This show is already in your <strong>{activeDuplicate.isWishlist ? 'Wishlist' : 'Master Tracker'}</strong> ({activeDuplicate.status} • {activeDuplicate.platform || 'Tracker'}). Duplicate titles cannot be added.
                       </p>
                     </div>
@@ -949,7 +924,9 @@ export default function AddShowModal({
                         onClose();
                         onSelectExistingShow(activeDuplicate);
                       }}
-                      className="text-xs bg-red-600 hover:bg-red-500 text-white font-black px-3.5 py-2 rounded-lg shadow-lg hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border border-red-400/60 whitespace-nowrap"
+                      data-preserve-theme="true"
+                      className="preserve-theme-color text-xs text-white font-black px-3.5 py-2 rounded-lg shadow-lg hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer whitespace-nowrap"
+                      style={{ backgroundColor: '#dc2626', border: '1px solid rgba(248, 113, 113, 0.6)' }}
                     >
                       Open Existing Show →
                     </button>
@@ -1432,30 +1409,6 @@ export default function AddShowModal({
               )}
             </div>
           )}
-
-          {/* Submit */}
-          <div className="pt-2 flex items-center justify-end gap-3 border-t border-zinc-800">
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-xs font-semibold text-zinc-400 hover:text-white px-4 py-2"
-            >
-              Cancel
-            </button>
-            <button
-              id="submit-add-show-btn"
-              type="submit"
-              disabled={Boolean(duplicateShowItem && duplicateError)}
-              className={`flex items-center gap-1.5 text-xs sm:text-sm font-bold px-5 py-2.5 rounded-md shadow-lg transition-all ${
-                Boolean(duplicateShowItem && duplicateError)
-                  ? 'bg-red-950 text-red-300 border-2 border-red-600 cursor-not-allowed shadow-red-950/50'
-                  : 'bg-red-600 hover:bg-red-700 text-white shadow-red-900/30 cursor-pointer'
-              }`}
-            >
-              <Plus className="w-4 h-4" />
-              <span>{Boolean(duplicateShowItem && duplicateError) ? '🚫 Duplicate - Cannot Add' : 'Add to Tracker'}</span>
-            </button>
-          </div>
         </form>
       </div>
     </div>

@@ -227,16 +227,22 @@ async function createServer() {
   // Direct feedback and report submission endpoint (Dispatches REAL email to jtyodagreen@gmail.com)
   app.post('/api/feedback/send', async (req, res) => {
     try {
-      const { type, message, userEmail, userAgent } = req.body;
+      const { type, message, userEmail, userAgent, firstName, lastName, fullName, ipAddress } = req.body;
       if (!message || !message.trim()) {
         return res.status(400).json({ error: 'Message content is required' });
       }
 
+      const clientIp = ipAddress || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'Unknown';
+      const resolvedName = fullName || `${firstName || ''} ${lastName || ''}`.trim() || 'Anonymous';
       const timestamp = new Date().toISOString();
       const reportEntry = {
         id: Date.now().toString(36),
         timestamp,
         type: type || 'feedback',
+        firstName: firstName || '',
+        lastName: lastName || '',
+        fullName: resolvedName,
+        ipAddress: clientIp,
         message: message.trim(),
         userEmail: userEmail || 'jtyodagreen@gmail.com',
         userAgent: userAgent || 'ShowFlix Web App',
@@ -271,10 +277,14 @@ async function createServer() {
             'Accept': 'application/json',
           },
           body: JSON.stringify({
-            _subject: `ShowFlix [${(type || 'Feedback').toUpperCase()}] Report`,
+            _subject: `ShowFlix [${(type || 'Feedback').toUpperCase()}] Report from ${resolvedName}`,
             _template: 'table',
             _captcha: 'false',
             category: type || 'feedback',
+            first_name: firstName || 'Not provided',
+            last_name: lastName || 'Not provided',
+            full_name: resolvedName,
+            ip_address: clientIp,
             user_email: userEmail || 'jtyodagreen@gmail.com',
             report_message: message.trim(),
             submitted_at: timestamp,

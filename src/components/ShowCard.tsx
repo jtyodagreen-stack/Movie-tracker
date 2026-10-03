@@ -4,8 +4,8 @@ import { ShowItem } from '../types';
 import { getOptimizedPoster } from '../utils/imageOptimizer';
 import { formatToDDMMYYYY } from '../utils/dateUtils';
 import { calculateShowProgress } from '../utils/showMetrics';
-import { isNotificationEnabled, toggleShowNotification, isShowOutNow, isFutureRelease } from '../services/notificationService';
-import { fetchLiveTvMazeInfo } from '../services/tvMazeService';
+import { isNotificationEnabled, toggleShowNotification, isShowOutNow, isFutureRelease, isReleaseDatePast } from '../services/notificationService';
+import { fetchLiveTvMazeInfo, TvMazeEpisode } from '../services/tvMazeService';
 import { getViewerColor } from '../utils/profileColors';
 import { getPriorityIndicator } from '../utils/priorityUtils';
 
@@ -33,6 +33,7 @@ export default function ShowCard({
   const [isHovered, setIsHovered] = useState(false);
   const [isNotifActive, setIsNotifActive] = useState(() => isNotificationEnabled(show));
   const [liveAirstamp, setLiveAirstamp] = useState<string | null>(null);
+  const [liveNextEpisode, setLiveNextEpisode] = useState<TvMazeEpisode | null>(null);
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -50,17 +51,21 @@ export default function ShowCard({
   }, [show.id]);
 
   useEffect(() => {
-    if (show.releaseDate || show.type !== 'Series' || show.status !== '⏳ Watching') {
+    // If show has a future or active releaseDate (within 24h), we don't need liveAirstamp
+    const isPast = isReleaseDatePast(show.releaseDate);
+    if ((show.releaseDate && !isPast) || show.type !== 'Series') {
       setLiveAirstamp(null);
+      setLiveNextEpisode(null);
       return;
     }
 
     let isMounted = true;
-    const delay = Math.random() * 800; // Small staggered delay to prevent TVMaze lookup lookup rate-limits
+    const delay = Math.random() * 600; // Small staggered delay to prevent TVMaze lookup rate-limits
     const timeout = setTimeout(() => {
       fetchLiveTvMazeInfo(show.title).then((info) => {
         if (isMounted && info && info.nextEpisode) {
           setLiveAirstamp(info.nextEpisode.airstamp);
+          setLiveNextEpisode(info.nextEpisode);
         }
       }).catch((err) => console.warn('ShowCard TVMaze fetch failed:', err));
     }, delay);
@@ -277,19 +282,32 @@ export default function ShowCard({
                 )}
               </div>
             )}
-            {(show.releaseDate || liveAirstamp) && (
+            {(show.releaseDate || liveNextEpisode || liveAirstamp) && (
               isShowOutNow(show) ? (
                 <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500 text-black border border-emerald-400 shadow-md shrink-0 flex items-center gap-1 animate-pulse">
                   🎉 OUT NOW!
                 </span>
-              ) : (
+              ) : isReleaseDatePast(show.releaseDate) && !liveNextEpisode && !liveAirstamp ? null : (
                 <div className="flex items-center gap-1 pointer-events-auto">
-                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-400 text-black border border-amber-300 shadow-sm shrink-0 flex items-center gap-0.5">
-                    ⏰ {show.releaseDate 
-                      ? formatToDDMMYYYY(show.releaseDate) 
-                      : liveAirstamp 
-                        ? new Date(liveAirstamp).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-') 
-                        : ''}
+                  <span
+                    className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-400 text-black border border-amber-300 shadow-sm shrink-0 flex items-center gap-0.5"
+                    title={
+                      isReleaseDatePast(show.releaseDate) && liveNextEpisode
+                        ? `Next Episode: S${liveNextEpisode.season} E${liveNextEpisode.number} - ${liveNextEpisode.name} (${formatToDDMMYYYY(liveNextEpisode.airdate)})`
+                        : show.releaseDate
+                        ? `Release Date: ${formatToDDMMYYYY(show.releaseDate)}`
+                        : ''
+                    }
+                  >
+                    ⏰ {isReleaseDatePast(show.releaseDate) && liveNextEpisode?.airdate
+                      ? formatToDDMMYYYY(liveNextEpisode.airdate)
+                      : show.releaseDate 
+                        ? formatToDDMMYYYY(show.releaseDate) 
+                        : liveNextEpisode?.airdate
+                          ? formatToDDMMYYYY(liveNextEpisode.airdate)
+                          : liveAirstamp 
+                            ? formatToDDMMYYYY(new Date(liveAirstamp))
+                            : ''}
                   </span>
                 </div>
               )

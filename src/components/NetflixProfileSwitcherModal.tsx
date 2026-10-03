@@ -63,6 +63,7 @@ export default function NetflixProfileSwitcherModal({
     if (profileName) {
       toast.success(`Switched to "${profileName}"'s profile`, {
         icon: '👤',
+        duration: 5000,
         style: {
           background: '#181818',
           color: '#fff',
@@ -72,6 +73,7 @@ export default function NetflixProfileSwitcherModal({
     } else {
       toast.success('Viewing All Household Profiles', {
         icon: '👥',
+        duration: 5000,
         style: {
           background: '#181818',
           color: '#fff',

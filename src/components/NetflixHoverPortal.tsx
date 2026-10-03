@@ -7,9 +7,9 @@ import { getOptimizedPoster } from '../utils/imageOptimizer';
 import { getOrFetchImdbUrl } from '../services/posterService';
 import { formatToDDMMYYYY } from '../utils/dateUtils';
 import { calculateShowProgress } from '../utils/showMetrics';
-import { isShowOutNow, isFutureRelease, parseReleaseDateToTimestamp } from '../services/notificationService';
+import { isShowOutNow, isFutureRelease, parseReleaseDateToTimestamp, isReleaseDatePast } from '../services/notificationService';
 import { useNotificationContext } from '../context/NotificationContext';
-import { fetchLiveTvMazeInfo } from '../services/tvMazeService';
+import { fetchLiveTvMazeInfo, TvMazeEpisode } from '../services/tvMazeService';
 import { getViewerColor } from '../utils/profileColors';
 import { getPriorityIndicator } from '../utils/priorityUtils';
 
@@ -50,17 +50,14 @@ export default function NetflixHoverPortal({
   const isNotifActive = isNotificationEnabled(show);
 
   const [liveAirstamp, setLiveAirstamp] = useState<string | null>(null);
+  const [liveNextEpisode, setLiveNextEpisode] = useState<TvMazeEpisode | null>(null);
   const [liveEpisodeNote, setLiveEpisodeNote] = useState<string | null>(null);
 
   useEffect(() => {
-    if (show.releaseDate) {
+    const isPast = isReleaseDatePast(show.releaseDate);
+    if ((show.releaseDate && !isPast) || show.type !== 'Series') {
       setLiveAirstamp(null);
-      setLiveEpisodeNote(null);
-      return;
-    }
-
-    if (show.type !== 'Series') {
-      setLiveAirstamp(null);
+      setLiveNextEpisode(null);
       setLiveEpisodeNote(null);
       return;
     }
@@ -69,6 +66,7 @@ export default function NetflixHoverPortal({
     fetchLiveTvMazeInfo(show.title).then((info) => {
       if (isMounted && info && info.nextEpisode) {
         setLiveAirstamp(info.nextEpisode.airstamp);
+        setLiveNextEpisode(info.nextEpisode);
         setLiveEpisodeNote(`S${info.nextEpisode.season} E${info.nextEpisode.number}: ${info.nextEpisode.name}`);
       }
     }).catch((err) => console.warn('Hover TVMaze fetch failed:', err));
@@ -81,7 +79,8 @@ export default function NetflixHoverPortal({
   const [timeLeft, setTimeLeft] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
 
   useEffect(() => {
-    const targetSource = show.releaseDate 
+    const isPast = isReleaseDatePast(show.releaseDate);
+    const targetSource = (!isPast && show.releaseDate)
       ? parseReleaseDateToTimestamp(show.releaseDate) 
       : liveAirstamp 
         ? new Date(liveAirstamp).getTime() 
@@ -403,14 +402,31 @@ export default function NetflixHoverPortal({
                   )}
                 </div>
               )}
-              {(show.releaseDate || liveAirstamp) && (
+              {(show.releaseDate || liveNextEpisode || liveAirstamp) && (
                 isShowOutNow(show) ? (
                   <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500 text-black border border-emerald-400 shadow-md shrink-0 flex items-center gap-1 animate-pulse">
                     🎉 OUT NOW!
                   </span>
-                ) : (
-                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-400 text-black border border-amber-300 shadow-md shrink-0 flex items-center gap-0.5">
-                    ⏰ {show.releaseDate ? formatToDDMMYYYY(show.releaseDate) : liveAirstamp ? new Date(liveAirstamp).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-') : ''}
+                ) : isReleaseDatePast(show.releaseDate) && !liveNextEpisode && !liveAirstamp ? null : (
+                  <span
+                    className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-400 text-black border border-amber-300 shadow-md shrink-0 flex items-center gap-0.5"
+                    title={
+                      isReleaseDatePast(show.releaseDate) && liveNextEpisode
+                        ? `Next Episode: S${liveNextEpisode.season} E${liveNextEpisode.number} - ${liveNextEpisode.name} (${formatToDDMMYYYY(liveNextEpisode.airdate)})`
+                        : show.releaseDate
+                        ? `Release Date: ${formatToDDMMYYYY(show.releaseDate)}`
+                        : ''
+                    }
+                  >
+                    ⏰ {isReleaseDatePast(show.releaseDate) && liveNextEpisode?.airdate
+                      ? formatToDDMMYYYY(liveNextEpisode.airdate)
+                      : show.releaseDate 
+                        ? formatToDDMMYYYY(show.releaseDate) 
+                        : liveNextEpisode?.airdate 
+                          ? formatToDDMMYYYY(liveNextEpisode.airdate) 
+                          : liveAirstamp 
+                            ? formatToDDMMYYYY(new Date(liveAirstamp)) 
+                            : ''}
                   </span>
                 )
               )}
@@ -575,13 +591,17 @@ export default function NetflixHoverPortal({
                   <span>⏰</span>
                   <span>Target Premiere</span>
                 </span>
-                {(show.releaseDate || liveAirstamp) && (
+                {(show.releaseDate || liveNextEpisode || liveAirstamp) && (
                   <span className="text-zinc-400 font-medium font-mono text-[10px]">
-                    {show.releaseDate 
-                      ? formatToDDMMYYYY(show.releaseDate) 
-                      : liveAirstamp 
-                        ? new Date(liveAirstamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) 
-                        : ''}
+                    {isReleaseDatePast(show.releaseDate) && liveNextEpisode?.airdate
+                      ? formatToDDMMYYYY(liveNextEpisode.airdate)
+                      : show.releaseDate 
+                        ? formatToDDMMYYYY(show.releaseDate) 
+                        : liveNextEpisode?.airdate 
+                          ? formatToDDMMYYYY(liveNextEpisode.airdate) 
+                          : liveAirstamp 
+                            ? formatToDDMMYYYY(new Date(liveAirstamp)) 
+                            : ''}
                   </span>
                 )}
               </div>
