@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en" class="bg-[#141414] text-white" style="background-color: #141414;">
+  <head>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://*.googleapis.com https://*.gstatic.com https://*.googleusercontent.com https://*.firebaseapp.com https://*.run.app; style-src 'self' 'unsafe-inline' https: https://fonts.googleapis.com; img-src 'self' https: data: blob:; connect-src 'self' https: wss: data: blob: https://*.googleapis.com https://*.google.com https://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.tvmaze.com https://en.wikipedia.org https://formsubmit.co https://*.run.app https://*.googleusercontent.com; font-src 'self' https: data: https://fonts.gstatic.com; frame-src 'self' https:;" />
+    <script>
+      (function() {
+        // Safe global window/self object polyfill for background workers
+        if (typeof self !== 'undefined' && typeof window === 'undefined') {
+          self.window = self;
+        }
+
+        function extractText(val) {
+          if (val === null || val === undefined) return '';
+          if (typeof val === 'string') return val;
+          if (val instanceof Error || (typeof val === 'object')) {
+            var msg = val.message || '';
+            var stack = val.stack || '';
+            var name = val.name || '';
+            var code = val.code || '';
+            var str = String(val);
+            var json = '';
+            try { json = JSON.stringify(val); } catch(e) {}
+            return name + ' ' + code + ' ' + msg + ' ' + stack + ' ' + str + ' ' + json;
+          }
+          return String(val);
+        }
+
+        function isIgnorableError(args) {
+          try {
+            var fullText = Array.prototype.slice.call(args).map(function(item) {
+              if (Array.isArray(item)) {
+                return item.map(extractText).join(' ');
+              }
+              return extractText(item);
+            }).join(' ');
+            return (
+              fullText.indexOf('Pending promise was never set') !== -1 ||
+              fullText.indexOf('INTERNAL ASSERTION FAILED') !== -1 ||
+              fullText.indexOf('No tab with id') !== -1 ||
+              fullText.indexOf('Frame with ID') !== -1 ||
+              fullText.indexOf('Receiving end does not exist') !== -1 ||
+              fullText.indexOf('message port closed') !== -1 ||
+              fullText.indexOf('window is not defined') !== -1
+            );
+          } catch(e) {
+            return false;
+          }
+        }
+
+        var origAssert = console.assert;
+        console.assert = function(condition) {
+          if (!condition && isIgnorableError(arguments)) return;
+          if (origAssert) origAssert.apply(console, arguments);
+        };
+
+        var origErr = console.error;
+        console.error = function() {
+          if (isIgnorableError(arguments)) return;
+          origErr.apply(console, arguments);
+        };
+
+        var origWarn = console.warn;
+        console.warn = function() {
+          if (isIgnorableError(arguments)) return;
+          origWarn.apply(console, arguments);
+        };
+
+        var origLog = console.log;
+        console.log = function() {
+          if (isIgnorableError(arguments)) return;
+          origLog.apply(console, arguments);
+        };
+
+        window.onerror = function(message, source, lineno, colno, error) {
+          var text = extractText([message, error]);
+          if (isIgnorableError([text])) {
+            return true;
+          }
+          return false;
+        };
+
+        if ('reportError' in window && typeof window.reportError === 'function') {
+          var origReportError = window.reportError;
+          window.reportError = function(err) {
+            var text = extractText([err]);
+            if (isIgnorableError([text])) {
+              return;
+            }
+            origReportError.call(window, err);
+          };
+        }
+
+        window.addEventListener('error', function(e) {
+          var text = extractText([e.message, e.error, e.filename]);
+          if (isIgnorableError([text])) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(e) {
+          var text = extractText([e.reason]);
+          if (isIgnorableError([text])) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }
+        }, true);
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#141414" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <script>
+      (function() {
+        try {
+          var raw = localStorage.getItem('showflix_accessibility_settings') || localStorage.getItem('bingebox_accessibility_settings');
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            if (parsed && parsed.accentColor) {
+              var hex = parsed.accentColor;
+              var r = parseInt(hex.slice(1, 3), 16) || 229;
+              var g = parseInt(hex.slice(3, 5), 16) || 9;
+              var b = parseInt(hex.slice(5, 7), 16) || 20;
+              var darken = function(c) { return Math.max(0, Math.floor(c * 0.84)); };
+              var hoverHex = '#' + darken(r).toString(16).padStart(2, '0') + darken(g).toString(16).padStart(2, '0') + darken(b).toString(16).padStart(2, '0');
+              var rgb = r + ', ' + g + ', ' + b;
+              var root = document.documentElement;
+              root.style.setProperty('--theme-accent', hex);
+              root.style.setProperty('--theme-accent-hover', hoverHex);
+              root.style.setProperty('--theme-accent-rgb', rgb);
+              root.style.setProperty('--app-accent', hex);
+              root.style.setProperty('--app-accent-hover', hoverHex);
+              root.style.setProperty('--app-accent-rgb', rgb);
+            }
+          }
+        } catch(e) {}
+      })();
+    </script>
+    <title>ShowFlix Tracker</title>
+    <meta name="description" content="The ultimate media and show tracker powered by Google Sheets." />
+    <meta property="og:title" content="ShowFlix Tracker" />
+    <meta property="og:description" content="The ultimate media and show tracker powered by Google Sheets." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <style>
+      /* Startup Loading Screen Styles */
+      .startup-loading-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #141414 !important;
+        background-image: radial-gradient(circle at center, rgba(229, 9, 20, 0.35) 0%, rgba(20, 20, 20, 0.98) 65%, #141414 100%) !important;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: #ffffff;
+        user-select: none;
+      }
+
+      .startup-ambilight-glow {
+        position: absolute;
+        width: 420px;
+        height: 420px;
+        border-radius: 50%;
+        background-color: rgba(229, 9, 20, 0.28);
+        filter: blur(100px);
+        pointer-events: none;
+        animation: startup-pulse 2s infinite ease-in-out;
+      }
+
+      .startup-logo-container {
+        position: relative;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 24px;
+        animation: startup-pulse 1.8s infinite ease-in-out;
+      }
+
+      .startup-logo-box {
+        width: 80px;
+        height: 80px;
+        background-color: #E50914 !important;
+        background: #E50914 !important;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 48px;
+        font-weight: 900;
+        color: #ffffff !important;
+        font-family: system-ui, sans-serif;
+        letter-spacing: -2px;
+        box-shadow: 0 0 60px rgba(229, 9, 20, 0.8), 0 0 20px rgba(229, 9, 20, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      .startup-logo-text {
+        font-size: 32px;
+        font-weight: 900;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: #ffffff !important;
+        text-shadow: 0 0 25px rgba(229, 9, 20, 0.8), 0 0 50px rgba(229, 9, 20, 0.4);
+      }
+
+      .startup-logo-text span {
+        color: #E50914 !important;
+      }
+
+      .startup-progress-bar-wrap {
+        position: relative;
+        z-index: 10;
+        width: 240px;
+        height: 7px;
+        background-color: rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 0 20px rgba(229, 9, 20, 0.3);
+      }
+
+      .startup-progress-bar-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #E50914 0%, #ff4d4d 60%, #f59e0b 100%) !important;
+        box-shadow: 0 0 15px rgba(229, 9, 20, 1);
+        border-radius: 999px;
+        animation: startup-fill 1.2s ease-out forwards;
+      }
+
+      .startup-loading-text {
+        position: relative;
+        z-index: 10;
+        margin-top: 14px;
+        font-size: 12px;
+        color: #a3a3a3;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      @keyframes startup-fill {
+        0% { width: 0%; }
+        50% { width: 65%; }
+        100% { width: 100%; }
+      }
+
+      @keyframes startup-pulse {
+        0%, 100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(0.97);
+          opacity: 0.92;
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-[#141414] text-white" style="background-color: #141414; margin: 0; padding: 0;">
+    <div id="root" class="bg-[#141414] min-h-screen" style="background-color: #141414;">
+      <div class="startup-loading-screen" data-preserve-theme="true">
+        <div class="startup-ambilight-glow"></div>
+        <div class="startup-logo-container">
+          <div class="startup-logo-box">N</div>
+          <div class="startup-logo-text">SHOW<span>FLIX</span></div>
+        </div>
+        <div class="startup-progress-bar-wrap">
+          <div class="startup-progress-bar-fill"></div>
+        </div>
+        <div class="startup-loading-text">Loading ShowFlix Library...</div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUserSettings(data) {
+      return data.userId is string && data.userId.size() <= 128
+          && (!('spreadsheetId' in data) || (data.spreadsheetId is string && data.spreadsheetId.size() <= 256))
+          && (!('sheetName' in data) || (data.sheetName is string && data.sheetName.size() <= 128))
+          && (!('wishlistSheetName' in data) || (data.wishlistSheetName is string && data.wishlistSheetName.size() <= 128))
+          && (!('showcaseSheetName' in data) || (data.showcaseSheetName is string && data.showcaseSheetName.size() <= 128))
+          && (!('sheetTitle' in data) || (data.sheetTitle is string && data.sheetTitle.size() <= 256))
+          && (!('sheetTabId' in data) || data.sheetTabId is number)
+          && (!('autoSyncEnabled' in data) || data.autoSyncEnabled is bool)
+          && (!('syncFrequency' in data) || data.syncFrequency is number)
+          && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 2048))
+          && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 256))
+          && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 128));
+    }
+
+    function isValidCustomFilter(data) {
+      return data.userId is string && data.userId.size() <= 128
+          && data.name is string && data.name.size() <= 128 && data.name.size() > 0
+          && (!('status' in data) || (data.status is string && data.status.size() <= 64))
+          && (!('platform' in data) || (data.platform is string && data.platform.size() <= 64));
+    }
+
+    function isValidFeedbackReport(data) {
+      return data.id is string && data.id.size() <= 128
+          && data.type is string && data.type.size() <= 64
+          && data.title is string && data.title.size() <= 256
+          && data.description is string && data.description.size() <= 5000
+          && data.createdAt is string && data.createdAt.size() <= 128;
+    }
+
+    function isValidSyncControl(data) {
+      return data.lastUpdated is number
+          && (!('action' in data) || (data.action is string && data.action.size() <= 64))
+          && (!('deletedShowId' in data) || (data.deletedShowId is string && data.deletedShowId.size() <= 128))
+          && (!('deletedTitle' in data) || (data.deletedTitle is string && data.deletedTitle.size() <= 256))
+          && (!('deletedTitleNorm' in data) || (data.deletedTitleNorm is string && data.deletedTitleNorm.size() <= 256))
+          && (!('deviceId' in data) || (data.deviceId is string && data.deviceId.size() <= 128))
+          && (!('deletedKeys' in data) || (data.deletedKeys is list && data.deletedKeys.size() <= 200));
+    }
+
+    match /user_settings/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isOwner(userId) && isValidId(userId);
+      allow create: if isOwner(userId) && isValidId(userId) && request.resource.data.userId == request.auth.uid && isValidUserSettings(request.resource.data);
+      allow update: if isOwner(userId) && isValidId(userId) && request.resource.data.userId == request.auth.uid && isValidUserSettings(request.resource.data);
+      allow delete: if isOwner(userId) && isValidId(userId);
+    }
+
+    match /custom_filters/{filterId} {
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid && isValidId(filterId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isValidCustomFilter(request.resource.data) && isValidId(filterId);
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid && isValidCustomFilter(request.resource.data);
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid && isValidId(filterId);
+    }
+
+    match /feedback_reports/{reportId} {
+      allow get: if isValidId(reportId);
+      allow list: if isSignedIn();
+      allow create: if isValidId(reportId) && isValidFeedbackReport(request.resource.data);
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /sync-control/{docId} {
+      allow get: if isValidId(docId);
+      allow list: if true;
+      allow create: if isValidId(docId) && isValidSyncControl(request.resource.data);
+      allow update: if isValidId(docId) && isValidSyncControl(request.resource.data);
+      allow delete: if false;
+    }
+  }
+}

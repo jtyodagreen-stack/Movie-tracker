@@ -1,0 +1,182 @@
+{
+  "entities": {
+    "user_settings": {
+      "title": "UserSettings",
+      "description": "User specific application and Google Sheet synchronization preferences",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user"
+        },
+        "spreadsheetId": {
+          "type": "string",
+          "description": "Google Spreadsheet ID for auto-sync"
+        },
+        "sheetName": {
+          "type": "string",
+          "description": "Tab name in the spreadsheet"
+        },
+        "wishlistSheetName": {
+          "type": "string",
+          "description": "Wishlist tab name in the spreadsheet"
+        },
+        "showcaseSheetName": {
+          "type": "string",
+          "description": "Showcase tab name in the spreadsheet"
+        },
+        "sheetTitle": {
+          "type": "string",
+          "description": "User-friendly title of the spreadsheet"
+        },
+        "sheetTabId": {
+          "type": "number",
+          "description": "Numeric ID of the sheet tab"
+        },
+        "autoSyncEnabled": {
+          "type": "boolean",
+          "description": "Whether continuous background auto-sync is active"
+        },
+        "syncFrequency": {
+          "type": "number",
+          "description": "Background auto sync interval frequency in seconds"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "User profile avatar photo URL"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last updated timestamp"
+        }
+      },
+      "required": ["userId"]
+    },
+    "custom_filter": {
+      "title": "CustomFilter",
+      "description": "User-defined custom filter for shows",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the filter"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status to filter by"
+        },
+        "platform": {
+          "type": "string",
+          "description": "Platform to filter by"
+        }
+      },
+      "required": ["userId", "name"]
+    },
+    "feedback_report": {
+      "title": "FeedbackReport",
+      "description": "User submitted issue reports, bug reports, and feedback",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique report identifier"
+        },
+        "type": {
+          "type": "string",
+          "description": "Category (bug, feature, sync, general)"
+        },
+        "title": {
+          "type": "string",
+          "description": "Subject or title of the feedback"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of the issue or feedback"
+        },
+        "severity": {
+          "type": "string",
+          "description": "Severity level for bugs"
+        },
+        "email": {
+          "type": "string",
+          "description": "Contact email of the reporter"
+        },
+        "userName": {
+          "type": "string",
+          "description": "Display name of the reporter"
+        },
+        "appVersion": {
+          "type": "string",
+          "description": "ShowFlix application version at time of report"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when report was created"
+        }
+      },
+      "required": ["id", "type", "title", "description", "createdAt"]
+    },
+    "sync_control": {
+      "title": "SyncControl",
+      "description": "Used to trigger instant cross-device UI refreshes and real-time show additions and removals",
+      "type": "object",
+      "properties": {
+        "lastUpdated": {
+          "type": "number",
+          "description": "Timestamp of last change"
+        },
+        "action": {
+          "type": "string",
+          "description": "Sync action type such as DELETE, ADD, or UPDATE"
+        },
+        "deletedShowId": {
+          "type": "string",
+          "description": "ID of the deleted show"
+        },
+        "deletedTitle": {
+          "type": "string",
+          "description": "Title of the deleted show"
+        },
+        "deletedTitleNorm": {
+          "type": "string",
+          "description": "Normalized title of the deleted show for matching"
+        },
+        "deviceId": {
+          "type": "string",
+          "description": "Identifier of the device originating the action"
+        },
+        "deletedKeys": {
+          "type": "array",
+          "description": "List of recently deleted show keys for cross-device tombstoning"
+        }
+      },
+      "required": ["lastUpdated"]
+    }
+  },
+  "firestore": {
+    "/user_settings/{userId}": {
+      "schema": "user_settings",
+      "description": "Stores user sync settings and default connected Google Sheet"
+    },
+    "/custom_filters/{filterId}": {
+      "schema": "custom_filter",
+      "description": "Stores user-defined custom filters"
+    },
+    "/feedback_reports/{reportId}": {
+      "schema": "feedback_report",
+      "description": "Stores submitted user feedback and bug reports"
+    },
+    "/sync-control/{docId}": {
+      "schema": "sync_control",
+      "description": "Global sync controller"
+    }
+  }
+}

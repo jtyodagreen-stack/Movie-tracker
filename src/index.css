@@ -1,0 +1,549 @@
+@import "tailwindcss";
+
+/* Consolidated Layout Reset */
+html,
+body,
+#root {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 100%;
+  overflow-x: hidden !important;
+  background-color: #141414;
+  color: #ffffff;
+  box-sizing: border-box;
+}
+
+html {
+  height: -webkit-fill-available;
+  scroll-behavior: smooth;
+  scrollbar-gutter: auto !important;
+}
+
+body {
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+  position: relative;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  left: 0;
+  right: 0;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Aggressive border-box for everything */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Consolidate all scrollbar and overflow fixes */
+html::-webkit-scrollbar {
+  display: none;
+}
+html {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes subtle-bounce-pulse {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+.animate-bounce-subtle {
+  animation: subtle-bounce-pulse 2s infinite ease-in-out;
+}
+
+/* Skeleton Loader Styles */
+.react-loading-skeleton {
+  --base-color: #27272a;
+  --highlight-color: #3f3f46;
+  background-color: var(--base-color);
+  background-image: linear-gradient(90deg, var(--base-color), var(--highlight-color), var(--base-color));
+}
+
+/* Smooth Hover Animation Utilities */
+@layer utilities {
+  .hover-lift-card {
+    transition: transform 0.2s ease-out;
+  }
+  .hover-lift-card:hover {
+    transform: translateY(-2px);
+  }
+
+  .hover-glow-btn {
+    transition: background-color 0.15s ease-out;
+  }
+
+  .hover-scale-icon {
+    transition: opacity 0.15s ease-out;
+  }
+  .hover-scale-icon:hover {
+    opacity: 0.8;
+  }
+}
+
+/* Fix for WebKit and iOS tap highlight obscuring borders */
+button,
+a,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Fix for WebKit and iOS date inputs and select elements bursting outside container */
+input[type="date"],
+input[type="text"],
+input[type="url"],
+select,
+textarea {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Restrict webkit datepicker indicator from adding extra horizontal margin/padding on iOS & stretch click-target */
+input[type="date"] {
+  position: relative !important;
+  cursor: pointer !important;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  opacity: 0 !important;
+  cursor: pointer !important;
+  z-index: 10 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+
+/* Custom keyframes for premium flashing "OUT NOW" countdown states */
+@keyframes outNowFlash {
+  0%, 100% {
+    background-color: rgba(16, 185, 129, 0.2);
+    border-color: rgba(16, 185, 129, 0.5);
+  }
+  50% {
+    background-color: rgba(16, 185, 129, 0.25);
+    border-color: rgba(16, 185, 129, 0.7);
+  }
+}
+
+@keyframes bannerOutNowFlash {
+  0%, 100% {
+    border-color: rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    border-color: rgba(16, 185, 129, 0.6);
+  }
+}
+
+.animate-out-now-flash {
+  animation: outNowFlash 1.5s infinite ease-in-out;
+}
+
+.animate-banner-out-now {
+  animation: bannerOutNowFlash 2s infinite ease-in-out;
+}
+
+/* Added by user request: Hide user profile button and sheets status badge */
+div#root:nth-of-type(1) > div:nth-of-type(1) > header#main-navbar:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > button#user-profile-btn:nth-of-type(1) {
+    display: none !important;
+}
+div#root:nth-of-type(1) > div:nth-of-type(1) > header#main-navbar:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > button#nav-sheets-status-badge:nth-of-type(1) {
+    display: none !important;
+}
+
+
+/* High Contrast Mode - Rigorous WCAG AAA Compliance */
+.high-contrast {
+  --background: #000000;
+  --foreground: #ffffff;
+  --border: #ffff00;
+  --accent: #ffff00;
+  --highlight-bg: #1a1a00;
+}
+
+.high-contrast {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+}
+
+.high-contrast * {
+  border-color: var(--border) !important;
+}
+
+.high-contrast .bg-zinc-950,
+.high-contrast .bg-zinc-900,
+.high-contrast .bg-zinc-800,
+.high-contrast .bg-zinc-700,
+.high-contrast .bg-zinc-600,
+.high-contrast .bg-[#141414],
+.high-contrast .bg-[#181818],
+.high-contrast .bg-black {
+  background-color: #000000 !important;
+  border: 2px solid var(--border) !important;
+  color: var(--foreground) !important;
+}
+
+.high-contrast button,
+.high-contrast input,
+.high-contrast select,
+.high-contrast textarea {
+  background-color: #000000 !important;
+  border: 3px solid var(--border) !important;
+  color: var(--foreground) !important;
+  font-weight: 800 !important;
+}
+
+.high-contrast button:hover,
+.high-contrast button:focus {
+  background-color: #ffff00 !important;
+  color: #000000 !important;
+  border-color: #ffffff !important;
+}
+
+.high-contrast .text-white,
+.high-contrast .text-zinc-200,
+.high-contrast .text-zinc-300,
+.high-contrast .text-zinc-400,
+.high-contrast .text-red-500,
+.high-contrast .text-red-400,
+.high-contrast .text-emerald-400,
+.high-contrast span,
+.high-contrast p,
+.high-contrast h1,
+.high-contrast h2,
+.high-contrast h3 {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  text-shadow: none !important;
+}
+
+.high-contrast .border-zinc-700,
+.high-contrast .border-zinc-800,
+.high-contrast .border-red-800\/60,
+.high-contrast .border-zinc-600 {
+  border-color: var(--border) !important;
+  border-width: 2px !important;
+}
+
+/* UK Gov Inclusive Communication: Clear Print & Large Print (16pt+ / 1.25x scale) */
+.accessible-large-text {
+  font-size: 1.15rem !important; /* ~18-20px base */
+  line-height: 1.6 !important;
+  letter-spacing: 0.015em !important;
+}
+
+.accessible-large-text h1 {
+  font-size: 2.25rem !important;
+  line-height: 1.25 !important;
+}
+
+.accessible-large-text h2 {
+  font-size: 1.75rem !important;
+  line-height: 1.3 !important;
+}
+
+.accessible-large-text h3 {
+  font-size: 1.4rem !important;
+  line-height: 1.35 !important;
+}
+
+.accessible-large-text p,
+.accessible-large-text span,
+.accessible-large-text button,
+.accessible-large-text input,
+.accessible-large-text select {
+  font-size: 1.05rem !important;
+}
+
+/* UK Gov Inclusive Communication: Dyslexia-friendly sans font & character spacing */
+.accessible-dyslexia-font {
+  font-family: Arial, "Helvetica Neue", "Segoe UI", sans-serif !important;
+  letter-spacing: 0.035em !important;
+  word-spacing: 0.08em !important;
+  line-height: 1.65 !important;
+}
+
+/* UK Gov / WCAG: Reduced Motion mode */
+.accessible-reduce-motion *,
+.accessible-reduce-motion *::before,
+.accessible-reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+
+
+
+/* Animated syncing progress on notification toast */
+@keyframes sync-progress-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes sync-progress-bar {
+  0% {
+    width: 0%;
+  }
+  40% {
+    width: 55%;
+  }
+  80% {
+    width: 88%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+#app-toast-notification.is-syncing {
+  background: linear-gradient(
+    90deg,
+    #18181b 0%,
+    #1e3a8a 25%,
+    #0284c7 50%,
+    #059669 75%,
+    #18181b 100%
+  ) !important;
+  background-size: 200% 200% !important;
+  animation: sync-progress-flow 2s ease infinite !important;
+  box-shadow: 0 0 25px -5px rgba(2, 132, 199, 0.45), 0 20px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Ken Burns panning/zooming effect for authentic cinematic feel */
+@keyframes kenburns-pan-zoom {
+  0%, 100% {
+    transform: scale(1) translate(0, 0);
+  }
+}
+
+/* Global Dynamic Theme Accent Variables & Overrides */
+:root {
+  --theme-accent: #E50914;
+  --theme-accent-hover: #B91C1C;
+  --theme-accent-rgb: 229, 9, 20;
+  --app-accent: #E50914;
+  --app-accent-hover: #B91C1C;
+  --app-accent-rgb: 229, 9, 20;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):not(.progress-bar-fill):not([data-progress-bar]):is(
+  .bg-red-600,
+  .bg-red-500,
+  .bg-red-700,
+  .bg-\[\#E50914\],
+  .bg-\[\#e50914\],
+  .accent-theme-bg
+) {
+  background-color: var(--theme-accent) !important;
+}
+
+/* Original Progress Bars - Always preserve authentic Netflix red */
+.progress-bar-fill,
+[data-progress-bar="true"] {
+  background-color: #E50914 !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .hover\:bg-red-500:hover,
+  .hover\:bg-red-600:hover,
+  .hover\:bg-red-700:hover,
+  .hover\:bg-\[\#B80710\]:hover,
+  .hover\:bg-\[\#b80710\]:hover
+) {
+  background-color: var(--theme-accent-hover) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .text-red-500,
+  .text-red-600,
+  .text-red-400,
+  .text-\[\#E50914\],
+  .text-\[\#e50914\],
+  .accent-theme-text
+) {
+  color: var(--theme-accent) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .hover\:text-red-500:hover,
+  .hover\:text-red-400:hover,
+  .hover\:text-red-300:hover,
+  .hover\:text-\[\#E50914\]:hover,
+  .hover\:text-\[\#e50914\]:hover
+) {
+  color: var(--theme-accent) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .border-red-500,
+  .border-red-600,
+  .border-red-400,
+  .border-red-500\/80,
+  .border-red-600\/80,
+  .border-red-500\/50,
+  .border-red-600\/50,
+  .border-\[\#E50914\],
+  .border-\[\#e50914\],
+  .accent-theme-border
+) {
+  border-color: var(--theme-accent) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .focus-within\:border-red-500,
+  .focus-within\:border-red-600,
+  .focus-within\:border-red-500\/80,
+  .focus-within\:border-red-600\/80
+):focus-within {
+  border-color: var(--theme-accent) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .hover\:border-red-500:hover,
+  .hover\:border-red-600:hover,
+  .hover\:border-red-500\/80:hover,
+  .hover\:border-red-600\/80:hover,
+  .hover\:border-\[\#E50914\]:hover
+) {
+  border-color: var(--theme-accent) !important;
+}
+
+.group:hover :not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .group-hover\:border-red-500,
+  .group-hover\:border-red-600
+) {
+  border-color: var(--theme-accent) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .focus\:border-red-500:focus,
+  .focus\:border-red-600:focus,
+  .focus\:border-\[\#E50914\]:focus
+) {
+  border-color: var(--theme-accent) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .ring-red-500,
+  .ring-red-400,
+  .ring-red-600,
+  .ring-red-500\/50,
+  .ring-red-600\/50,
+  .ring-red-500\/70,
+  .ring-red-600\/70,
+  .focus\:ring-red-500:focus,
+  .focus\:ring-red-600:focus,
+  .focus-within\:ring-red-500:focus-within,
+  .focus-within\:ring-red-600:focus-within,
+  .focus-within\:ring-red-500\/50:focus-within,
+  .focus-within\:ring-red-600\/50:focus-within,
+  .focus-within\:ring-red-500\/70:focus-within,
+  .focus-within\:ring-red-600\/70:focus-within
+) {
+  --tw-ring-color: rgba(var(--app-accent-rgb), 0.5) !important;
+  outline-color: var(--theme-accent) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .bg-red-950,
+  .bg-red-950\/80,
+  .bg-red-950\/60,
+  .bg-red-950\/40
+) {
+  background-color: rgba(var(--theme-accent-rgb), 0.28) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .bg-red-600\/10,
+  .bg-red-500\/10,
+  .bg-red-600\/15,
+  .bg-red-600\/20,
+  .bg-red-500\/20,
+  .bg-\[\#E50914\]\/10,
+  .bg-\[\#E50914\]\/20
+) {
+  background-color: rgba(var(--theme-accent-rgb), 0.14) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .border-red-500\/30,
+  .border-red-500\/20,
+  .border-red-500\/40,
+  .border-red-500\/50,
+  .border-red-500\/80,
+  .border-\[\#E50914\]\/30,
+  .border-\[\#E50914\]\/50
+) {
+  border-color: rgba(var(--theme-accent-rgb), 0.45) !important;
+}
+
+:not(.preserve-theme-color):not([data-preserve-theme]):is(
+  .shadow-red-900\/20,
+  .shadow-red-900\/30,
+  .shadow-red-900\/40,
+  .shadow-red-950\/60,
+  .shadow-red-950\/30
+) {
+  box-shadow: 0 10px 22px -3px rgba(var(--theme-accent-rgb), 0.35) !important;
+}
+
+.from-red-600 {
+  --tw-gradient-from: var(--theme-accent) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(var(--theme-accent-rgb), 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-red-600 {
+  --tw-gradient-to: var(--theme-accent) var(--tw-gradient-to-position) !important;
+}
+
+::selection {
+  background-color: #E50914 !important;
+  color: #ffffff !important;
+}
+
+/* Accessibility Overrides for Toasts */
+.accessible-reduce-motion [role="status"],
+.accessible-reduce-motion [role="alert"],
+.accessible-reduce-motion .animate-in,
+.accessible-reduce-motion .animate-out,
+.accessible-reduce-motion .animate-pulse,
+.accessible-reduce-motion .animate-bounce,
+.accessible-reduce-motion #app-toast-notification {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+.accessible-large-text [role="status"],
+.accessible-large-text [role="alert"],
+.accessible-large-text #app-toast-notification {
+  font-size: 1.15em !important;
+  line-height: 1.4 !important;
+}
+
