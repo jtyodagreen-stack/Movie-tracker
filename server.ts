@@ -313,6 +313,18 @@ async function createServer() {
     }
   });
 
+  // Google Apps Script Instant Sync Webhook Endpoint
+  app.post('/api/sheet-webhook', (req, res) => {
+    try {
+      const { sheetName, row, column, value, timestamp } = req.body || {};
+      console.log(`[Google Sheet Webhook] Edit detected on sheet "${sheetName}" at row ${row}, col ${column}: "${value}" at ${timestamp}`);
+      return res.json({ success: true, message: 'Webhook received and logged successfully' });
+    } catch (err: any) {
+      console.error('Webhook endpoint error:', err);
+      return res.status(500).json({ error: 'Webhook processing error' });
+    }
+  });
+
   const distPath = path.join(__dirname, 'dist');
   const distIndexPath = path.join(distPath, 'index.html');
   const hasDist = fs.existsSync(distIndexPath);
