@@ -592,7 +592,7 @@ export default function Navbar({
           {/* DESKTOP Navigation Links (lg: >= 1024px) */}
           {sheetConnected && (
             <nav className="hidden lg:flex items-center gap-1 text-sm font-medium shrink-0">
-            {/* ALL PLATFORMS DROPDOWN MENU */}
+              {/* ALL PLATFORMS DROPDOWN MENU */}
             <div
               className="relative"
               ref={platformDropdownRef}
@@ -748,8 +748,8 @@ export default function Navbar({
               )}
             </button>
           </nav>
-        )}
-      </div>
+          )}
+        </div>
 
         {/* Right Tools (Search, Google Sheets Sync, Add Show, Profile / Mobile Toggle) */}
         <div className="flex items-center gap-3 shrink-0">
@@ -1071,42 +1071,44 @@ export default function Navbar({
             )}
 
             {/* Sync Status Badge (Syncing / Connected / Error) */}
-            <button
-              id="nav-sheets-status-badge"
-              onClick={onOpenSync}
-              type="button"
-              className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md border transition-all cursor-pointer shrink-0 ${
-                isSyncing
-                  ? 'bg-amber-950/80 border-amber-500/60 text-amber-300 shadow-md'
-                  : sheetConnected
-                  ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300 shadow-sm hover:bg-emerald-900/60'
-                  : 'bg-red-950/80 border-red-500/50 text-red-300 shadow-sm hover:bg-red-900/60'
-              }`}
-              title={
-                isSyncing
-                  ? 'Syncing with Google Sheets...'
-                  : sheetConnected
-                  ? `Connected to Google Sheets${lastSyncedAt ? ` (Last synced: ${lastSyncedAt})` : ''}`
-                  : 'Google Sheet Not Connected. Click to connect.'
-              }
-            >
-              {isSyncing ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
-                  <span className="text-[11px] font-bold">Syncing...</span>
-                </>
-              ) : sheetConnected ? (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                  <span className="text-[11px] font-bold">Connected</span>
-                </>
-              ) : (
-                <>
-                  <Table className="w-3.5 h-3.5 text-red-400" />
-                  <span className="text-[11px] font-bold">Connect Sheet</span>
-                </>
-              )}
-            </button>
+            {sheetConnected && (
+              <button
+                id="nav-sheets-status-badge"
+                onClick={onOpenSync}
+                type="button"
+                className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md border transition-all cursor-pointer shrink-0 ${
+                  isSyncing
+                    ? 'bg-amber-950/80 border-amber-500/60 text-amber-300 shadow-md'
+                    : sheetConnected
+                    ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300 shadow-sm hover:bg-emerald-900/60'
+                    : 'bg-red-950/80 border-red-500/50 text-red-300 shadow-sm hover:bg-red-900/60'
+                }`}
+                title={
+                  isSyncing
+                    ? 'Syncing with Google Sheets...'
+                    : sheetConnected
+                    ? `Connected to Google Sheets${lastSyncedAt ? ` (Last synced: ${lastSyncedAt})` : ''}`
+                    : 'Google Sheet Not Connected. Click to connect.'
+                }
+              >
+                {isSyncing ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                    <span className="text-[11px] font-bold">Syncing...</span>
+                  </>
+                ) : sheetConnected ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                    <span className="text-[11px] font-bold">Connected</span>
+                  </>
+                ) : (
+                  <>
+                    <Table className="w-3.5 h-3.5 text-red-400" />
+                    <span className="text-[11px] font-bold">Connect Sheet</span>
+                  </>
+                )}
+              </button>
+            )}
 
             {/* Add Title Button */}
             {sheetConnected && shows.length > 0 && (

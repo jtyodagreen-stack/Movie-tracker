@@ -188,12 +188,18 @@ export default function App() {
     return [];
   });
 
-  // Persist shows and active spreadsheet context to local cache whenever they update
+  // Persist shows and active spreadsheet context to local cache whenever they update (do not overwrite with empty array)
   useEffect(() => {
-    setAppDataCache({
-      shows,
-      spreadsheetId: localStorage.getItem('showflix_spreadsheet_id') || localStorage.getItem('bingebox_spreadsheet_id') || undefined,
-    });
+    if (shows.length > 0) {
+      hasEverLoadedShowsRef.current = true;
+      try {
+        localStorage.setItem('showflix_has_ever_loaded_shows', 'true');
+      } catch {}
+      setAppDataCache({
+        shows,
+        spreadsheetId: localStorage.getItem('showflix_spreadsheet_id') || localStorage.getItem('bingebox_spreadsheet_id') || undefined,
+      });
+    }
   }, [shows]);
 
   const showsRef = useRef<ShowItem[]>(shows);
@@ -223,6 +229,36 @@ export default function App() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showInitialLoadingScreen, setShowInitialLoadingScreen] = useState(true);
+
+  // Persistent loaded shows tracking (across unmounts, tab refocuses, and auth updates)
+  const hasEverLoadedShowsRef = useRef<boolean>(
+    Boolean(
+      shows.length > 0 ||
+      (typeof window !== 'undefined' && (
+        localStorage.getItem('showflix_has_ever_loaded_shows') === 'true' ||
+        Boolean(getAppDataCache()?.shows && getAppDataCache()!.shows!.length > 0)
+      ))
+    )
+  );
+  if (shows.length > 0 && !hasEverLoadedShowsRef.current) {
+    hasEverLoadedShowsRef.current = true;
+    try {
+      localStorage.setItem('showflix_has_ever_loaded_shows', 'true');
+    } catch {}
+  }
+
+  // Safety net: Immediately rehydrate cached shows if shows state ever becomes empty while library was previously loaded
+  useEffect(() => {
+    if (shows.length === 0 && hasEverLoadedShowsRef.current) {
+      try {
+        const cached = getAppDataCache();
+        if (cached?.shows && cached.shows.length > 0) {
+          console.log('[Safe Guard] Restoring shows from cache to prevent empty screen flicker');
+          setShows(cached.shows);
+        }
+      } catch {}
+    }
+  }, [shows]);
   const [activeFilter, setActiveFilter] = useState('all');
   const [customPlatforms] = useState<string[]>([]);
   const [accessibilitySettings, setAccessibilitySettings] = useState<AccessibilitySettings>(() => {
@@ -1265,6 +1301,12 @@ export default function App() {
 
           const finalShows = [...combinedMaster, ...sortedWishlist, ...uniqueShowcase];
 
+          // If background sync returned 0 shows while we already have shows displayed, do NOT wipe the screen
+          if (finalShows.length === 0 && prev.length > 0) {
+            console.warn('[Sync Guard] Background sync returned empty shows list; preserving existing displayed library.');
+            return prev;
+          }
+
           isChanged = haveShowsChanged(prev, finalShows);
           if (isChanged || prev.length === 0) {
             setAppDataCache({
@@ -1402,12 +1444,9 @@ export default function App() {
             if (cloudConfig?.spreadsheetId) {
               const currentLocalId = localStorage.getItem('bingebox_spreadsheet_id') || '';
               
-              // If local storage has a different spreadsheet ID than cloud config, pre-flight check detects change
+              // If local storage has a different spreadsheet ID than cloud config, retain shows and sync smoothly
               if (currentLocalId && cloudConfig.spreadsheetId !== currentLocalId && !connectingSheetIdRef.current) {
-                console.log('[Pre-flight Check] Sheet updated in user profile. Clearing stale local shows before sync.');
-                setShows([]);
-                setSheetHeaders([]);
-                setAppDataCache({ shows: [], spreadsheetId: cloudConfig.spreadsheetId });
+                console.log('[Pre-flight Check] Sheet updated in user profile. Retaining titles on screen while sync loads new sheet.');
               }
 
               if (!currentLocalId || (!connectingSheetIdRef.current && cloudConfig.spreadsheetId !== currentLocalId)) {
@@ -1588,15 +1627,22 @@ export default function App() {
     }
 
     connectingSheetIdRef.current = cleanId;
-
-    // Immediately clear out old shows, old headers, and old cache so data from a previous sheet never lingers
-    setShows([]);
-    setSheetHeaders([]);
-    setSpreadsheetId(cleanId);
     setIsSyncing(true);
+
+    // Instant Fast-Path: Load cached titles for this sheet immediately (0ms delay, no empty flash)
+    const cachedData = getAppDataCache();
+    if (cachedData?.spreadsheetId === cleanId && cachedData.shows && cachedData.shows.length > 0) {
+      setShows(cachedData.shows);
+    } else if (shows.length > 0) {
+      // Retain current catalog while background re-syncing - NEVER WIPE TO EMPTY
+    } else if (cachedData?.shows && cachedData.shows.length > 0) {
+      setShows(cachedData.shows);
+    }
+
+    setSpreadsheetId(cleanId);
     try {
       localStorage.setItem('bingebox_spreadsheet_id', cleanId);
-      setAppDataCache({ shows: [], spreadsheetId: cleanId });
+      localStorage.setItem('showflix_spreadsheet_id', cleanId);
     } catch {}
 
     let token = await getAccessToken();
@@ -1605,6 +1651,7 @@ export default function App() {
       token = authRes?.accessToken || null;
       if (!token) {
         setIsSyncing(false);
+        connectingSheetIdRef.current = null;
         showToast('⚠️ Google sign-in is required to link your Google Sheet');
         return;
       }
@@ -3282,30 +3329,32 @@ export default function App() {
   );
 
   const renderMainContent = () => {
-    // State A: No Spreadsheet ID configured yet
+    // State A: Welcome Page (No Spreadsheet ID configured yet)
     if (!spreadsheetId) {
       const handleSaveSheetUrl = async () => {
         setWelcomeError('');
-        if (!welcomeSheetUrl.trim()) {
+        const trimmed = welcomeSheetUrl.trim();
+        if (!trimmed) {
           setWelcomeError('Please paste your Google Sheet URL first');
           return;
         }
-        const extractedId = extractSpreadsheetId(welcomeSheetUrl.trim());
+        const extractedId = extractSpreadsheetId(trimmed);
         if (!extractedId) {
           setWelcomeError('Invalid Google Sheet URL. Please copy and paste the entire web address from your browser.');
           return;
         }
+
         setSpreadsheetId(extractedId);
         try {
           localStorage.setItem('bingebox_spreadsheet_id', extractedId);
+          localStorage.setItem('showflix_spreadsheet_id', extractedId);
         } catch {}
 
-        // If user already authenticated, connect and load immediately with zero delay
-        if (user || auth.currentUser) {
+        try {
           showToast('⚡ Connecting Google Sheet...');
           await handleConnectSheets(extractedId, sheetName, wishlistSheetName);
-        } else {
-          showToast('✅ Google Sheet added! Please sign in to sync your data.');
+        } catch (err: any) {
+          console.warn('Welcome connect error:', err);
         }
       };
 
@@ -3411,77 +3460,6 @@ export default function App() {
       );
     }
 
-    // State B: Google Sheet has been added, but they need to authenticate & sync
-    // ENHANCEMENT: If we have cached shows, or if currently syncing, we skip this screen to provide an "instant" experience.
-    if (!isSyncing && (!user || !sheetTitle) && shows.length === 0) {
-      return (
-        <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-6 animate-fadeIn">
-          <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center mx-auto text-amber-500 shadow-xl shadow-amber-950/20 animate-pulse">
-            <Sparkles className="w-8 h-8" />
-          </div>
-          
-          <div className="space-y-2">
-            <h2 className="text-3xl font-extrabold text-white tracking-tight">
-              Welcome to SHOWFLIX
-            </h2>
-            <p className="text-sm font-semibold max-w-md mx-auto leading-relaxed text-amber-400">
-              Connect Google Sheet Sync & Sign In with Google
-            </p>
-          </div>
-
-          <div className="p-6 rounded-xl bg-zinc-900 border border-zinc-800 text-center space-y-5 shadow-2xl">
-            <p className="text-xs text-zinc-300 leading-relaxed">
-              You added your spreadsheet URL successfully! Now, please sign in with your Google account to authorize secure synchronization.
-            </p>
-
-            <div className="p-3 bg-zinc-950 rounded border border-zinc-800 flex items-center justify-between text-xs text-left">
-              <div className="truncate pr-3">
-                <span className="text-zinc-500 block text-[10px] uppercase">Active Spreadsheet URL</span>
-                <span className="font-mono text-zinc-300 truncate block">https://docs.google.com/spreadsheets/d/{spreadsheetId}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSpreadsheetId('');
-                  setSheetTitle(undefined);
-                  setAvailableTabs([]);
-                  setShows([]);
-                  setWelcomeSheetUrl('');
-                  try {
-                    localStorage.removeItem('bingebox_spreadsheet_id');
-                    localStorage.removeItem('bingebox_sheet_title');
-                    localStorage.removeItem('bingebox_available_sheet_tabs');
-                    localStorage.removeItem('bingebox_app_data_cache');
-                  } catch {}
-                }}
-                className="text-red-400 hover:text-red-300 text-[11px] font-bold underline shrink-0 cursor-pointer"
-              >
-                Change URL
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={async () => {
-                showToast('🔑 Opening Google sign-in window...');
-                await handleConnectSheets(spreadsheetId, sheetName, wishlistSheetName);
-              }}
-              className="w-full bg-red-600 hover:bg-red-500 text-white font-extrabold py-3.5 px-4 rounded-lg shadow-lg hover:shadow-red-950/50 transition-all flex items-center justify-center gap-2 text-sm cursor-pointer uppercase tracking-wider"
-            >
-              <Table className="w-4 h-4" />
-              Connect & Sign In with Google
-            </button>
-
-            <div className="pt-3 border-t border-zinc-800 text-center">
-              <span className="text-amber-400 font-bold text-xs inline-flex items-center gap-1.5 animate-pulse">
-                ✨ Almost ready to enjoy tracking and adding your shows! ( Enjoy )
-              </span>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
     if (showStatsModal && shows.length > 0) {
       return (
         <div className="w-full animate-in fade-in duration-200">
@@ -3497,7 +3475,7 @@ export default function App() {
     return (
       <div className="w-full">
         {shows.length === 0 ? (
-          isSyncing ? (
+          (isSyncing || Boolean(connectingSheetIdRef.current) || hasEverLoadedShowsRef.current) ? (
             <div className="max-w-md mx-auto px-4 py-32 text-center space-y-6">
               <div className="relative">
                 <div className="w-16 h-16 border-4 border-red-600/10 border-t-red-600 rounded-full animate-spin mx-auto preserve-theme-color"></div>
@@ -4408,7 +4386,7 @@ export default function App() {
           setShowStatsModal(false);
           setSelectedPlatform(p);
         }}
-        sheetConnected={Boolean(spreadsheetId && sheetTitle)}
+        sheetConnected={Boolean(spreadsheetId)}
         sheetTitle={sheetTitle}
         shows={profileFilteredShows}
         isSyncing={isSyncing}
