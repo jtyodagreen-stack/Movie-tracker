@@ -1034,7 +1034,18 @@ export default function App() {
       setShows((prev) =>
         prev.map((s) =>
           s.id === updatedShow.id
-            ? { ...updatedShow, rowNumber: rowNum, sheetTabName: targetTab }
+            ? {
+                ...s,
+                ...updatedShow,
+                rowNumber: rowNum || s.rowNumber,
+                sheetTabName: targetTab,
+                addedRank: s.addedRank,
+                sortOrderNum: s.sortOrderNum,
+                sessionAddedAt: s.sessionAddedAt,
+                createdTimestamp: s.createdTimestamp,
+                addedTime: s.addedTime,
+                dateAdded: s.dateAdded || updatedShow.dateAdded,
+              }
             : s
         )
       );
@@ -2089,8 +2100,12 @@ export default function App() {
     };
 
     // Immediate optimistic local update
-    setShows((prev) => prev.map((s) => (s.id === show.id ? updatedShow : s)));
-    setSelectedShow((prev) => (prev?.id === show.id ? updatedShow : prev));
+    setShows((prev) => {
+      const next = prev.map((s) => (s.id === show.id ? { ...s, ...updatedShow } : s));
+      setAppDataCache({ shows: next });
+      return next;
+    });
+    setSelectedShow((prev) => (prev?.id === show.id ? { ...prev, ...updatedShow } : prev));
 
     showToast(`Advanced "${show.title}" to ${nextSsnStr} ${nextEpStr}`);
 
@@ -2118,8 +2133,12 @@ export default function App() {
       nextEp: true,
     };
 
-    setShows((prev) => prev.map((s) => (s.id === show.id ? updatedShow : s)));
-    setSelectedShow((prev) => (prev?.id === show.id ? updatedShow : prev));
+    setShows((prev) => {
+      const next = prev.map((s) => (s.id === show.id ? { ...s, ...updatedShow } : s));
+      setAppDataCache({ shows: next });
+      return next;
+    });
+    setSelectedShow((prev) => (prev?.id === show.id ? { ...prev, ...updatedShow } : prev));
 
     showToast(`Advanced "${show.title}" to ${nextSsnStr} ${nextEpStr}`);
 
@@ -2136,8 +2155,12 @@ export default function App() {
     const nextStatus: WatchStatus = show.status === '✅ Watched' ? '⏳ Watching' : '✅ Watched';
     const updatedShow: ShowItem = { ...show, status: nextStatus };
 
-    setShows((prev) => prev.map((s) => (s.id === show.id ? updatedShow : s)));
-    setSelectedShow((prev) => (prev?.id === show.id ? updatedShow : prev));
+    setShows((prev) => {
+      const next = prev.map((s) => (s.id === show.id ? { ...s, ...updatedShow } : s));
+      setAppDataCache({ shows: next });
+      return next;
+    });
+    setSelectedShow((prev) => (prev?.id === show.id ? { ...prev, ...updatedShow } : prev));
 
     showToast(`Set "${show.title}" to ${nextStatus}`);
 
@@ -2166,9 +2189,13 @@ export default function App() {
       rating: getRatingText(ratingNum),
     };
 
-    setShows((prev) => prev.map((s) => (s.id === show.id ? updatedShow : s)));
+    setShows((prev) => {
+      const next = prev.map((s) => (s.id === show.id ? { ...s, ...updatedShow } : s));
+      setAppDataCache({ shows: next });
+      return next;
+    });
     if (selectedShow?.id === show.id) {
-      setSelectedShow(updatedShow);
+      setSelectedShow((prev) => (prev ? { ...prev, ...updatedShow } : null));
     }
 
     showToast(`Rated "${show.title}" ${ratingNum} Stars`);
@@ -2187,22 +2214,52 @@ export default function App() {
     setShows((prev) => {
       const existing = prev.find((s) => s.id === updatedShow.id);
       let nextShow = updatedShow;
-      if (existing?.isWishlist && !updatedShow.isWishlist) {
-        const maxRank = prev.reduce((m, s) => {
-          const r = typeof s.addedRank === 'number' ? s.addedRank : (s.sortOrderNum || 0);
-          return r > m ? r : m;
-        }, 0);
-        const newRank = Math.max(maxRank + 1000, now * 10);
-        nextShow = {
-          ...updatedShow,
-          addedTime: now,
-          sessionAddedAt: now,
-          createdTimestamp: now,
-          addedRank: newRank,
-          sortOrderNum: newRank,
-        };
+      if (existing) {
+        if (existing.isWishlist && !updatedShow.isWishlist) {
+          const maxRank = prev.reduce((m, s) => {
+            const r = typeof s.addedRank === 'number' ? s.addedRank : (s.sortOrderNum || 0);
+            return r > m ? r : m;
+          }, 0);
+          const newRank = Math.max(maxRank + 1000, now * 10);
+          nextShow = {
+            ...updatedShow,
+            addedTime: now,
+            sessionAddedAt: now,
+            createdTimestamp: now,
+            addedRank: newRank,
+            sortOrderNum: newRank,
+          };
+        } else if (!existing.isWishlist && updatedShow.isWishlist) {
+          const maxRank = prev.reduce((m, s) => {
+            const r = typeof s.addedRank === 'number' ? s.addedRank : (s.sortOrderNum || 0);
+            return r > m ? r : m;
+          }, 0);
+          const newRank = Math.max(maxRank + 1000, now * 10);
+          nextShow = {
+            ...updatedShow,
+            addedTime: now,
+            sessionAddedAt: now,
+            createdTimestamp: now,
+            addedRank: newRank,
+            sortOrderNum: newRank,
+          };
+        } else {
+          // Editing existing show: KEEP EXACT original position, sort order, and timestamps!
+          nextShow = {
+            ...updatedShow,
+            rowNumber: existing.rowNumber,
+            addedTime: existing.addedTime,
+            createdTimestamp: existing.createdTimestamp,
+            sessionAddedAt: existing.sessionAddedAt,
+            addedRank: existing.addedRank,
+            sortOrderNum: existing.sortOrderNum,
+            dateAdded: existing.dateAdded || updatedShow.dateAdded,
+          };
+        }
       }
-      return prev.map((s) => (s.id === updatedShow.id ? nextShow : s));
+      const next = prev.map((s) => (s.id === updatedShow.id ? nextShow : s));
+      setAppDataCache({ shows: next });
+      return next;
     });
     setSelectedShow(null);
     showToast(`Saved changes for "${updatedShow.title}"`);
