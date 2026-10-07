@@ -1482,15 +1482,20 @@ export default function App() {
             if (cloudConfig?.spreadsheetId) {
               const currentLocalId = localStorage.getItem('bingebox_spreadsheet_id') || '';
               
-              // If local storage has a different spreadsheet ID than cloud config, retain shows and sync smoothly
-              if (currentLocalId && cloudConfig.spreadsheetId !== currentLocalId && !connectingSheetIdRef.current) {
-                console.log('[Pre-flight Check] Sheet updated in user profile. Retaining titles on screen while sync loads new sheet.');
-              }
-
               if (!currentLocalId || (!connectingSheetIdRef.current && cloudConfig.spreadsheetId !== currentLocalId)) {
                 activeSheetId = cloudConfig.spreadsheetId;
                 setSpreadsheetId(cloudConfig.spreadsheetId);
                 localStorage.setItem('bingebox_spreadsheet_id', cloudConfig.spreadsheetId);
+
+                // Clear old state immediately or load cached data for this specific cloud sheet
+                const cachedForCloud = getAppDataCache();
+                if (cachedForCloud?.spreadsheetId === cloudConfig.spreadsheetId && cachedForCloud.shows && cachedForCloud.shows.length > 0) {
+                  setShows(cachedForCloud.shows);
+                  if (cachedForCloud.headers) setSheetHeaders(cachedForCloud.headers);
+                } else if (currentLocalId && cloudConfig.spreadsheetId !== currentLocalId) {
+                  setShows([]);
+                  setSheetHeaders([]);
+                }
 
                 if (cloudConfig.sheetName) {
                   activeSheetName = cloudConfig.sheetName;
@@ -1667,14 +1672,16 @@ export default function App() {
     connectingSheetIdRef.current = cleanId;
     setIsSyncing(true);
 
-    // Instant Fast-Path: Load cached titles for this sheet immediately (0ms delay, no empty flash)
+    // Instant Fast-Path: If switching or connecting sheet, check if exact cache exists for cleanId
     const cachedData = getAppDataCache();
     if (cachedData?.spreadsheetId === cleanId && cachedData.shows && cachedData.shows.length > 0) {
       setShows(cachedData.shows);
-    } else if (shows.length > 0) {
-      // Retain current catalog while background re-syncing - NEVER WIPE TO EMPTY
-    } else if (cachedData?.shows && cachedData.shows.length > 0) {
-      setShows(cachedData.shows);
+      if (cachedData.headers) setSheetHeaders(cachedData.headers);
+    } else {
+      // Clear old state immediately so stale shows never show for a different or new sheet
+      setShows([]);
+      setSheetHeaders([]);
+      setAvailableTabs([]);
     }
 
     setSpreadsheetId(cleanId);
@@ -1716,7 +1723,7 @@ export default function App() {
       if (meta) {
         const listsTabName = meta.sheetNames.find((t) => t.toLowerCase().includes('lists'));
         if (listsTabName) {
-          viewerResult = await fetchCustomViewers(cleanId, listsTabName, token);
+          viewerResult = await fetchCustomViewers(cleanId, listsTabName, token).catch(() => ({ viewers: [], colors: {} }));
         }
       }
 
@@ -1748,6 +1755,14 @@ export default function App() {
       let wishlistParsed = quickResults[chosenWishlist] || { shows: [], headers: [], headerRowIndex: 0 };
       let showcaseParsed = quickResults[chosenShowcase] || { shows: [], headers: [], headerRowIndex: 0 };
 
+      // Progressive Live Render: Show Master titles IMMEDIATELY as they arrive
+      if (masterParsed.shows && masterParsed.shows.length > 0) {
+        setShows(masterParsed.shows);
+        if (masterParsed.headers.length > 0) {
+          setSheetHeaders(masterParsed.headers);
+        }
+      }
+
       // If we missed any due to bad guessing, fetch them specifically
       if (meta && (!quickResults[chosenSheet] || !quickResults[chosenWishlist])) {
         console.log('[Connection Optimization] Guessed tabs missed, fetching refined tabs...');
@@ -1756,8 +1771,24 @@ export default function App() {
         if (!quickResults[chosenWishlist]) refinedTabs.push({ name: chosenWishlist, isWishlist: true });
         
         const refinedResults = await fetchMultipleSheetRows(cleanId, refinedTabs, token);
-        if (refinedResults[chosenSheet]) masterParsed = refinedResults[chosenSheet];
+        if (refinedResults[chosenSheet]) {
+          masterParsed = refinedResults[chosenSheet];
+          if (masterParsed.shows.length > 0) {
+            setShows(masterParsed.shows);
+            if (masterParsed.headers.length > 0) setSheetHeaders(masterParsed.headers);
+          }
+        }
         if (refinedResults[chosenWishlist]) wishlistParsed = refinedResults[chosenWishlist];
+      }
+
+      // Progressive Live Render: Append Wishlist titles immediately as they arrive
+      if (wishlistParsed.shows && wishlistParsed.shows.length > 0) {
+        setShows((prev) => deduplicateShowsByTitle([...prev, ...wishlistParsed.shows]));
+      }
+
+      // Progressive Live Render: Append Showcase titles immediately as they arrive
+      if (showcaseParsed.shows && showcaseParsed.shows.length > 0) {
+        setShows((prev) => deduplicateShowsByTitle([...prev, ...showcaseParsed.shows]));
       }
 
       if (viewerResult.viewers && viewerResult.viewers.length > 0) {
@@ -3452,117 +3483,213 @@ export default function App() {
     return (
       <div className="w-full">
         {shows.length === 0 ? (
-          <div className="w-full space-y-6">
-            {/* Top Welcome / Intro Banner */}
-            <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-              <div className="rounded-2xl bg-gradient-to-r from-zinc-900/90 via-zinc-900/70 to-red-950/30 border border-zinc-800/80 p-6 md:p-8 relative overflow-hidden shadow-2xl backdrop-blur-sm">
-                <div className="max-w-2xl space-y-3 relative z-10">
-                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-red-600/15 border border-red-500/30 text-red-400 text-xs font-semibold tracking-wide uppercase">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Your Personal Entertainment Hub</span>
+          isSyncing ? (
+            /* Loading Skeleton / Structure - Never Blank */
+            <div className="w-full space-y-8 animate-in fade-in duration-300">
+              {/* Hero Skeleton Billboard */}
+              <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+                <div className="relative w-full h-[280px] sm:h-[360px] md:h-[420px] rounded-2xl overflow-hidden bg-gradient-to-t from-zinc-950 via-zinc-900/80 to-zinc-900/40 border border-zinc-800/80 p-6 md:p-10 flex flex-col justify-end shadow-2xl">
+                  {/* Glowing ambient background pulse */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-950/20 via-transparent to-red-950/10 pointer-events-none animate-pulse" />
+                  
+                  <div className="max-w-2xl space-y-4 relative z-10">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-600/20 border border-red-500/40 text-red-400 text-xs font-semibold tracking-wide uppercase">
+                      <div className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                      <span>Connecting Google Sheet &amp; Loading Catalog...</span>
+                    </div>
+
+                    <div className="h-8 sm:h-12 w-3/4 sm:w-96 bg-zinc-800/80 rounded-lg animate-pulse" />
+                    
+                    <div className="space-y-2">
+                      <div className="h-3.5 w-full max-w-md bg-zinc-800/60 rounded animate-pulse" />
+                      <div className="h-3.5 w-4/5 max-w-sm bg-zinc-800/40 rounded animate-pulse" />
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-2">
+                      <div className="h-10 w-28 bg-red-600/40 rounded-lg animate-pulse" />
+                      <div className="h-10 w-32 bg-zinc-800/60 rounded-lg animate-pulse" />
+                    </div>
                   </div>
-                  <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight">
-                    ShowFlix — Track Movies &amp; Series
-                  </h1>
-                  <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed max-w-xl">
-                    Organise your watchlist, track release dates, monitor episode progress, and discover new shows with seamless Google Sheets synchronization.
+                </div>
+              </div>
+
+              {/* Shimmering Shelf Rows */}
+              <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 pb-16">
+                {/* Skeleton Shelf 1: Watching Now */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-zinc-800/60 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm sm:text-base font-bold text-white tracking-wide">⭐ Watching Now</span>
+                      <span className="text-[11px] text-zinc-500 font-medium animate-pulse">(Loading titles...)</span>
+                    </div>
+                    <div className="h-4 w-16 bg-zinc-800/60 rounded animate-pulse" />
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                      <div
+                        key={i}
+                        className="relative aspect-[2/3] rounded-xl border border-zinc-800/80 bg-gradient-to-b from-zinc-800/70 via-zinc-900/60 to-zinc-900/90 p-3 flex flex-col justify-between overflow-hidden shadow-lg animate-pulse"
+                        style={{ animationDelay: `${i * 100}ms` }}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="h-3 w-10 bg-zinc-700/60 rounded" />
+                          <div className="h-3 w-8 bg-zinc-700/40 rounded" />
+                        </div>
+                        <div className="flex flex-col items-center justify-center my-auto py-4 text-center">
+                          <Film className="w-6 h-6 text-zinc-700 animate-pulse mb-2" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <div className="h-3 w-4/5 bg-zinc-700/70 rounded" />
+                          <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                            <div className="bg-red-600/50 h-full w-2/3" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Skeleton Shelf 2: Watchlist & Queue */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-zinc-800/60 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm sm:text-base font-bold text-white tracking-wide">🎬 Watchlist &amp; Queue</span>
+                      <span className="text-[11px] text-zinc-500 font-medium animate-pulse">(Loading titles...)</span>
+                    </div>
+                    <div className="h-4 w-16 bg-zinc-800/60 rounded animate-pulse" />
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                      <div
+                        key={i}
+                        className="relative aspect-[2/3] rounded-xl border border-zinc-800/80 bg-gradient-to-b from-zinc-800/70 via-zinc-900/60 to-zinc-900/90 p-3 flex flex-col justify-between overflow-hidden shadow-lg animate-pulse"
+                        style={{ animationDelay: `${(i + 2) * 100}ms` }}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="h-3 w-10 bg-zinc-700/60 rounded" />
+                          <div className="h-3 w-8 bg-zinc-700/40 rounded" />
+                        </div>
+                        <div className="flex flex-col items-center justify-center my-auto py-4 text-center">
+                          <Tv className="w-6 h-6 text-zinc-700 animate-pulse mb-2" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <div className="h-3 w-3/4 bg-zinc-700/70 rounded" />
+                          <div className="h-2.5 w-1/2 bg-zinc-700/40 rounded" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* TRULY EMPTY STATE (Sync complete, 0 titles found) */
+            <div className="w-full space-y-6">
+              {/* Top Welcome / Intro Banner */}
+              <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+                <div className="rounded-2xl bg-gradient-to-r from-zinc-900/90 via-zinc-900/70 to-red-950/30 border border-zinc-800/80 p-6 md:p-8 relative overflow-hidden shadow-2xl backdrop-blur-sm">
+                  <div className="max-w-2xl space-y-3 relative z-10">
+                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-red-600/15 border border-red-500/30 text-red-400 text-xs font-semibold tracking-wide uppercase">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Your Personal Entertainment Hub</span>
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight">
+                      ShowFlix — Track Movies &amp; Series
+                    </h1>
+                    <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed max-w-xl">
+                      Organise your watchlist, track release dates, monitor episode progress, and discover new shows with seamless Google Sheets synchronization.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Empty Library Action Card */}
+              <div className="max-w-md mx-auto px-4 py-8 text-center space-y-5">
+                <div className="w-16 h-16 bg-[#E50914]/10 border border-[#E50914]/30 rounded-2xl flex items-center justify-center mx-auto text-[#E50914] shadow-xl shadow-red-950/20">
+                  <Plus className="w-8 h-8" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-xl font-bold text-white">Your library is empty — add your first show to get started!</h2>
+                  <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                    You have successfully connected your Google Sheet! Now you can start adding movies and series to your personal list.
                   </p>
-                  {isSyncing && (
-                    <div className="inline-flex items-center gap-2 pt-1 text-xs text-zinc-400 font-medium">
-                      <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-                      <span>Syncing with Google Sheets in the background...</span>
-                    </div>
-                  )}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  className="inline-flex items-center gap-2 bg-[#E50914] hover:bg-[#B80710] text-white text-xs font-bold px-6 py-3.5 rounded-lg shadow-xl shadow-red-900/30 transition-all uppercase tracking-wider cursor-pointer hover:scale-105"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Your First Show
+                </button>
               </div>
-            </div>
 
-            {/* Empty Library Action Card */}
-            <div className="max-w-md mx-auto px-4 py-8 text-center space-y-5">
-              <div className="w-16 h-16 bg-[#E50914]/10 border border-[#E50914]/30 rounded-2xl flex items-center justify-center mx-auto text-[#E50914] shadow-xl shadow-red-950/20">
-                <Plus className="w-8 h-8" />
-              </div>
-              <div className="space-y-2">
-                <h2 className="text-xl font-bold text-white">Your library is empty — add your first show to get started!</h2>
-                <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
-                  You have successfully connected your Google Sheet! Now you can start adding movies and series to your personal list.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAddModal(true)}
-                className="inline-flex items-center gap-2 bg-[#E50914] hover:bg-[#B80710] text-white text-xs font-bold px-6 py-3.5 rounded-lg shadow-xl shadow-red-900/30 transition-all uppercase tracking-wider cursor-pointer hover:scale-105"
-              >
-                <Plus className="w-4 h-4" />
-                Add Your First Show
-              </button>
-            </div>
-
-            {/* Shelf Placeholders */}
-            <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 pb-16">
-              {/* Shelf Placeholder: Watching Now */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-zinc-800/60 pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm sm:text-base font-bold text-white tracking-wide">⭐ Watching Now</span>
-                    <span className="text-[11px] text-zinc-500 font-medium">(Track episode progress)</span>
+              {/* Shelf Placeholders */}
+              <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 pb-16">
+                {/* Shelf Placeholder: Watching Now */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-zinc-800/60 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm sm:text-base font-bold text-white tracking-wide">⭐ Watching Now</span>
+                      <span className="text-[11px] text-zinc-500 font-medium">(Track episode progress)</span>
+                    </div>
+                    <span className="text-xs text-red-500/80 font-semibold cursor-pointer hover:underline" onClick={() => setShowAddModal(true)}>+ Add Show</span>
                   </div>
-                  <span className="text-xs text-red-500/80 font-semibold cursor-pointer hover:underline" onClick={() => setShowAddModal(true)}>+ Add Show</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
-                  {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <div
-                      key={i}
-                      onClick={() => setShowAddModal(true)}
-                      className="group relative aspect-[2/3] rounded-xl border border-zinc-800/80 bg-zinc-900/50 hover:bg-zinc-900/90 hover:border-red-600/50 transition-all flex flex-col justify-between p-3 cursor-pointer overflow-hidden"
-                    >
-                      <div className="flex justify-between items-start">
-                        <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Series</span>
-                        <span className="text-[10px] text-zinc-600">S1 • E{i}</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                      <div
+                        key={i}
+                        onClick={() => setShowAddModal(true)}
+                        className="group relative aspect-[2/3] rounded-xl border border-zinc-800/80 bg-zinc-900/50 hover:bg-zinc-900/90 hover:border-red-600/50 transition-all flex flex-col justify-between p-3 cursor-pointer overflow-hidden"
+                      >
+                        <div className="flex justify-between items-start">
+                          <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Series</span>
+                          <span className="text-[10px] text-zinc-600">S1 • E{i}</span>
+                        </div>
+                        <div className="flex flex-col items-center justify-center my-auto py-4 text-center">
+                          <Film className="w-6 h-6 text-zinc-700 group-hover:text-red-500 transition-colors mb-2" />
+                          <span className="text-xs text-zinc-400 group-hover:text-white font-medium">+ Add Title</span>
+                        </div>
+                        <div className="w-full bg-zinc-800 h-1 rounded-full overflow-hidden">
+                          <div className="bg-red-600/40 h-full" style={{ width: `${i * 15}%` }}></div>
+                        </div>
                       </div>
-                      <div className="flex flex-col items-center justify-center my-auto py-4 text-center">
-                        <Film className="w-6 h-6 text-zinc-700 group-hover:text-red-500 transition-colors mb-2" />
-                        <span className="text-xs text-zinc-400 group-hover:text-white font-medium">+ Add Title</span>
-                      </div>
-                      <div className="w-full bg-zinc-800 h-1 rounded-full overflow-hidden">
-                        <div className="bg-red-600/40 h-full" style={{ width: `${i * 15}%` }}></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Shelf Placeholder: Watchlist & Queue */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-zinc-800/60 pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm sm:text-base font-bold text-white tracking-wide">🎬 Watchlist &amp; Queue</span>
-                    <span className="text-[11px] text-zinc-500 font-medium">(Planned to watch)</span>
+                    ))}
                   </div>
-                  <span className="text-xs text-red-500/80 font-semibold cursor-pointer hover:underline" onClick={() => setShowAddModal(true)}>+ Add Show</span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
-                  {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <div
-                      key={i}
-                      onClick={() => setShowAddModal(true)}
-                      className="group relative aspect-[2/3] rounded-xl border border-zinc-800/80 bg-zinc-900/50 hover:bg-zinc-900/90 hover:border-red-600/50 transition-all flex flex-col justify-between p-3 cursor-pointer overflow-hidden"
-                    >
-                      <div className="flex justify-between items-start">
-                        <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Queue</span>
-                        <span className="text-[10px] text-amber-500/70">★ 4.{i}</span>
-                      </div>
-                      <div className="flex flex-col items-center justify-center my-auto py-4 text-center">
-                        <Tv className="w-6 h-6 text-zinc-700 group-hover:text-red-500 transition-colors mb-2" />
-                        <span className="text-xs text-zinc-400 group-hover:text-white font-medium">+ Add Show</span>
-                      </div>
-                      <span className="text-[10px] text-zinc-600 truncate text-center">Plan to Watch</span>
+
+                {/* Shelf Placeholder: Watchlist & Queue */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-zinc-800/60 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm sm:text-base font-bold text-white tracking-wide">🎬 Watchlist &amp; Queue</span>
+                      <span className="text-[11px] text-zinc-500 font-medium">(Planned to watch)</span>
                     </div>
-                  ))}
+                    <span className="text-xs text-red-500/80 font-semibold cursor-pointer hover:underline" onClick={() => setShowAddModal(true)}>+ Add Show</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                      <div
+                        key={i}
+                        onClick={() => setShowAddModal(true)}
+                        className="group relative aspect-[2/3] rounded-xl border border-zinc-800/80 bg-zinc-900/50 hover:bg-zinc-900/90 hover:border-red-600/50 transition-all flex flex-col justify-between p-3 cursor-pointer overflow-hidden"
+                      >
+                        <div className="flex justify-between items-start">
+                          <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Queue</span>
+                          <span className="text-[10px] text-amber-500/70">★ 4.{i}</span>
+                        </div>
+                        <div className="flex flex-col items-center justify-center my-auto py-4 text-center">
+                          <Tv className="w-6 h-6 text-zinc-700 group-hover:text-red-500 transition-colors mb-2" />
+                          <span className="text-xs text-zinc-400 group-hover:text-white font-medium">+ Add Show</span>
+                        </div>
+                        <span className="text-[10px] text-zinc-600 truncate text-center">Plan to Watch</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )
         ) : (
           <>
             {/* If user is not searching or filtering, show Netflix Hero Billboard */}
