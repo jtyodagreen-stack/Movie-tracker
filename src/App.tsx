@@ -88,6 +88,7 @@ import {
   clearOfflineQueue,
 } from './services/offlineQueue';
 import { calculateShowProgress, compareByAddedRank, compareRecentlyAdded, rebuildSheetAddedRanks, deduplicateShowsByTitle, normalizeTitleForComparison, isWishlistShow } from './utils/showMetrics';
+import { getShowAddedTimestamp, recordShowAddedTime } from './utils/addTimestampStore';
 import { parseAnyDate, getTodayDDMMYYYY } from './utils/dateUtils';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 
@@ -1248,31 +1249,51 @@ export default function App() {
           }
         });
 
-        // Clear any stale local session caches to keep Preview and iOS 100% in sync
-        try {
-          localStorage.removeItem('bingebox_session_added');
-        } catch {}
-
         let isChanged = false;
         setShows((prev) => {
+          // Build lookup map of existing displayed shows to preserve established session ranks, timestamps, and order
+          const prevMap = new Map(prev.map((s) => [s.id, s]));
+          const prevTitleMap = new Map(prev.map((s) => [normalizeTitleForComparison(s.title), s]));
+
+          let sessionMap: Record<string, number> = {};
+          try {
+            sessionMap = JSON.parse(localStorage.getItem('bingebox_session_added') || '{}');
+          } catch {}
+
+          const enrichShow = (s: ShowItem, isWishlist: boolean, tabName?: string) => {
+            const norm = normalizeTitleForComparison(s.title);
+            const existing = prevMap.get(s.id) || (norm ? prevTitleMap.get(norm) : undefined);
+            const savedSessionTime = sessionMap[s.id] || (norm ? sessionMap[norm] : undefined);
+            const sessionTime = existing?.sessionAddedAt || s.sessionAddedAt || savedSessionTime;
+            const persistentTs = getShowAddedTimestamp(s);
+            const createdTs =
+              existing?.createdTimestamp ||
+              s.createdTimestamp ||
+              sessionTime ||
+              persistentTs ||
+              (s.dateAdded ? parseAnyDate(s.dateAdded)?.getTime() : undefined);
+            const sortOrder = existing?.sortOrderNum || s.sortOrderNum;
+            const rank = existing?.addedRank || s.addedRank;
+
+            return {
+              ...s,
+              isWishlist,
+              sheetTabName: tabName || s.sheetTabName,
+              sessionAddedAt: sessionTime,
+              createdTimestamp: createdTs,
+              sortOrderNum: sortOrder,
+              addedRank: rank,
+            };
+          };
+
           // Master tab = EVERY row in Master tab, NO EXCEPTIONS, NO FILTERS
-          const finalMaster = masterShows.map((s) => ({
-            ...s,
-            isWishlist: false,
-          }));
+          const finalMaster = masterShows.map((s) => enrichShow(s, false));
 
           // Wishlist tab = EVERY row in Wishlist tab, NO EXCEPTIONS, NO FILTERS
-          const finalWishlist = wishlistShows.map((s) => ({
-            ...s,
-            isWishlist: true,
-          }));
+          const finalWishlist = wishlistShows.map((s) => enrichShow(s, true));
 
           // Showcase tab = rows in Showcase tab
-          const finalShowcase = showcaseShows.map((s) => ({
-            ...s,
-            sheetTabName: currentShowcaseName || 'SHOWCASE',
-            isShowcase: true,
-          }));
+          const finalShowcase = showcaseShows.map((s) => enrichShow(s, false, currentShowcaseName || 'SHOWCASE'));
 
           // Direct chronological/row-based representation
           const sortedMaster = rebuildSheetAddedRanks(finalMaster);
@@ -2112,68 +2133,6 @@ export default function App() {
     }
   };
 
-  // Reset titles by name ("Tracker", "Lanterns")
-  const handleResetTitlesByName = useCallback((titlesToReset: string[]) => {
-    const now = Date.now();
-    setShows((prev) => {
-      let resetCount = 0;
-      const updated = prev.map((s) => {
-        const normTitle = (s.title || '').trim().toLowerCase();
-        const matches = titlesToReset.some((t) => normTitle.includes(t.trim().toLowerCase()));
-        if (matches) {
-          resetCount++;
-          const maxRank = prev.reduce((m, item) => {
-            const r = typeof item.addedRank === 'number' ? item.addedRank : (item.sortOrderNum || 0);
-            return r > m ? r : m;
-          }, 0);
-          const newRank = Math.max(maxRank + 1000, now * 10);
-
-          const resetShow: ShowItem = {
-            ...s,
-            seasons: s.type === 'Movie' ? '' : 'S1',
-            episodes: s.type === 'Movie' ? '' : 'E1',
-            status: s.isWishlist ? ('🎁 Wishlist' as any) : '⏳ Watching',
-            releaseDate: undefined,
-            releaseNote: undefined,
-            nextAirDate: undefined,
-            nextAirTimestamp: undefined,
-            addedTime: now,
-            sessionAddedAt: now,
-            createdTimestamp: now,
-            addedRank: newRank,
-            sortOrderNum: newRank,
-          };
-          if (spreadsheetId) {
-            syncShowToSheet(resetShow, true);
-          }
-          return resetShow;
-        }
-        return s;
-      });
-
-      if (resetCount > 0) {
-        showToast(`🔄 Reset progress & schedule for "${titlesToReset.join(', ')}"!`);
-        setAppDataCache({ shows: updated });
-      }
-      return updated;
-    });
-  }, [spreadsheetId, syncShowToSheet, showToast]);
-
-  // Execute title reset for "Tracker" and "Lanterns"
-  const resetTrackerAndLanternsDoneRef = useRef(false);
-  useEffect(() => {
-    if (resetTrackerAndLanternsDoneRef.current || !shows || shows.length === 0) return;
-    const targetKeywords = ['tracker', 'lanterns'];
-    const foundAny = shows.some((s) =>
-      targetKeywords.some((k) => (s.title || '').trim().toLowerCase().includes(k))
-    );
-
-    if (foundAny) {
-      resetTrackerAndLanternsDoneRef.current = true;
-      handleResetTitlesByName(['Tracker', 'Lanterns']);
-    }
-  }, [shows, handleResetTitlesByName]);
-
   // Save changes from Detail modal or Theater Column
   const handleSaveShow = (updatedShow: ShowItem) => {
     const now = Date.now();
@@ -2333,6 +2292,7 @@ export default function App() {
     };
 
     try {
+      recordShowAddedTime(sanitizedShow.id, sanitizedShow.title, now);
       const sessionMap: Record<string, number> = JSON.parse(localStorage.getItem('bingebox_session_added') || '{}');
       sessionMap[sanitizedShow.id] = now;
       if (sanitizedShow.title) {
@@ -3475,7 +3435,7 @@ export default function App() {
     return (
       <div className="w-full">
         {shows.length === 0 ? (
-          (isSyncing || Boolean(connectingSheetIdRef.current) || hasEverLoadedShowsRef.current) ? (
+          (hasEverLoadedShowsRef.current && (isSyncing || Boolean(connectingSheetIdRef.current))) ? (
             <div className="max-w-md mx-auto px-4 py-32 text-center space-y-6">
               <div className="relative">
                 <div className="w-16 h-16 border-4 border-red-600/10 border-t-red-600 rounded-full animate-spin mx-auto preserve-theme-color"></div>
@@ -3496,7 +3456,7 @@ export default function App() {
                 <Plus className="w-8 h-8" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-xl font-bold text-white">Your Show Tracker is Empty</h3>
+                <h3 className="text-xl font-bold text-white">Your library is empty — add your first show to get started!</h3>
                 <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
                   You have successfully connected your Google Sheet! Now you can start adding movies and series to your personal list.
                 </p>

@@ -1,5 +1,6 @@
 import { ShowItem } from '../types';
 import { parseAnyDate } from './dateUtils';
+import { getShowAddedTimestamp } from './addTimestampStore';
 
 /**
  * Normalizes and extracts numeric rating (1-5) from ratingNum or rating string.
@@ -232,11 +233,14 @@ export function rebuildSheetAddedRanks(showList: ShowItem[]): ShowItem[] {
       ? show.rowNumber
       : idx + 1;
 
+    const rank = typeof show.addedRank === 'number' && show.addedRank > 0 ? show.addedRank : rowNum;
+    const sortOrder = typeof show.sortOrderNum === 'number' && show.sortOrderNum > 0 ? show.sortOrderNum : rowNum;
+
     return {
       ...show,
       rowNumber: rowNum,
-      addedRank: rowNum,
-      sortOrderNum: rowNum,
+      addedRank: rank,
+      sortOrderNum: sortOrder,
     };
   });
 }
@@ -244,20 +248,35 @@ export function rebuildSheetAddedRanks(showList: ShowItem[]): ShowItem[] {
 export const ensureSortOrderNumbers = rebuildSheetAddedRanks;
 
 /**
- * Sorts shows by Recently Added order (newest added first = bottom rows of Google Sheet come first).
- * If a show was newly added in the active session, it takes priority at the front.
+ * Sorts shows by Recently Added order (newest added first).
+ * Prioritizes active session additions, persistent timestamps, explicit sort orders,
+ * then falls back to descending sheet row order.
  */
 export function compareByAddedRank(a: ShowItem, b: ShowItem): number {
   if (a.id === b.id) return 0;
 
-  // Newly added titles created in active session take priority
+  // 1. Newly added titles created in active session take priority
   const sessionA = a.sessionAddedAt || 0;
   const sessionB = b.sessionAddedAt || 0;
   if (sessionA > 0 || sessionB > 0) {
     if (sessionA !== sessionB) return sessionB - sessionA;
   }
 
-  // Google Sheet row order: Higher rowNumber = newly appended row at bottom of sheet = newest added!
+  // 2. Persistent add timestamp (guarantees newly added shows stay first across all browser reloads)
+  const tsA = a.createdTimestamp || a.addedTime || getShowAddedTimestamp(a) || 0;
+  const tsB = b.createdTimestamp || b.addedTime || getShowAddedTimestamp(b) || 0;
+  if (tsA > 0 || tsB > 0) {
+    if (tsA !== tsB) return tsB - tsA;
+  }
+
+  // 3. Explicit sort order / added rank
+  const rankA = typeof a.sortOrderNum === 'number' && a.sortOrderNum > 0 ? a.sortOrderNum : (a.addedRank || 0);
+  const rankB = typeof b.sortOrderNum === 'number' && b.sortOrderNum > 0 ? b.sortOrderNum : (b.addedRank || 0);
+  if (rankA > 0 || rankB > 0) {
+    if (rankA !== rankB) return rankB - rankA;
+  }
+
+  // 4. Google Sheet row order: Higher rowNumber = newly appended row at bottom of sheet = newest added!
   const rowA = typeof a.rowNumber === 'number' && !isNaN(a.rowNumber) && a.rowNumber > 0 ? a.rowNumber : 0;
   const rowB = typeof b.rowNumber === 'number' && !isNaN(b.rowNumber) && b.rowNumber > 0 ? b.rowNumber : 0;
 
