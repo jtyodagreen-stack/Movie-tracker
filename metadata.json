@@ -1,6 +1,6 @@
 {
   "name": "ShowFlix Tracker",
-  "description": "The ultimate media and show tracker powered by Google Sheets.",
+  "description": "ShowFlix — Your personal movie and series tracker. Organise your watchlist, track release dates, and discover new shows.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

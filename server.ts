@@ -325,6 +325,13 @@ async function createServer() {
     }
   });
 
+  // Google AdSense verification endpoint (serves /ads.txt directly)
+  app.get('/ads.txt', (req, res) => {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send('google.com, pub-5087450059107666, DIRECT, f08c47fec0942fa0\n');
+  });
+
   const distPath = path.join(__dirname, 'dist');
   const distIndexPath = path.join(distPath, 'index.html');
   const hasDist = fs.existsSync(distIndexPath);

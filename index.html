@@ -138,147 +138,342 @@
         } catch(e) {}
       })();
     </script>
-    <title>ShowFlix Tracker</title>
-    <meta name="description" content="The ultimate media and show tracker powered by Google Sheets." />
-    <meta property="og:title" content="ShowFlix Tracker" />
-    <meta property="og:description" content="The ultimate media and show tracker powered by Google Sheets." />
+    <title>ShowFlix — Your personal movie and series tracker</title>
+    <meta name="description" content="ShowFlix — Your personal movie and series tracker. Organise your watchlist, track release dates, and discover new shows." />
+    <meta property="og:title" content="ShowFlix — Your personal movie and series tracker" />
+    <meta property="og:description" content="ShowFlix — Your personal movie and series tracker. Organise your watchlist, track release dates, and discover new shows." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ShowFlix — Your personal movie and series tracker" />
+    <meta name="twitter:description" content="ShowFlix — Your personal movie and series tracker. Organise your watchlist, track release dates, and discover new shows." />
     <style>
-      /* Startup Loading Screen Styles */
-      .startup-loading-screen {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: #141414 !important;
-        background-image: radial-gradient(circle at center, rgba(229, 9, 20, 0.35) 0%, rgba(20, 20, 20, 0.98) 65%, #141414 100%) !important;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
+      /* Pre-hydration Instant Layout for Crawlers & Immediate User Experience */
+      .pre-shell {
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: #141414;
         color: #ffffff;
-        user-select: none;
-      }
-
-      .startup-ambilight-glow {
-        position: absolute;
-        width: 420px;
-        height: 420px;
-        border-radius: 50%;
-        background-color: rgba(229, 9, 20, 0.28);
-        filter: blur(100px);
-        pointer-events: none;
-        animation: startup-pulse 2s infinite ease-in-out;
-      }
-
-      .startup-logo-container {
-        position: relative;
-        z-index: 10;
+        min-height: 100vh;
         display: flex;
         flex-direction: column;
-        align-items: center;
-        gap: 16px;
-        margin-bottom: 24px;
-        animation: startup-pulse 1.8s infinite ease-in-out;
       }
-
-      .startup-logo-box {
-        width: 80px;
-        height: 80px;
-        background-color: #E50914 !important;
-        background: #E50914 !important;
-        border-radius: 16px;
+      .pre-header {
+        height: 64px;
+        background: rgba(20, 20, 20, 0.95);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        position: sticky;
+        top: 0;
+        z-index: 50;
+      }
+      .pre-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        color: #fff;
+      }
+      .pre-logo-badge {
+        width: 32px;
+        height: 32px;
+        background: #E50914;
+        border-radius: 8px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 48px;
         font-weight: 900;
-        color: #ffffff !important;
-        font-family: system-ui, sans-serif;
-        letter-spacing: -2px;
-        box-shadow: 0 0 60px rgba(229, 9, 20, 0.8), 0 0 20px rgba(229, 9, 20, 0.5);
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        font-size: 18px;
+        color: #fff;
       }
-
-      .startup-logo-text {
-        font-size: 32px;
+      .pre-brand-title {
+        font-size: 18px;
         font-weight: 900;
-        letter-spacing: 0.22em;
+        letter-spacing: 0.15em;
+      }
+      .pre-brand-title span {
+        color: #E50914;
+      }
+      .pre-nav-links {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .pre-nav-links a {
+        color: #a3a3a3;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 600;
+        transition: color 0.2s;
+      }
+      .pre-nav-links a:hover, .pre-nav-links a.active {
+        color: #ffffff;
+      }
+      .pre-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .pre-btn-add {
+        background: #E50914;
+        color: #ffffff;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 8px 14px;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
         text-transform: uppercase;
-        color: #ffffff !important;
-        text-shadow: 0 0 25px rgba(229, 9, 20, 0.8), 0 0 50px rgba(229, 9, 20, 0.4);
+        letter-spacing: 0.05em;
+        text-decoration: none;
       }
-
-      .startup-logo-text span {
-        color: #E50914 !important;
+      .pre-content {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 32px 20px 60px;
+        width: 100%;
+        box-sizing: border-box;
       }
-
-      .startup-progress-bar-wrap {
-        position: relative;
-        z-index: 10;
-        width: 240px;
-        height: 7px;
-        background-color: rgba(255, 255, 255, 0.1);
+      .pre-hero {
+        background: linear-gradient(135deg, rgba(229, 9, 20, 0.12) 0%, rgba(20, 20, 20, 0.9) 60%);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 32px;
+        margin-bottom: 32px;
+      }
+      .pre-hero-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        background: rgba(229, 9, 20, 0.2);
+        border: 1px solid rgba(229, 9, 20, 0.4);
+        border-radius: 999px;
+        color: #ff6b6b;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 12px;
+      }
+      .pre-hero h1 {
+        font-size: 28px;
+        font-weight: 900;
+        margin: 0 0 10px;
+        letter-spacing: -0.02em;
+        color: #ffffff;
+      }
+      .pre-hero p {
+        font-size: 14px;
+        color: #d4d4d8;
+        line-height: 1.6;
+        max-width: 720px;
+        margin: 0;
+      }
+      .pre-empty-state {
+        text-align: center;
+        padding: 24px 16px 40px;
+        max-width: 520px;
+        margin: 0 auto 36px;
+      }
+      .pre-empty-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: rgba(229, 9, 20, 0.12);
+        border: 1px solid rgba(229, 9, 20, 0.35);
+        color: #E50914;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 32px;
+        margin: 0 auto 18px;
+        font-weight: 900;
+      }
+      .pre-empty-state h2 {
+        font-size: 20px;
+        font-weight: 800;
+        margin: 0 0 8px;
+        color: #ffffff;
+      }
+      .pre-empty-state p {
+        font-size: 13px;
+        color: #a1a1aa;
+        margin: 0 0 20px;
+        line-height: 1.5;
+      }
+      .pre-shelf-section {
+        margin-bottom: 32px;
+      }
+      .pre-shelf-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        margin-bottom: 16px;
+      }
+      .pre-shelf-header h3 {
+        font-size: 16px;
+        font-weight: 700;
+        margin: 0;
+        color: #ffffff;
+      }
+      .pre-shelf-header span {
+        font-size: 12px;
+        color: #71717a;
+      }
+      .pre-cards-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 16px;
+      }
+      .pre-card {
+        aspect-ratio: 2/3;
+        background: rgba(30, 30, 30, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        box-sizing: border-box;
+      }
+      .pre-card-top {
+        display: flex;
+        justify-content: space-between;
+        font-size: 10px;
+        color: #71717a;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      .pre-card-body {
+        text-align: center;
+        color: #a1a1aa;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .pre-card-bar {
+        height: 4px;
+        background: rgba(255, 255, 255, 0.1);
         border-radius: 999px;
         overflow: hidden;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        box-shadow: 0 0 20px rgba(229, 9, 20, 0.3);
       }
-
-      .startup-progress-bar-fill {
+      .pre-card-bar-fill {
         height: 100%;
-        width: 0%;
-        background: linear-gradient(90deg, #E50914 0%, #ff4d4d 60%, #f59e0b 100%) !important;
-        box-shadow: 0 0 15px rgba(229, 9, 20, 1);
-        border-radius: 999px;
-        animation: startup-fill 1.2s ease-out forwards;
+        width: 45%;
+        background: #E50914;
       }
-
-      .startup-loading-text {
-        position: relative;
-        z-index: 10;
-        margin-top: 14px;
-        font-size: 12px;
-        color: #a3a3a3;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-      }
-
-      @keyframes startup-fill {
-        0% { width: 0%; }
-        50% { width: 65%; }
-        100% { width: 100%; }
-      }
-
-      @keyframes startup-pulse {
-        0%, 100% {
-          transform: scale(1);
-          opacity: 1;
-        }
-        50% {
-          transform: scale(0.97);
-          opacity: 0.92;
-        }
+      @media (max-width: 768px) {
+        .pre-nav-links { display: none; }
+        .pre-hero h1 { font-size: 22px; }
+        .pre-cards-grid { grid-template-columns: repeat(2, 1fr); }
       }
     </style>
   </head>
   <body class="bg-[#141414] text-white" style="background-color: #141414; margin: 0; padding: 0;">
     <div id="root" class="bg-[#141414] min-h-screen" style="background-color: #141414;">
-      <div class="startup-loading-screen" data-preserve-theme="true">
-        <div class="startup-ambilight-glow"></div>
-        <div class="startup-logo-container">
-          <div class="startup-logo-box">N</div>
-          <div class="startup-logo-text">SHOW<span>FLIX</span></div>
-        </div>
-        <div class="startup-progress-bar-wrap">
-          <div class="startup-progress-bar-fill"></div>
-        </div>
-        <div class="startup-loading-text">Loading ShowFlix Library...</div>
+      <div class="pre-shell" data-preserve-theme="true">
+        <!-- Header Navigation Structure -->
+        <header class="pre-header">
+          <div class="pre-brand">
+            <div class="pre-logo-badge">N</div>
+            <div class="pre-brand-title">SHOW<span>FLIX</span></div>
+          </div>
+          <nav aria-label="Main Navigation">
+            <ul class="pre-nav-links">
+              <li><a href="#home" class="active">Home</a></li>
+              <li><a href="#series">TV Series</a></li>
+              <li><a href="#films">Movies</a></li>
+              <li><a href="#watchlist">Watchlist</a></li>
+              <li><a href="#releases">Release Radar</a></li>
+              <li><a href="#stats">Statistics</a></li>
+            </ul>
+          </nav>
+          <div class="pre-actions">
+            <button class="pre-btn-add" type="button">+ Add Title</button>
+          </div>
+        </header>
+
+        <!-- Main Page Content -->
+        <main class="pre-content">
+          <!-- Hero Intro Banner -->
+          <section class="pre-hero">
+            <div class="pre-hero-badge">Entertainment Tracker</div>
+            <h1>ShowFlix — Your Personal Movie and Series Tracker</h1>
+            <p>Organise your watchlist, track release dates, monitor episode progress, and discover new shows with seamless Google Sheets synchronization.</p>
+          </section>
+
+          <!-- Empty Library State / Setup Callout -->
+          <section class="pre-empty-state">
+            <div class="pre-empty-icon">+</div>
+            <h2>Your library is empty — add your first show to get started!</h2>
+            <p>You have successfully connected your Google Sheet! Now you can start adding movies and series to your personal list.</p>
+            <button class="pre-btn-add" type="button" style="padding: 12px 24px; font-size: 13px;">+ Add Your First Show</button>
+          </section>
+
+          <!-- Shelf Placeholders: Watching Now -->
+          <section class="pre-shelf-section">
+            <div class="pre-shelf-header">
+              <h3>⭐ Watching Now</h3>
+              <span>Episode progress tracking</span>
+            </div>
+            <div class="pre-cards-grid">
+              <article class="pre-card">
+                <div class="pre-card-top"><span>Series</span><span>S1 • E4</span></div>
+                <div class="pre-card-body">+ Add Title</div>
+                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 50%;"></div></div>
+              </article>
+              <article class="pre-card">
+                <div class="pre-card-top"><span>Series</span><span>S2 • E8</span></div>
+                <div class="pre-card-body">+ Add Title</div>
+                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 75%;"></div></div>
+              </article>
+              <article class="pre-card">
+                <div class="pre-card-top"><span>Series</span><span>S1 • E2</span></div>
+                <div class="pre-card-body">+ Add Title</div>
+                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 25%;"></div></div>
+              </article>
+              <article class="pre-card">
+                <div class="pre-card-top"><span>Series</span><span>S3 • E1</span></div>
+                <div class="pre-card-body">+ Add Title</div>
+                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 15%;"></div></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- Shelf Placeholders: Watchlist & Queue -->
+          <section class="pre-shelf-section">
+            <div class="pre-shelf-header">
+              <h3>🎬 Watchlist &amp; Queue</h3>
+              <span>Saved movies &amp; shows</span>
+            </div>
+            <div class="pre-cards-grid">
+              <article class="pre-card">
+                <div class="pre-card-top"><span>Movie</span><span>★ 4.8</span></div>
+                <div class="pre-card-body">+ Add Title</div>
+                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 0%;"></div></div>
+              </article>
+              <article class="pre-card">
+                <div class="pre-card-top"><span>Series</span><span>★ 4.5</span></div>
+                <div class="pre-card-body">+ Add Title</div>
+                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 0%;"></div></div>
+              </article>
+              <article class="pre-card">
+                <div class="pre-card-top"><span>Movie</span><span>★ 4.9</span></div>
+                <div class="pre-card-body">+ Add Title</div>
+                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 0%;"></div></div>
+              </article>
+              <article class="pre-card">
+                <div class="pre-card-top"><span>Series</span><span>★ 4.7</span></div>
+                <div class="pre-card-body">+ Add Title</div>
+                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 0%;"></div></div>
+              </article>
+            </div>
+          </section>
+        </main>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>
