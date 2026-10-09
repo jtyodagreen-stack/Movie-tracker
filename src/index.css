@@ -547,3 +547,179 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > header#main-navbar:nth-of-type(1)
   line-height: 1.4 !important;
 }
 
+/* ==========================================================================
+   SHOWFLIX RETRO & CUSTOM UI THEMES (VHS 80s, OLED Pure Black, 35mm Cinema, Cyberpunk)
+   ========================================================================== */
+
+/* 1. RETRO VHS 80s (Scanlines, amber neon glow, cassette badges) */
+[data-ui-theme="vhs"],
+.theme-vhs {
+  --vhs-amber: #f59e0b;
+  --vhs-amber-glow: rgba(245, 158, 11, 0.4);
+  --vhs-bg: #0c0a07;
+  --vhs-card: #16130e;
+  --vhs-border: #78350f;
+}
+
+[data-ui-theme="vhs"] body,
+body.theme-vhs,
+.theme-vhs.min-h-screen {
+  background-color: #0c0a07 !important;
+  color: #fef3c7 !important;
+}
+
+/* Fullscreen VHS CRT Scanline Overlay */
+.vhs-scanlines-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99998;
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%, 
+    rgba(0, 0, 0, 0.28) 50%
+  ), linear-gradient(
+    90deg,
+    rgba(255, 0, 0, 0.03),
+    rgba(0, 255, 0, 0.01),
+    rgba(0, 0, 255, 0.03)
+  );
+  background-size: 100% 3px, 6px 100%;
+  opacity: 0.65;
+}
+
+/* Ambient CRT Vignette */
+.vhs-crt-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99997;
+  background: radial-gradient(circle at 50% 50%, transparent 70%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+/* VHS Amber Glow & Cassette Badges */
+[data-ui-theme="vhs"] .vhs-cassette-badge,
+.theme-vhs .vhs-cassette-badge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.12em;
+  border: 1px solid #d97706;
+  background: rgba(217, 119, 6, 0.16);
+  color: #fbbf24;
+  text-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+}
+
+[data-ui-theme="vhs"] :is(.bg-\[\#141414\], .bg-zinc-950, .bg-zinc-900\/90, .bg-zinc-900\/80, .bg-zinc-900) {
+  background-color: #16130e !important;
+  border-color: rgba(180, 83, 9, 0.4) !important;
+}
+
+[data-ui-theme="vhs"] :is(.border-zinc-800, .border-zinc-800\/80, .border-zinc-900) {
+  border-color: rgba(180, 83, 9, 0.35) !important;
+}
+
+[data-ui-theme="vhs"] :is(button, a):hover {
+  text-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+}
+
+/* 2. OLED PURE BLACK (0% power usage, razor-sharp typography) */
+[data-ui-theme="oled"],
+.theme-oled {
+  --oled-black: #000000;
+  --oled-border: #222222;
+  --oled-red: #ef4444;
+}
+
+[data-ui-theme="oled"] html,
+[data-ui-theme="oled"] body,
+[data-ui-theme="oled"] #root,
+.theme-oled.min-h-screen {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+[data-ui-theme="oled"] :is(
+  .bg-\[\#141414\],
+  .bg-\[\#181818\],
+  .bg-zinc-950,
+  .bg-zinc-900,
+  .bg-zinc-900\/90,
+  .bg-zinc-900\/80,
+  .bg-zinc-900\/60,
+  .bg-black\/80,
+  .bg-black\/90,
+  .bg-black\/95
+) {
+  background-color: #000000 !important;
+}
+
+[data-ui-theme="oled"] :is(
+  .border-zinc-800,
+  .border-zinc-800\/80,
+  .border-zinc-800\/50,
+  .border-zinc-900
+) {
+  border-color: #222222 !important;
+}
+
+/* 3. CLASSIC CINEMA 35MM (Warm sepia & vintage theater ticket accents) */
+[data-ui-theme="cinema"],
+.theme-cinema {
+  --cinema-gold: #d97706;
+  --cinema-amber: #f59e0b;
+  --cinema-bg: #14100c;
+  --cinema-card: #201a14;
+  --cinema-border: #583f23;
+}
+
+[data-ui-theme="cinema"] body,
+body.theme-cinema,
+.theme-cinema.min-h-screen {
+  background-color: #14100c !important;
+  color: #fef3c7 !important;
+}
+
+[data-ui-theme="cinema"] :is(.bg-\[\#141414\], .bg-zinc-950, .bg-zinc-900\/90, .bg-zinc-900) {
+  background-color: #201a14 !important;
+  border-color: rgba(180, 83, 9, 0.45) !important;
+}
+
+[data-ui-theme="cinema"] .cinema-ticket-badge,
+.theme-cinema .cinema-ticket-badge {
+  background: rgba(217, 119, 6, 0.18);
+  border: 1px dashed #d97706;
+  color: #fde68a;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* 4. CYBERPUNK / SYNTHWAVE (Vibrant violet & cyan glow) */
+[data-ui-theme="cyberpunk"],
+.theme-cyberpunk {
+  --cyber-violet: #d946ef;
+  --cyber-cyan: #06b6d4;
+  --cyber-bg: #080512;
+  --cyber-card: #120c29;
+  --cyber-border: #701a75;
+}
+
+[data-ui-theme="cyberpunk"] body,
+body.theme-cyberpunk,
+.theme-cyberpunk.min-h-screen {
+  background-color: #080512 !important;
+  color: #f5d0fe !important;
+}
+
+[data-ui-theme="cyberpunk"] :is(.bg-\[\#141414\], .bg-zinc-950, .bg-zinc-900\/90, .bg-zinc-900) {
+  background-color: #120c29 !important;
+  border-color: rgba(217, 70, 239, 0.35) !important;
+  box-shadow: 0 4px 20px -2px rgba(217, 70, 239, 0.15) !important;
+}
+
+[data-ui-theme="cyberpunk"] :is(.border-zinc-800, .border-zinc-800\/80, .border-zinc-900) {
+  border-color: rgba(217, 70, 239, 0.3) !important;
+}
+
+[data-ui-theme="cyberpunk"] :is(button, a):hover {
+  text-shadow: 0 0 10px rgba(6, 182, 212, 0.6);
+}
+

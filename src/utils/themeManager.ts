@@ -1,7 +1,158 @@
-import { PREDEFINED_ACCENT_THEMES, AccentTheme } from '../types';
+import { PREDEFINED_ACCENT_THEMES, AccentTheme, UiThemeId, UiThemeConfig, PREDEFINED_UI_THEMES } from '../types';
 
 export const DEFAULT_THEME_HEX = '#E50914';
+export const DEFAULT_UI_THEME: UiThemeId = 'modern';
 export const THEME_STYLE_ID = 'showflix-dynamic-theme-style';
+export const UI_THEME_STYLE_ID = 'showflix-ui-theme-style';
+
+/**
+ * Resolves a UiThemeConfig from an ID or returns default modern
+ */
+export function getUiTheme(themeId?: string): UiThemeConfig {
+  const target = (themeId || DEFAULT_UI_THEME).trim().toLowerCase();
+  const found = PREDEFINED_UI_THEMES.find((t) => t.id.toLowerCase() === target);
+  return found || PREDEFINED_UI_THEMES[0];
+}
+
+/**
+ * Applies custom UI Theme (VHS, OLED, Cinema, Cyberpunk, Modern)
+ * to root elements and manages dataset attributes and global theme classes
+ */
+export function applyUiTheme(themeId: UiThemeId = 'modern', enableScanlines: boolean = true): UiThemeConfig {
+  const config = getUiTheme(themeId);
+  if (typeof document === 'undefined') {
+    return config;
+  }
+
+  const root = document.documentElement;
+  const body = document.body;
+
+  // 1. Set data attributes
+  root.setAttribute('data-ui-theme', config.id);
+  if (body) {
+    body.setAttribute('data-ui-theme', config.id);
+  }
+
+  // 2. Manage CSS classes on body
+  const allThemeClasses = ['theme-modern', 'theme-vhs', 'theme-oled', 'theme-cinema', 'theme-cyberpunk'];
+  if (body) {
+    body.classList.remove(...allThemeClasses);
+    body.classList.add(`theme-${config.id}`);
+  }
+
+  // 3. Scanline controller attribute
+  if (config.id === 'vhs') {
+    root.setAttribute('data-vhs-scanlines', enableScanlines ? 'true' : 'false');
+  } else {
+    root.removeAttribute('data-vhs-scanlines');
+  }
+
+  // 4. Update CSS custom properties for surfaces
+  root.style.setProperty('--app-surface-bg', config.bgPreview);
+  root.style.setProperty('--app-card-surface', config.cardPreview);
+  root.style.setProperty('--app-border-surface', config.borderPreview);
+
+  if (body) {
+    body.style.setProperty('--app-surface-bg', config.bgPreview);
+    body.style.setProperty('--app-card-surface', config.cardPreview);
+    body.style.setProperty('--app-border-surface', config.borderPreview);
+  }
+
+  // 5. Inject / update dedicated UI Theme style element in head
+  let styleEl = document.getElementById(UI_THEME_STYLE_ID) as HTMLStyleElement | null;
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = UI_THEME_STYLE_ID;
+    document.head.appendChild(styleEl);
+  }
+
+  if (config.id === 'vhs') {
+    styleEl.textContent = `
+      :root[data-ui-theme="vhs"], body[data-ui-theme="vhs"] {
+        --app-bg: #0c0a07 !important;
+        --app-card-bg: #16130e !important;
+        --app-border: #78350f !important;
+      }
+      body[data-ui-theme="vhs"] {
+        background-color: #0c0a07 !important;
+        color: #fef3c7 !important;
+      }
+      body[data-ui-theme="vhs"] #root {
+        background-color: #0c0a07 !important;
+      }
+      body[data-ui-theme="vhs"] :is(.bg-\\[\\#141414\\], .bg-zinc-950, .bg-zinc-900\\/90, .bg-zinc-900\\/80, .bg-zinc-900) {
+        background-color: #16130e !important;
+      }
+      body[data-ui-theme="vhs"] :is(.border-zinc-800, .border-zinc-800\\/80, .border-zinc-900) {
+        border-color: rgba(180, 83, 9, 0.4) !important;
+      }
+    `;
+  } else if (config.id === 'oled') {
+    styleEl.textContent = `
+      :root[data-ui-theme="oled"], body[data-ui-theme="oled"] {
+        --app-bg: #000000 !important;
+        --app-card-bg: #000000 !important;
+        --app-border: #262626 !important;
+      }
+      html[data-ui-theme="oled"], body[data-ui-theme="oled"], body[data-ui-theme="oled"] #root {
+        background-color: #000000 !important;
+      }
+      body[data-ui-theme="oled"] :is(.bg-\\[\\#141414\\], .bg-\\[\\#181818\\], .bg-zinc-950, .bg-zinc-900, .bg-zinc-900\\/90, .bg-zinc-900\\/80, .bg-zinc-900\\/60, .bg-black\\/80, .bg-black\\/90, .bg-black\\/95) {
+        background-color: #000000 !important;
+      }
+      body[data-ui-theme="oled"] :is(.border-zinc-800, .border-zinc-800\\/80, .border-zinc-800\\/50, .border-zinc-900) {
+        border-color: #262626 !important;
+      }
+    `;
+  } else if (config.id === 'cinema') {
+    styleEl.textContent = `
+      :root[data-ui-theme="cinema"], body[data-ui-theme="cinema"] {
+        --app-bg: #14100c !important;
+        --app-card-bg: #201a14 !important;
+        --app-border: #583f23 !important;
+      }
+      body[data-ui-theme="cinema"] {
+        background-color: #14100c !important;
+        color: #fef3c7 !important;
+      }
+      body[data-ui-theme="cinema"] #root {
+        background-color: #14100c !important;
+      }
+      body[data-ui-theme="cinema"] :is(.bg-\\[\\#141414\\], .bg-zinc-950, .bg-zinc-900\\/90, .bg-zinc-900) {
+        background-color: #201a14 !important;
+      }
+      body[data-ui-theme="cinema"] :is(.border-zinc-800, .border-zinc-800\\/80, .border-zinc-900) {
+        border-color: rgba(180, 83, 9, 0.45) !important;
+      }
+    `;
+  } else if (config.id === 'cyberpunk') {
+    styleEl.textContent = `
+      :root[data-ui-theme="cyberpunk"], body[data-ui-theme="cyberpunk"] {
+        --app-bg: #080512 !important;
+        --app-card-bg: #120c29 !important;
+        --app-border: #701a75 !important;
+      }
+      body[data-ui-theme="cyberpunk"] {
+        background-color: #080512 !important;
+        color: #f5d0fe !important;
+      }
+      body[data-ui-theme="cyberpunk"] #root {
+        background-color: #080512 !important;
+      }
+      body[data-ui-theme="cyberpunk"] :is(.bg-\\[\\#141414\\], .bg-zinc-950, .bg-zinc-900\\/90, .bg-zinc-900) {
+        background-color: #120c29 !important;
+      }
+      body[data-ui-theme="cyberpunk"] :is(.border-zinc-800, .border-zinc-800\\/80, .border-zinc-900) {
+        border-color: rgba(217, 70, 239, 0.35) !important;
+      }
+    `;
+  } else {
+    // Modern (Default)
+    styleEl.textContent = ``;
+  }
+
+  return config;
+}
 
 /**
  * Resolves an AccentTheme from a theme ID, hex code, or undefined (fallback default)
@@ -252,24 +403,40 @@ export function applyAccentTheme(accentColorOrHex?: string): AccentTheme {
 }
 
 /**
- * Initializes saved theme from localStorage on initial page startup
+ * Initializes saved theme and UI theme from localStorage on initial page startup
  */
-export function initThemeOnStartup(): AccentTheme {
+export function initThemeOnStartup(): { accentTheme: AccentTheme; uiTheme: UiThemeConfig } {
   if (typeof window === 'undefined') {
-    return getAccentTheme(DEFAULT_THEME_HEX);
+    return {
+      accentTheme: getAccentTheme(DEFAULT_THEME_HEX),
+      uiTheme: getUiTheme(DEFAULT_UI_THEME),
+    };
   }
+
+  let savedAccent = DEFAULT_THEME_HEX;
+  let savedUiTheme: UiThemeId = DEFAULT_UI_THEME;
+  let savedScanlines = true;
 
   try {
     const raw = localStorage.getItem('showflix_accessibility_settings') || localStorage.getItem('bingebox_accessibility_settings');
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed?.accentColor) {
-        return applyAccentTheme(parsed.accentColor);
+        savedAccent = parsed.accentColor;
+      }
+      if (parsed?.uiTheme) {
+        savedUiTheme = parsed.uiTheme;
+      }
+      if (parsed?.vhsScanlines !== undefined) {
+        savedScanlines = Boolean(parsed.vhsScanlines);
       }
     }
   } catch (e) {
     // Ignore parse errors
   }
 
-  return applyAccentTheme(DEFAULT_THEME_HEX);
+  const accentTheme = applyAccentTheme(savedAccent);
+  const uiTheme = applyUiTheme(savedUiTheme, savedScanlines);
+
+  return { accentTheme, uiTheme };
 }

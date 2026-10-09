@@ -325,16 +325,64 @@ async function createServer() {
     }
   });
 
+  const publicDir = path.join(__dirname, 'public');
+  const distPath = path.join(__dirname, 'dist');
+  const distIndexPath = path.join(distPath, 'index.html');
+  const hasDist = fs.existsSync(distIndexPath);
+
+  // Serve static files from public directory first
+  app.use(express.static(publicDir));
+
+  // Helper to safely serve static HTML pages from dist or public
+  const serveStaticHtml = (filename: string) => (_req: express.Request, res: express.Response) => {
+    const pubFile = path.join(publicDir, filename);
+    const distFile = path.join(distPath, filename);
+    if (fs.existsSync(distFile)) {
+      return res.sendFile(distFile);
+    }
+    if (fs.existsSync(pubFile)) {
+      return res.sendFile(pubFile);
+    }
+    return res.status(404).send('Not Found');
+  };
+
   // Google AdSense verification endpoint (serves /ads.txt directly)
-  app.get('/ads.txt', (req, res) => {
+  app.get('/ads.txt', (_req, res) => {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.send('google.com, pub-5087450059107666, DIRECT, f08c47fec0942fa0\n');
   });
 
-  const distPath = path.join(__dirname, 'dist');
-  const distIndexPath = path.join(distPath, 'index.html');
-  const hasDist = fs.existsSync(distIndexPath);
+  // Robots.txt for Googlebot & Mediapartners-Google
+  app.get('/robots.txt', (_req, res) => {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    const robotsFile = path.join(publicDir, 'robots.txt');
+    if (fs.existsSync(robotsFile)) {
+      return res.sendFile(robotsFile);
+    }
+    res.send("User-agent: *\nAllow: /\n\nUser-agent: Mediapartners-Google\nAllow: /\n\nUser-agent: Googlebot\nAllow: /\n\nSitemap: https://show-flix.co.uk/sitemap.xml\n");
+  });
+
+  // Sitemap.xml
+  app.get('/sitemap.xml', (_req, res) => {
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    const sitemapFile = path.join(publicDir, 'sitemap.xml');
+    if (fs.existsSync(sitemapFile)) {
+      return res.sendFile(sitemapFile);
+    }
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://show-flix.co.uk/</loc><priority>1.0</priority></url>
+  <url><loc>https://show-flix.co.uk/welcome.html</loc><priority>0.8</priority></url>
+  <url><loc>https://show-flix.co.uk/privacy.html</loc><priority>0.7</priority></url>
+  <url><loc>https://show-flix.co.uk/terms.html</loc><priority>0.7</priority></url>
+</urlset>`);
+  });
+
+  // Explicit endpoints for Welcome, Privacy, and Terms (with and without .html)
+  app.get(['/welcome', '/welcome.html'], serveStaticHtml('welcome.html'));
+  app.get(['/privacy', '/privacy.html'], serveStaticHtml('privacy.html'));
+  app.get(['/terms', '/terms.html'], serveStaticHtml('terms.html'));
 
   if (hasDist) {
     app.use(express.static(distPath));

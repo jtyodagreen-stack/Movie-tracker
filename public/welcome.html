@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShowFlix — Your Personal Movie & Series Tracker</title>
+  <meta name="description" content="ShowFlix helps you keep track of your favourite movies and TV shows. Track what you're watching, manage your watchlist, and see what's coming soon.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23E50914'/><text x='50%' y='68%' font-size='60' font-weight='900' fill='white' font-family='sans-serif' text-anchor='middle'>N</text></svg>">
+  <!-- Google AdSense Official Script -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5087450059107666" crossorigin="anonymous"></script>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #141414;
+      color: #FFFFFF;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    header {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background-color: rgba(18, 18, 18, 0.95);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(8px);
+    }
+    .header-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      text-decoration: none;
+      color: #FFFFFF;
+    }
+    .logo-badge {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background-color: #E50914;
+      color: #FFFFFF;
+      font-weight: 900;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(229, 9, 20, 0.4);
+    }
+    .logo-text {
+      font-size: 1.25rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+    }
+    .logo-text span {
+      color: #E50914;
+    }
+    .header-link {
+      font-size: 0.875rem;
+      color: #A1A1AA;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .header-link:hover {
+      color: #FFFFFF;
+    }
+    main {
+      flex: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+      width: 100%;
+    }
+    .hero-card {
+      background: linear-gradient(180deg, rgba(30, 30, 30, 0.7) 0%, rgba(20, 20, 20, 0.9) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 2.5rem 2rem;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      margin-bottom: 2.5rem;
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background-color: rgba(229, 9, 20, 0.15);
+      border: 1px solid rgba(229, 9, 20, 0.35);
+      color: #FF5A64;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+      margin-bottom: 1.25rem;
+    }
+    h1 {
+      font-size: 2.25rem;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+      color: #FFFFFF;
+    }
+    .description {
+      font-size: 1.125rem;
+      color: #D4D4D8;
+      line-height: 1.7;
+      margin-bottom: 1.75rem;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+    }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background-color: #E50914;
+      color: #FFFFFF;
+      font-size: 0.95rem;
+      font-weight: 700;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: background-color 0.2s, transform 0.1s;
+      box-shadow: 0 4px 14px rgba(229, 9, 20, 0.4);
+    }
+    .btn-primary:hover {
+      background-color: #B80710;
+      transform: translateY(-1px);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+    .feature-card {
+      background-color: rgba(26, 26, 26, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 1.5rem;
+      transition: border-color 0.2s;
+    }
+    .feature-card:hover {
+      border-color: rgba(229, 9, 20, 0.3);
+    }
+    .feature-icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .feature-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #F4F4F5;
+      margin-bottom: 0.4rem;
+    }
+    .feature-desc {
+      font-size: 0.875rem;
+      color: #A1A1AA;
+      line-height: 1.5;
+    }
+    .contact-card {
+      background-color: rgba(24, 24, 27, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 1.75rem 2rem;
+    }
+    .contact-card h2 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+      color: #FFFFFF;
+    }
+    .contact-card p {
+      font-size: 0.95rem;
+      color: #A1A1AA;
+      margin-bottom: 1rem;
+    }
+    .contact-email {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #FFFFFF;
+      background-color: rgba(255, 255, 255, 0.05);
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .contact-email a {
+      color: #E50914;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .contact-email a:hover {
+      color: #FF5A64;
+      text-decoration: underline;
+    }
+    footer {
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background-color: #101010;
+      padding: 2rem 1.5rem;
+      text-align: center;
+      font-size: 0.8125rem;
+      color: #71717A;
+    }
+    footer a {
+      color: #A1A1AA;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    footer a:hover {
+      color: #FFFFFF;
+    }
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+    @media (max-width: 640px) {
+      h1 {
+        font-size: 1.75rem;
+      }
+      .description {
+        font-size: 1rem;
+      }
+      .hero-card {
+        padding: 1.75rem 1.25rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo-container">
+        <div class="logo-badge">N</div>
+        <div class="logo-text">SHOW<span>FLIX</span></div>
+      </a>
+      <a href="/" class="header-link">Open Tracker &rarr;</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="hero-card">
+      <div class="tag">
+        <span>🎬</span>
+        <span>Welcome to ShowFlix</span>
+      </div>
+      <h1>ShowFlix — Your Personal Movie &amp; Series Tracker</h1>
+      <p class="description">
+        ShowFlix helps you keep track of your favourite movies and TV shows. Track what you're watching, manage your watchlist, and see what's coming soon.
+      </p>
+      <div class="actions">
+        <a href="/" class="btn-primary">
+          <span>▶</span>
+          <span>Launch Tracker</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="feature-card">
+        <div class="feature-icon">⏳</div>
+        <div class="feature-title">Track What You're Watching</div>
+        <div class="feature-desc">Monitor seasons and episodes effortlessly with quick one-click counters and status progress bars.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📋</div>
+        <div class="feature-title">Manage Your Watchlist</div>
+        <div class="feature-desc">Never lose track of recommendations. Keep a dedicated queue with priority tags and move titles with a single click.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⏰</div>
+        <div class="feature-title">See What's Coming Soon</div>
+        <div class="feature-desc">Stay ahead with the Release Radar and live countdown timers for upcoming premieres and season releases.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title">Google Sheets Sync</div>
+        <div class="feature-desc">Own your data with 2-way real-time Google Sheets synchronization across all your mobile and desktop devices.</div>
+      </div>
+    </div>
+
+    <div class="contact-card">
+      <h2>Contact Us</h2>
+      <p>Have questions, feedback, or need help with your tracker? Feel free to get in touch with us anytime.</p>
+      <div class="contact-email">
+        <span>Email —</span>
+        <a href="mailto:jtyodagreen@gmail.com">jtyodagreen@gmail.com</a>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <span>•</span>
+      <a href="/welcome.html">Welcome</a>
+      <span>•</span>
+      <a href="/privacy.html">Privacy Policy</a>
+      <span>•</span>
+      <a href="/terms.html">Terms of Service</a>
+    </div>
+    <p>&copy; ShowFlix Tracker. All rights reserved.</p>
+  </footer>
+</body>
+</html>

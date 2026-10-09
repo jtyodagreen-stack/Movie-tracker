@@ -1472,6 +1472,25 @@ export default function Navbar({
                     </button>
 
                     <button
+                      id="ui-themes-dropdown-btn"
+                      type="button"
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        setSettingsModalTab('theme');
+                        setShowSettingsCenterModal(true);
+                      }}
+                      className="w-full text-left px-3.5 py-2.5 text-zinc-200 hover:text-white hover:bg-zinc-800/80 flex items-center justify-between cursor-pointer font-medium"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Palette className="w-4 h-4 text-purple-400" />
+                        <span>UI Themes</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700/60 font-semibold">
+                        VHS / OLED
+                      </span>
+                    </button>
+
+                    <button
                       id="account-dropdown-switch-profile-btn"
                       type="button"
                       onClick={() => {
@@ -2129,6 +2148,19 @@ export default function Navbar({
             </div>
 
             <div className="flex flex-col gap-2 mt-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setSettingsModalTab('theme');
+                  setShowSettingsCenterModal(true);
+                }}
+                className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-zinc-300 hover:text-white bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 py-2.5 rounded-lg transition-colors cursor-pointer"
+              >
+                <Palette className="w-4 h-4 shrink-0 text-purple-400" />
+                <span>UI Themes (VHS / OLED / Cinema)</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => {

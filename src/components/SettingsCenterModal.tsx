@@ -21,6 +21,12 @@ import {
   Bell,
   Search,
   Unlink,
+  Tv,
+  Moon,
+  Film,
+  Zap,
+  Monitor,
+  Sliders,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -38,8 +44,20 @@ import {
   GOOGLE_AVATAR_DATA_URI,
   DEFAULT_PROFILE_USER,
 } from '../utils/userProfile';
-import { ShowItem, AccessibilitySettings, AlertIntervals, PREDEFINED_ACCENT_THEMES } from '../types';
-import { applyAccentTheme, getAccentTheme } from '../utils/themeManager';
+import {
+  ShowItem,
+  AccessibilitySettings,
+  AlertIntervals,
+  PREDEFINED_ACCENT_THEMES,
+  UiThemeId,
+  PREDEFINED_UI_THEMES,
+} from '../types';
+import {
+  applyAccentTheme,
+  getAccentTheme,
+  applyUiTheme,
+  getUiTheme,
+} from '../utils/themeManager';
 import {
   PROFILE_COLOR_PALETTE,
   getViewerColor,
@@ -126,10 +144,13 @@ export default function SettingsCenterModal({
   defaultTab = 'all',
   defaultHelpSubSection = 'guide',
 }: SettingsCenterModalProps) {
-  const [activeTab, setActiveTab] = useState<'all' | 'user' | 'sync' | 'acc' | 'alerts' | 'data' | 'stats' | 'help'>(defaultTab === 'theme' ? 'alerts' : (defaultTab as any));
+  const [activeTab, setActiveTab] = useState<'all' | 'user' | 'sync' | 'acc' | 'theme' | 'alerts' | 'data' | 'stats' | 'help'>(
+    (defaultTab as any) || 'all'
+  );
 
-  // Resolved active accent theme
+  // Resolved active accent theme & UI theme
   const activeTheme = getAccentTheme(accessibilitySettings.accentColor);
+  const activeUiTheme = getUiTheme(accessibilitySettings.uiTheme);
 
   // Help & Support form state
   const [helpFirstName, setHelpFirstName] = useState('');
@@ -252,7 +273,7 @@ export default function SettingsCenterModal({
   // Synchronize tab if defaultTab changes when open
   useEffect(() => {
     if (isOpen) {
-      setActiveTab(defaultTab === 'theme' ? 'alerts' : (defaultTab as any));
+      setActiveTab((defaultTab as any) || 'all');
       if (defaultHelpSubSection) {
         setHelpSubSection(defaultHelpSubSection);
         if (defaultHelpSubSection !== 'guide') {
@@ -528,6 +549,56 @@ export default function SettingsCenterModal({
     }
   };
 
+  // Handle switching full visual UI Theme (VHS 80s, OLED Pure Black, 35mm Cinema, Cyberpunk, Modern)
+  const handleSelectUiTheme = (themeId: UiThemeId) => {
+    const newSettings: AccessibilitySettings = {
+      ...accessibilitySettings,
+      uiTheme: themeId,
+    };
+
+    // Intelligently harmonize default accent color with the theme if using default or unset
+    if (themeId === 'vhs' && (!accessibilitySettings.accentColor || accessibilitySettings.accentColor === '#E50914')) {
+      newSettings.accentColor = '#F59E0B'; // Amber Gold
+    } else if (themeId === 'cinema' && (!accessibilitySettings.accentColor || accessibilitySettings.accentColor === '#E50914')) {
+      newSettings.accentColor = '#D97706'; // Marquee Gold
+    } else if (themeId === 'cyberpunk' && (!accessibilitySettings.accentColor || accessibilitySettings.accentColor === '#E50914')) {
+      newSettings.accentColor = '#D946EF'; // Neon Violet
+    } else if (themeId === 'oled' && (!accessibilitySettings.accentColor || accessibilitySettings.accentColor === '#F59E0B')) {
+      newSettings.accentColor = '#EF4444'; // Razor Red
+    }
+
+    setAccessibilitySettings(newSettings);
+    applyUiTheme(themeId, newSettings.vhsScanlines !== false);
+    if (newSettings.accentColor) {
+      applyAccentTheme(newSettings.accentColor);
+    }
+
+    if (themeId === 'vhs') {
+      toast.success('📼 Retro VHS 80s activated — scanlines, amber neon glow & cassette badges!', { duration: 5000 });
+    } else if (themeId === 'oled') {
+      toast.success('🌌 OLED Pure Black activated — 0% power usage on pitch black pixels!', { duration: 5000 });
+    } else if (themeId === 'cinema') {
+      toast.success('🎞️ Classic Cinema 35mm activated — warm sepia & vintage ticket accents!', { duration: 5000 });
+    } else if (themeId === 'cyberpunk') {
+      toast.success('🟣 Cyberpunk Synthwave activated — vibrant violet & cyan glow online!', { duration: 5000 });
+    } else {
+      toast.success('🎬 ShowFlix Modern activated — signature Netflix dark cinematic mode!', { duration: 5000 });
+    }
+  };
+
+  // Toggle VHS CRT scanlines overlay effect
+  const handleToggleVhsScanlines = () => {
+    const currentVal = accessibilitySettings.vhsScanlines !== false;
+    const newVal = !currentVal;
+    const newSettings: AccessibilitySettings = {
+      ...accessibilitySettings,
+      vhsScanlines: newVal,
+    };
+    setAccessibilitySettings(newSettings);
+    applyUiTheme(accessibilitySettings.uiTheme || 'vhs', newVal);
+    toast.success(newVal ? '📼 CRT Scanlines Overlay Enabled' : '📺 CRT Scanlines Overlay Disabled', { duration: 3000 });
+  };
+
   return (
     <div
       id="settings-center-modal-backdrop"
@@ -661,23 +732,29 @@ export default function SettingsCenterModal({
                 <span className="inline-block text-[10px] text-amber-400 font-bold mt-2 underline decoration-dotted">Open sync manager &rarr;</span>
               </div>
 
-              {/* CARD 3: Personalization & Accessible */}
+              {/* CARD 3: Retro & Custom UI Themes + Personalization */}
               <div
-                onClick={() => setActiveTab('acc')}
+                onClick={() => setActiveTab('theme')}
                 className="group relative p-5 rounded-2xl bg-zinc-900/80 border-0 hover:border-red-500/60 shadow-lg cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
               >
                 <div className="flex items-center justify-between mb-3.5">
                   <div className="w-9 h-9 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 group-hover:bg-purple-600 group-hover:text-white transition-all duration-200">
-                    <Accessibility className="w-4 h-4" />
+                    <Palette className="w-4 h-4" />
                   </div>
-                  <span className="text-[10px] font-mono font-bold text-zinc-500 group-hover:text-purple-400 transition-colors">Configure</span>
+                  <span className="text-[10px] font-mono font-bold text-zinc-500 group-hover:text-purple-400 transition-colors">Themes & Colors</span>
                 </div>
-                <h4 className="text-sm font-black text-zinc-100 group-hover:text-white transition-colors">🎨 Personalization / Accessible</h4>
+                <h4 className="text-sm font-black text-zinc-100 group-hover:text-white transition-colors flex items-center gap-1.5">
+                  <span>🎨 Retro & Custom UI Themes</span>
+                </h4>
                 <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
-                  Theme switcher colour options, Large / Clear Print, High Contrast WCAG mode, Dyslexia-friendly text fonts & reduced motion.
+                  📼 Retro VHS 80s (scanlines & cassette badges), 🌌 OLED Pure Black, 🎞️ Classic Cinema 35mm, 🟣 Cyberpunk/Synthwave & accessible settings.
                 </p>
                 <div className="flex items-center gap-2 mt-3 flex-wrap">
-                  <span className="inline-block text-[10px] text-purple-400 font-bold underline decoration-dotted">Open personalization &rarr;</span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-950 border border-zinc-800 text-[10px] font-bold text-zinc-200 shadow-inner">
+                    <span>{activeUiTheme.emoji}</span>
+                    <span>{activeUiTheme.name}</span>
+                  </span>
+                  <span className="inline-block text-[10px] text-purple-400 font-bold underline decoration-dotted">Open theme picker &rarr;</span>
                 </div>
               </div>
 
@@ -1134,22 +1211,278 @@ export default function SettingsCenterModal({
             </div>
           )}
 
-          {/* VIEW D: ACCESSIBILITY & INCLUSION DETAIL PANEL */}
-          {activeTab === 'acc' && (
-            <div className="space-y-5 animate-in fade-in duration-150">
+          {/* VIEW D: RETRO & CUSTOM UI THEMES + PERSONALIZATION DETAIL PANEL */}
+          {(activeTab === 'acc' || activeTab === 'theme') && (
+            <div className="space-y-6 animate-in fade-in duration-150">
               <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-zinc-900">
                 <div>
-                  <h4 className="text-base font-black text-white">🎨 Personalization / Accessible Settings</h4>
-                  <p className="text-xs text-zinc-400">Configure theme switcher colours, typography sizes, contrast levels, and frame motions.</p>
+                  <h4 className="text-base font-black text-white flex items-center gap-2">
+                    <span>🎨 Retro & Custom UI Themes</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-red-600/20 text-red-400 border border-red-500/30 font-bold uppercase">
+                      5 Aesthetics
+                    </span>
+                  </h4>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Switch between 80s Retro VHS, OLED Pure Black, Classic Cinema 35mm, Cyberpunk Synthwave, or ShowFlix Modern.
+                  </p>
                 </div>
                 <button
                   onClick={() => setActiveTab('all')}
-                  className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-3 py-1.5 rounded-lg"
+                  className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                 >
                   &larr; Back to Control Panel
                 </button>
               </div>
 
+              {/* SECTION 1: THEME PICKER SHOWCASE */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-zinc-900/90 border border-zinc-800/90 space-y-4 shadow-xl">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h5 className="text-sm font-black text-white flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-purple-400" />
+                      <span>Choose Display Atmosphere</span>
+                    </h5>
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      Instantly restyles root canvases, border glows, cards, typography, and retro screen textures.
+                    </p>
+                  </div>
+                  {activeUiTheme && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-950 border border-zinc-800 text-xs font-bold text-white shadow-inner">
+                      <span className="text-sm">{activeUiTheme.emoji}</span>
+                      <span>Active: {activeUiTheme.name}</span>
+                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+                        {activeUiTheme.badge}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Grid of the 5 UI Themes */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {PREDEFINED_UI_THEMES.map((theme) => {
+                    const isSelected = (accessibilitySettings.uiTheme || 'modern') === theme.id;
+                    return (
+                      <div
+                        key={theme.id}
+                        onClick={() => handleSelectUiTheme(theme.id)}
+                        style={
+                          isSelected
+                            ? {
+                                borderColor: theme.accentHex,
+                                boxShadow: `0 0 20px ${theme.accentHex}35`,
+                                outline: `2px solid ${theme.accentHex}50`,
+                              }
+                            : undefined
+                        }
+                        className={`relative rounded-xl p-4 border transition-all duration-200 cursor-pointer flex flex-col justify-between group ${
+                          isSelected
+                            ? 'bg-zinc-900/95'
+                            : 'bg-zinc-950/70 border-zinc-800/90 hover:bg-zinc-900/60 hover:border-zinc-700'
+                        }`}
+                      >
+                        {/* Theme Header */}
+                        <div>
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl">{theme.emoji}</span>
+                              <div>
+                                <h6 className="text-sm font-black text-white group-hover:text-zinc-100 transition-colors">
+                                  {theme.name}
+                                </h6>
+                                <span className="text-[10px] font-mono text-zinc-400 font-medium block">
+                                  {theme.accentName}
+                                </span>
+                              </div>
+                            </div>
+                            <span
+                              style={{
+                                color: theme.accentHex,
+                                borderColor: `${theme.accentHex}50`,
+                                backgroundColor: `${theme.accentHex}15`,
+                              }}
+                              className="text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded border shrink-0"
+                            >
+                              {theme.badge}
+                            </span>
+                          </div>
+
+                          <p className="text-[11px] text-zinc-300 font-medium leading-relaxed mb-3">
+                            {theme.tagline}
+                          </p>
+
+                          {/* Live Visual Preview Box */}
+                          <div
+                            style={{
+                              backgroundColor: theme.bgPreview,
+                              borderColor: theme.borderPreview,
+                            }}
+                            className="p-3 rounded-lg border mb-3 text-left overflow-hidden relative"
+                          >
+                            {/* VHS Scanline Preview Stripes */}
+                            {theme.id === 'vhs' && (
+                              <div
+                                style={{
+                                  background:
+                                    'repeating-linear-gradient(0deg, rgba(0,0,0,0.3) 0px, rgba(0,0,0,0.3) 2px, transparent 2px, transparent 4px)',
+                                }}
+                                className="absolute inset-0 pointer-events-none opacity-40"
+                              />
+                            )}
+
+                            {/* Theme Specific Preview Elements */}
+                            {theme.id === 'vhs' && (
+                              <div className="space-y-1.5 relative z-10 font-mono">
+                                <div className="flex items-center justify-between text-[9px] text-amber-400 font-bold">
+                                  <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300">
+                                    [REC ● SP 120]
+                                  </span>
+                                  <span className="text-amber-400/90">CH 03 • 00:42:18</span>
+                                </div>
+                                <div className="text-xs font-black text-amber-300 tracking-wide">
+                                  SHOWFLIX // HI-FI STEREO
+                                </div>
+                              </div>
+                            )}
+
+                            {theme.id === 'oled' && (
+                              <div className="space-y-1.5 relative z-10">
+                                <div className="flex items-center justify-between text-[9px]">
+                                  <span className="text-zinc-400 font-mono uppercase">OLED True Black</span>
+                                  <span className="text-red-500 font-bold font-mono">0% WATTAGE</span>
+                                </div>
+                                <div className="text-xs font-black text-white">
+                                  Pure 0% Black Pixels
+                                </div>
+                              </div>
+                            )}
+
+                            {theme.id === 'cinema' && (
+                              <div className="space-y-1.5 relative z-10">
+                                <div className="flex items-center justify-between text-[9px]">
+                                  <span className="px-1.5 py-0.5 rounded border border-dashed border-amber-600 text-amber-300 bg-amber-950/40 font-mono text-[8px] uppercase tracking-wider">
+                                    ADMIT ONE • 35MM
+                                  </span>
+                                  <span className="text-amber-400 text-[10px]">★★★★★</span>
+                                </div>
+                                <div className="text-xs font-bold text-amber-200">
+                                  Classic 35mm Hollywood Reel
+                                </div>
+                              </div>
+                            )}
+
+                            {theme.id === 'cyberpunk' && (
+                              <div className="space-y-1.5 relative z-10">
+                                <div className="flex items-center justify-between text-[9px]">
+                                  <span className="text-cyan-400 font-mono text-[9px] font-bold">
+                                    SYNTH // 2084
+                                  </span>
+                                  <span className="text-fuchsia-400 font-bold">NEON GRID</span>
+                                </div>
+                                <div className="text-xs font-black text-fuchsia-300 tracking-wide drop-shadow-[0_0_8px_rgba(217,70,239,0.6)]">
+                                  Cyberpunk Electric
+                                </div>
+                              </div>
+                            )}
+
+                            {theme.id === 'modern' && (
+                              <div className="space-y-1.5 relative z-10">
+                                <div className="flex items-center justify-between text-[9px]">
+                                  <span className="text-red-500 font-black tracking-widest text-[10px]">
+                                    SHOWFLIX
+                                  </span>
+                                  <span className="text-zinc-400 text-[10px]">ORIGINAL</span>
+                                </div>
+                                <div className="text-xs font-black text-white">
+                                  Modern Cinematic Dark
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Features bullets */}
+                          <div className="flex flex-wrap gap-1 mb-3">
+                            {theme.features.map((feat, idx) => (
+                              <span
+                                key={idx}
+                                className="text-[10px] px-2 py-0.5 rounded bg-zinc-800/80 text-zinc-300 border border-zinc-700/50"
+                              >
+                                {feat}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Bottom action button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSelectUiTheme(theme.id);
+                          }}
+                          style={
+                            isSelected
+                              ? {
+                                  backgroundColor: theme.accentHex,
+                                  borderColor: theme.accentHex,
+                                  color: '#ffffff',
+                                }
+                              : undefined
+                          }
+                          className={`w-full py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md ${
+                            isSelected
+                              ? 'text-white'
+                              : 'bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 hover:text-white'
+                          }`}
+                        >
+                          {isSelected ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              <span>Active Theme</span>
+                            </>
+                          ) : (
+                            <span>Apply Theme</span>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* VHS Specific Scanlines Overlay Controller */}
+                {(accessibilitySettings.uiTheme === 'vhs' || !accessibilitySettings.uiTheme) && (
+                  <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-600/30 flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
+                        <Tv className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h6 className="text-xs font-bold text-amber-200 flex items-center gap-2">
+                          <span>📺 CRT Scanlines & Tracking Filter</span>
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            {accessibilitySettings.vhsScanlines !== false ? 'ACTIVE' : 'OFF'}
+                          </span>
+                        </h6>
+                        <p className="text-[11px] text-amber-300/80 mt-0.5">
+                          Toggles the retro horizontal CRT scanlines overlay across the entire screen.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleToggleVhsScanlines}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-sm ${
+                        accessibilitySettings.vhsScanlines !== false
+                          ? 'bg-amber-500 text-black font-extrabold hover:bg-amber-400'
+                          : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                      }`}
+                    >
+                      {accessibilitySettings.vhsScanlines !== false ? 'Scanlines: Enabled ✓' : 'Scanlines: Disabled'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 2: ACCENT COLOR AND INCLUSION */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 
                 {/* 0. Primary Accent Color & Theme Selector */}

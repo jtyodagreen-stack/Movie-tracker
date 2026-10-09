@@ -87,12 +87,104 @@ export interface TrackerStats {
   moviesCount: number;
 }
 
+export type UiThemeId = 'modern' | 'vhs' | 'oled' | 'cinema' | 'cyberpunk';
+
+export interface UiThemeConfig {
+  id: UiThemeId;
+  name: string;
+  emoji: string;
+  tagline: string;
+  description: string;
+  accentHex: string;
+  accentName: string;
+  badge: string;
+  features: string[];
+  bgPreview: string;
+  cardPreview: string;
+  borderPreview: string;
+}
+
+export const PREDEFINED_UI_THEMES: UiThemeConfig[] = [
+  {
+    id: 'modern',
+    name: 'ShowFlix Modern',
+    emoji: '🎬',
+    tagline: 'Signature Netflix dark cinematic experience',
+    description: 'Clean charcoal black background with iconic Netflix red highlights and modern rounded cards.',
+    accentHex: '#E50914',
+    accentName: 'Netflix Red',
+    badge: 'DEFAULT',
+    features: ['Dark charcoal #141414', 'Iconic red glow', 'Modern smooth cards'],
+    bgPreview: '#141414',
+    cardPreview: '#181818',
+    borderPreview: '#27272a',
+  },
+  {
+    id: 'vhs',
+    name: 'Retro VHS 80s',
+    emoji: '📼',
+    tagline: 'Scanline effect, amber neon glow, cassette badges',
+    description: 'Full 1980s retro VCR experience with CRT scanlines, warm amber phosphor glow, cassette tape badges, and analog tracking aesthetic.',
+    accentHex: '#F59E0B',
+    accentName: 'Amber Neon',
+    badge: 'VHS HI-FI',
+    features: ['CRT scanline overlay', 'Amber neon glow', 'Cassette tape badges', 'Retro analog vibe'],
+    bgPreview: '#0c0a07',
+    cardPreview: '#17140e',
+    borderPreview: '#78350f',
+  },
+  {
+    id: 'oled',
+    name: 'OLED Pure Black',
+    emoji: '🌌',
+    tagline: '0% power usage, razor-sharp white/red typography',
+    description: '100% pitch black pixels (#000000) tailored for OLED and AMOLED screens with razor-sharp contrast and maximum battery efficiency.',
+    accentHex: '#EF4444',
+    accentName: 'Razor Red',
+    badge: '0% EMISSION',
+    features: ['True #000000 pitch black', 'Battery saver', 'Razor-sharp contrast', 'Pure minimal borders'],
+    bgPreview: '#000000',
+    cardPreview: '#000000',
+    borderPreview: '#262626',
+  },
+  {
+    id: 'cinema',
+    name: 'Classic Cinema 35mm',
+    emoji: '🎞️',
+    tagline: 'Warm sepia, vintage theater ticket accents',
+    description: 'Vintage movie palace atmosphere with warm sepia tones, marquee gold highlights, and perforated theater ticket styling.',
+    accentHex: '#D97706',
+    accentName: 'Marquee Gold',
+    badge: '35MM REEL',
+    features: ['Warm sepia palette', 'Golden marquee glow', 'Theater ticket accents', 'Film grain ambiance'],
+    bgPreview: '#14100c',
+    cardPreview: '#201a14',
+    borderPreview: '#583f23',
+  },
+  {
+    id: 'cyberpunk',
+    name: 'Cyberpunk / Synthwave',
+    emoji: '🟣',
+    tagline: 'Vibrant violet & electric cyan glow',
+    description: 'High-voltage neon synthwave aesthetic featuring dual-tone electric violet and cyan illumination against deep midnight indigo.',
+    accentHex: '#D946EF',
+    accentName: 'Neon Violet',
+    badge: 'SYNTH 2084',
+    features: ['Violet & cyan dual glow', 'Laser edge lighting', 'Midnight indigo canvas', 'Synthwave energy'],
+    bgPreview: '#080512',
+    cardPreview: '#120b29',
+    borderPreview: '#a21caf',
+  },
+];
+
 export interface AccessibilitySettings {
   contrastMode: 'default' | 'high';
   textSize: 'standard' | 'large'; // UK Gov 16pt+ / 125% clear print recommendation
   dyslexiaFont: boolean; // Accessible sans/dyslexic clear font
   reduceMotion: boolean; // WCAG vestibular accessibility
   accentColor?: string; // Predefined theme accent hex or theme ID (default: '#E50914')
+  uiTheme?: UiThemeId; // 'modern' | 'vhs' | 'oled' | 'cinema' | 'cyberpunk'
+  vhsScanlines?: boolean; // Whether CRT scanlines are enabled for VHS theme (default: true)
 }
 
 export interface AccentTheme {

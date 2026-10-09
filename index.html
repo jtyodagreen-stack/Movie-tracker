@@ -1,7 +1,9 @@
 <!doctype html>
 <html lang="en" class="bg-[#141414] text-white" style="background-color: #141414;">
   <head>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://*.googleapis.com https://*.gstatic.com https://*.googleusercontent.com https://*.firebaseapp.com https://*.run.app; style-src 'self' 'unsafe-inline' https: https://fonts.googleapis.com; img-src 'self' https: data: blob:; connect-src 'self' https: wss: data: blob: https://*.googleapis.com https://*.google.com https://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.tvmaze.com https://en.wikipedia.org https://formsubmit.co https://*.run.app https://*.googleusercontent.com; font-src 'self' https: data: https://fonts.gstatic.com; frame-src 'self' https:;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://*.googleapis.com https://*.gstatic.com https://*.googleusercontent.com https://*.firebaseapp.com https://*.run.app https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://googleads.g.doubleclick.net; style-src 'self' 'unsafe-inline' https: https://fonts.googleapis.com; img-src 'self' https: data: blob: https://*.google.com https://*.doubleclick.net https://*.googlesyndication.com; connect-src 'self' https: wss: data: blob: https://*.googleapis.com https://*.google.com https://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.tvmaze.com https://en.wikipedia.org https://formsubmit.co https://*.run.app https://*.googleusercontent.com https://*.googlesyndication.com https://*.doubleclick.net; font-src 'self' https: data: https://fonts.gstatic.com; frame-src 'self' https: https://*.google.com https://*.doubleclick.net https://*.googlesyndication.com;" />
+    <!-- Google AdSense Official Script -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5087450059107666" crossorigin="anonymous"></script>
     <script>
       (function() {
         // Safe global window/self object polyfill for background workers
@@ -406,73 +408,83 @@
             <p>Organise your watchlist, track release dates, monitor episode progress, and discover new shows with seamless Google Sheets synchronization.</p>
           </section>
 
-          <!-- Empty Library State / Setup Callout -->
-          <section class="pre-empty-state">
-            <div class="pre-empty-icon">+</div>
-            <h2>Your library is empty — add your first show to get started!</h2>
-            <p>You have successfully connected your Google Sheet! Now you can start adding movies and series to your personal list.</p>
-            <button class="pre-btn-add" type="button" style="padding: 12px 24px; font-size: 13px;">+ Add Your First Show</button>
+          <!-- Featured Editorial Catalog Highlights -->
+          <section class="pre-shelf-section">
+            <div class="pre-shelf-header">
+              <h3>🔥 Featured &amp; Trending Titles</h3>
+              <span>Curated entertainment showcase</span>
+            </div>
+            <div class="pre-cards-grid">
+              <article class="pre-card">
+                <div class="pre-card-top"><span>Netflix • Sci-Fi</span><span>★ 4.9</span></div>
+                <div class="pre-card-body" style="font-size: 13px; font-weight: 700; color: #fff;">Stranger Things</div>
+                <p style="font-size: 10px; color: #a1a1aa; line-height: 1.3; margin: 4px 0;">Supernatural mysteries and 80s nostalgia in Hawkins, Indiana.</p>
+                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 100%;"></div></div>
+              </article>
+              <article class="pre-card">
+                <div class="pre-card-top"><span>Apple TV+ • Thriller</span><span>★ 4.9</span></div>
+                <div class="pre-card-body" style="font-size: 13px; font-weight: 700; color: #fff;">Severance</div>
+                <p style="font-size: 10px; color: #a1a1aa; line-height: 1.3; margin: 4px 0;">A psychological workplace mystery dividing memory and life.</p>
+                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 80%;"></div></div>
+              </article>
+              <article class="pre-card">
+                <div class="pre-card-top"><span>Disney+ • Drama</span><span>★ 4.8</span></div>
+                <div class="pre-card-body" style="font-size: 13px; font-weight: 700; color: #fff;">The Bear</div>
+                <p style="font-size: 10px; color: #a1a1aa; line-height: 1.3; margin: 4px 0;">Award-winning high intensity culinary drama in Chicago.</p>
+                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 100%;"></div></div>
+              </article>
+              <article class="pre-card">
+                <div class="pre-card-top"><span>Max • Sci-Fi</span><span>★ 4.9</span></div>
+                <div class="pre-card-body" style="font-size: 13px; font-weight: 700; color: #fff;">Dune: Part Two</div>
+                <p style="font-size: 10px; color: #a1a1aa; line-height: 1.3; margin: 4px 0;">Epic science fiction saga following Paul Atreides on Arrakis.</p>
+                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 100%;"></div></div>
+              </article>
+            </div>
           </section>
 
           <!-- Shelf Placeholders: Watching Now -->
           <section class="pre-shelf-section">
             <div class="pre-shelf-header">
-              <h3>⭐ Watching Now</h3>
+              <h3>⭐ Watching Now &amp; Airing Schedule</h3>
               <span>Episode progress tracking</span>
             </div>
             <div class="pre-cards-grid">
               <article class="pre-card">
-                <div class="pre-card-top"><span>Series</span><span>S1 • E4</span></div>
-                <div class="pre-card-body">+ Add Title</div>
-                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 50%;"></div></div>
+                <div class="pre-card-top"><span>HBO • Action</span><span>★ 4.9</span></div>
+                <div class="pre-card-body" style="font-size: 13px; font-weight: 700; color: #fff;">The Last of Us</div>
+                <p style="font-size: 10px; color: #a1a1aa; line-height: 1.3; margin: 4px 0;">Post-apocalyptic survival drama across America.</p>
+                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 100%;"></div></div>
               </article>
               <article class="pre-card">
-                <div class="pre-card-top"><span>Series</span><span>S2 • E8</span></div>
-                <div class="pre-card-body">+ Add Title</div>
-                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 75%;"></div></div>
+                <div class="pre-card-top"><span>Prime • Sci-Fi</span><span>★ 4.8</span></div>
+                <div class="pre-card-body" style="font-size: 13px; font-weight: 700; color: #fff;">Fallout</div>
+                <p style="font-size: 10px; color: #a1a1aa; line-height: 1.3; margin: 4px 0;">Retro-futuristic wasteland adventure in Los Angeles.</p>
+                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 100%;"></div></div>
               </article>
               <article class="pre-card">
-                <div class="pre-card-top"><span>Series</span><span>S1 • E2</span></div>
-                <div class="pre-card-body">+ Add Title</div>
-                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 25%;"></div></div>
+                <div class="pre-card-top"><span>Disney+ • Drama</span><span>★ 4.9</span></div>
+                <div class="pre-card-body" style="font-size: 13px; font-weight: 700; color: #fff;">Shōgun</div>
+                <p style="font-size: 10px; color: #a1a1aa; line-height: 1.3; margin: 4px 0;">Epic feudal drama set in 17th-century Japan.</p>
+                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 100%;"></div></div>
               </article>
               <article class="pre-card">
-                <div class="pre-card-top"><span>Series</span><span>S3 • E1</span></div>
-                <div class="pre-card-body">+ Add Title</div>
-                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 15%;"></div></div>
+                <div class="pre-card-top"><span>Netflix • Animation</span><span>★ 4.9</span></div>
+                <div class="pre-card-body" style="font-size: 13px; font-weight: 700; color: #fff;">Arcane</div>
+                <p style="font-size: 10px; color: #a1a1aa; line-height: 1.3; margin: 4px 0;">Stunning animation saga set in Piltover and Zaun.</p>
+                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 85%;"></div></div>
               </article>
             </div>
           </section>
 
-          <!-- Shelf Placeholders: Watchlist & Queue -->
-          <section class="pre-shelf-section">
-            <div class="pre-shelf-header">
-              <h3>🎬 Watchlist &amp; Queue</h3>
-              <span>Saved movies &amp; shows</span>
-            </div>
-            <div class="pre-cards-grid">
-              <article class="pre-card">
-                <div class="pre-card-top"><span>Movie</span><span>★ 4.8</span></div>
-                <div class="pre-card-body">+ Add Title</div>
-                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 0%;"></div></div>
-              </article>
-              <article class="pre-card">
-                <div class="pre-card-top"><span>Series</span><span>★ 4.5</span></div>
-                <div class="pre-card-body">+ Add Title</div>
-                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 0%;"></div></div>
-              </article>
-              <article class="pre-card">
-                <div class="pre-card-top"><span>Movie</span><span>★ 4.9</span></div>
-                <div class="pre-card-body">+ Add Title</div>
-                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 0%;"></div></div>
-              </article>
-              <article class="pre-card">
-                <div class="pre-card-top"><span>Series</span><span>★ 4.7</span></div>
-                <div class="pre-card-body">+ Add Title</div>
-                <div class="pre-card-bar"><div class="pre-card-bar-fill" style="width: 0%;"></div></div>
-              </article>
-            </div>
-          </section>
+          <!-- Pre-hydration Footer with Policies -->
+          <footer style="border-top: 1px solid rgba(255, 255, 255, 0.08); padding: 24px 16px; text-align: center; font-size: 11px; color: #71717a; margin-top: 32px;">
+            <p>ShowFlix — Track movies, series, watchlists, and release countdowns with Google Sheets sync.</p>
+            <p style="margin-top: 8px;">
+              <a href="/welcome.html" style="color: #a1a1aa; text-decoration: none;">Welcome</a> • 
+              <a href="/privacy.html" style="color: #a1a1aa; text-decoration: none;">Privacy Policy</a> • 
+              <a href="/terms.html" style="color: #a1a1aa; text-decoration: none;">Terms of Service</a>
+            </p>
+          </footer>
         </main>
       </div>
     </div>
