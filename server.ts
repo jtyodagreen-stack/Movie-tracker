@@ -374,15 +374,38 @@ async function createServer() {
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://show-flix.co.uk/</loc><priority>1.0</priority></url>
   <url><loc>https://show-flix.co.uk/welcome.html</loc><priority>0.8</priority></url>
+  <url><loc>https://show-flix.co.uk/guides/tv-series-tracking-guide.html</loc><priority>0.9</priority></url>
+  <url><loc>https://show-flix.co.uk/guides/streaming-guide-2025.html</loc><priority>0.9</priority></url>
+  <url><loc>https://show-flix.co.uk/guides/upcoming-releases-radar.html</loc><priority>0.9</priority></url>
+  <url><loc>https://show-flix.co.uk/guides/watchlist-organization.html</loc><priority>0.9</priority></url>
+  <url><loc>https://show-flix.co.uk/about.html</loc><priority>0.8</priority></url>
+  <url><loc>https://show-flix.co.uk/contact.html</loc><priority>0.8</priority></url>
   <url><loc>https://show-flix.co.uk/privacy.html</loc><priority>0.7</priority></url>
   <url><loc>https://show-flix.co.uk/terms.html</loc><priority>0.7</priority></url>
 </urlset>`);
   });
 
-  // Explicit endpoints for Welcome, Privacy, and Terms (with and without .html)
+  // Explicit endpoints for Welcome, About, Contact, Privacy, and Terms
   app.get(['/welcome', '/welcome.html'], serveStaticHtml('welcome.html'));
+  app.get(['/about', '/about.html'], serveStaticHtml('about.html'));
+  app.get(['/contact', '/contact.html'], serveStaticHtml('contact.html'));
   app.get(['/privacy', '/privacy.html'], serveStaticHtml('privacy.html'));
   app.get(['/terms', '/terms.html'], serveStaticHtml('terms.html'));
+
+  // Editorial Guides routes (supports /guides/:slug and /guides/:slug.html)
+  app.get(['/guides/:slug', '/guides/:slug.html'], (req, res) => {
+    const rawSlug = req.params.slug.replace(/\.html$/, '');
+    const candidateFile = `${rawSlug}.html`;
+    const pubGuide = path.join(publicDir, 'guides', candidateFile);
+    const distGuide = path.join(distPath, 'guides', candidateFile);
+    if (fs.existsSync(distGuide)) {
+      return res.sendFile(distGuide);
+    }
+    if (fs.existsSync(pubGuide)) {
+      return res.sendFile(pubGuide);
+    }
+    return res.status(404).send('Guide Not Found');
+  });
 
   if (hasDist) {
     app.use(express.static(distPath));

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About ShowFlix — Independent Entertainment & TV Tracking</title>
+  <meta name="description" content="Learn about ShowFlix: our philosophy of open data sovereignty, cloud spreadsheet sync, and our mission to provide the ultimate personal movie & series tracker.">
+  <link rel="canonical" href="https://show-flix.co.uk/about.html">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23E50914'/><text x='50%' y='68%' font-size='60' font-weight='900' fill='white' font-family='sans-serif' text-anchor='middle'>N</text></svg>">
+  
+  <!-- Open Graph -->
+  <meta property="og:title" content="About ShowFlix — Independent Entertainment & TV Tracking">
+  <meta property="og:description" content="Discover ShowFlix: open data ownership, Google Sheets cloud synchronization, and cinema-grade tracker design.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://show-flix.co.uk/about.html">
+  
+  <!-- Google AdSense Official Script -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5087450059107666" crossorigin="anonymous"></script>
+
+  <!-- Structured Data: Organization Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "ShowFlix",
+    "url": "https://show-flix.co.uk",
+    "logo": "https://show-flix.co.uk/icon-512.png",
+    "description": "ShowFlix is an independent entertainment tracker enabling television and film fans to manage watchlists, track episodic progress, and follow release dates with Google Sheets.",
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "email": "jtyodagreen@gmail.com",
+      "contactType": "customer support"
+    }
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #141414;
+      color: #E4E4E7;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.7;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background-color: rgba(20, 20, 20, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(10px);
+    }
+    .header-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      text-decoration: none;
+      color: #FFFFFF;
+    }
+    .logo-badge {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background-color: #E50914;
+      color: #FFFFFF;
+      font-weight: 900;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .logo-text { font-size: 1.25rem; font-weight: 900; }
+    .logo-text span { color: #E50914; }
+    nav a {
+      color: #A1A1AA;
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-left: 1.25rem;
+      transition: color 0.2s;
+    }
+    nav a:hover, nav a.active { color: #FFFFFF; }
+    .main-wrap {
+      max-width: 840px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 5rem;
+      flex: 1;
+      width: 100%;
+    }
+    h1 {
+      font-size: 2.4rem;
+      line-height: 1.2;
+      font-weight: 900;
+      color: #FFFFFF;
+      margin-bottom: 1rem;
+      letter-spacing: -0.02em;
+    }
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #FFFFFF;
+      margin: 2.5rem 0 1rem;
+      letter-spacing: -0.01em;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding-bottom: 0.5rem;
+    }
+    p { margin-bottom: 1.25rem; font-size: 1.05rem; }
+    ul, ol { margin-bottom: 1.5rem; padding-left: 1.5rem; }
+    li { margin-bottom: 0.5rem; font-size: 1rem; }
+    strong { color: #FFFFFF; }
+    .value-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.25rem;
+      margin: 2rem 0;
+    }
+    .value-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .value-card h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #FFFFFF;
+      margin-bottom: 0.5rem;
+    }
+    .value-card p {
+      font-size: 0.9rem;
+      color: #A1A1AA;
+      margin: 0;
+      line-height: 1.5;
+    }
+    footer {
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background-color: #0E0E0E;
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      font-size: 0.85rem;
+      color: #71717A;
+    }
+    footer a { color: #A1A1AA; text-decoration: none; margin: 0 0.5rem; }
+    footer a:hover { color: #E50914; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo-container">
+        <div class="logo-badge">N</div>
+        <div class="logo-text">SHOW<span>FLIX</span></div>
+      </a>
+      <nav>
+        <a href="/">Tracker Home</a>
+        <a href="/guides/tv-series-tracking-guide.html">TV Guide</a>
+        <a href="/guides/streaming-guide-2025.html">Streaming 2025</a>
+        <a href="/guides/upcoming-releases-radar.html">Release Radar</a>
+        <a href="/about.html" class="active">About</a>
+        <a href="/contact.html">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-wrap">
+    <h1>About ShowFlix</h1>
+    <p class="lead" style="font-size: 1.2rem; color: #D4D4D8;">
+      ShowFlix was born out of a simple frustration: entertainment apps have become cluttered, closed, and increasingly monetized with aggressive lock-ins. We set out to build a modern, high-performance media tracker that gives complete power back to the user.
+    </p>
+
+    <h2>Our Core Philosophy: Open Data Sovereignty</h2>
+    <p>
+      Most media tracking services store your library on closed, private servers. If you want to export your data or switch platforms, you often encounter paywalls, data loss, or incompatible formats.
+    </p>
+    <p>
+      At ShowFlix, we believe <strong>your viewing history belongs entirely to you</strong>. That is why ShowFlix operates on a revolutionary two-way architecture directly synced with your personal Google Drive spreadsheet:
+    </p>
+
+    <div class="value-grid">
+      <div class="value-card">
+        <h3>100% Data Ownership</h3>
+        <p>Every title, rating, season progress, and note lives inside your own personal Google Sheet. You can edit it from any device, export it to CSV, or back it up indefinitely.</p>
+      </div>
+      <div class="value-card">
+        <h3>Zero Account Lock-in</h3>
+        <p>No mandatory proprietary login walls or paywalls. Simply connect your Google Sheet URL, and your library renders in a gorgeous cinema-style visual UI.</p>
+      </div>
+      <div class="value-card">
+        <h3>Offline-Ready Resilience</h3>
+        <p>Your library is cached locally in your browser. Update episode counts on an airplane or subway, and ShowFlix automatically synchronizes back to your Google Sheet when back online.</p>
+      </div>
+    </div>
+
+    <h2>Editorial Independence & Transparency</h2>
+    <p>
+      Our publishing team produces independent entertainment guides, streaming service comparisons, and release radar calendars. We evaluate series and films on artistic merit, storytelling quality, and viewer value — never influenced by corporate studio affiliations.
+    </p>
+
+    <h2>Built for Enthusiasts, Maintained with Pride</h2>
+    <p>
+      ShowFlix is actively maintained by entertainment enthusiasts. We are dedicated to providing a fast, ad-supported, accessible utility that respects your attention and celebrates the art of cinema and television.
+    </p>
+
+    <p style="margin-top: 2rem;">
+      Have suggestions, feedback, or editorial pitches? We would love to hear from you. Reach out through our <a href="/contact.html" style="color: #E50914; font-weight: 700; text-decoration: none;">Contact Page</a>.
+    </p>
+  </main>
+
+  <footer>
+    <div style="max-width: 900px; margin: 0 auto;">
+      <p>ShowFlix — Track movies, series, watchlists, and release countdowns with Google Sheets sync.</p>
+      <p style="margin-top: 0.75rem;">
+        <a href="/">Home</a> • 
+        <a href="/welcome.html">Welcome</a> • 
+        <a href="/about.html">About</a> • 
+        <a href="/contact.html">Contact</a> • 
+        <a href="/privacy.html">Privacy Policy</a> • 
+        <a href="/terms.html">Terms of Service</a>
+      </p>
+      <p style="margin-top: 0.75rem; color: #52525B; font-size: 0.75rem;">
+        &copy; 2025 ShowFlix. All rights reserved.
+      </p>
+    </div>
+  </footer>
+</body>
+</html>

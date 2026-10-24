@@ -148,6 +148,21 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="ShowFlix — Your personal movie and series tracker" />
     <meta name="twitter:description" content="ShowFlix — Your personal movie and series tracker. Organise your watchlist, track release dates, and discover new shows." />
+    <!-- Structured Data Schema for Search & AdSense Rich Indexing -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "ShowFlix",
+      "url": "https://show-flix.co.uk",
+      "description": "ShowFlix — Your Personal Movie and Series Tracker. Organise watchlists, track seasons and episodes, and follow upcoming entertainment releases with Google Sheets sync.",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://show-flix.co.uk/?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
     <style>
       /* Pre-hydration Instant Layout for Crawlers & Immediate User Experience */
       .pre-shell {
@@ -391,21 +406,34 @@
               <li><a href="#films">Movies</a></li>
               <li><a href="#watchlist">Watchlist</a></li>
               <li><a href="#releases">Release Radar</a></li>
-              <li><a href="#stats">Statistics</a></li>
+              <li><a href="/guides/tv-series-tracking-guide.html">Guides</a></li>
+              <li><a href="/about.html">About</a></li>
+              <li><a href="/contact.html">Contact</a></li>
             </ul>
           </nav>
           <div class="pre-actions">
-            <button class="pre-btn-add" type="button">+ Add Title</button>
+            <a href="/" class="pre-btn-add">+ Add Title</a>
           </div>
         </header>
 
         <!-- Main Page Content -->
         <main class="pre-content">
-          <!-- Hero Intro Banner -->
+          <!-- Hero Intro Banner (Matches User Request #2) -->
           <section class="pre-hero">
-            <div class="pre-hero-badge">Entertainment Tracker</div>
-            <h1>ShowFlix — Your Personal Movie and Series Tracker</h1>
-            <p>Organise your watchlist, track release dates, monitor episode progress, and discover new shows with seamless Google Sheets synchronization.</p>
+            <div class="pre-hero-badge">Entertainment Tracker &amp; Media Guide</div>
+            <h1>ShowFlix — Your Personal Movie &amp; Series Tracker</h1>
+            <p>Track what you're watching, manage your watchlist, and discover upcoming movie &amp; TV releases with seamless Google Sheets synchronization.</p>
+          </section>
+
+          <!-- Setup Guidance Container (google-anno-skip prevents Auto Ads inside utility boxes) -->
+          <section class="google-anno-skip" style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 12px; padding: 20px; margin-bottom: 28px;">
+            <h2 style="font-size: 15px; font-weight: 800; color: #F59E0B; margin: 0 0 10px;">Quick Setup: Connect Your Personal Google Sheet</h2>
+            <p style="font-size: 12px; color: #D4D4D8; margin: 0 0 14px; line-height: 1.5;">ShowFlix operates on open data ownership. Your watchlists and episode logs remain permanently stored in your own Google Drive spreadsheet.</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: #A1A1AA;">
+              <span style="background: rgba(0,0,0,0.4); padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">1. Copy official template</span>
+              <span style="background: rgba(0,0,0,0.4); padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">2. Paste spreadsheet URL</span>
+              <span style="background: rgba(0,0,0,0.4); padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">3. Enjoy real-time tracking</span>
+            </div>
           </section>
 
           <!-- Featured Editorial Catalog Highlights -->
@@ -442,7 +470,7 @@
             </div>
           </section>
 
-          <!-- Shelf Placeholders: Watching Now -->
+          <!-- Shelf: Watching Now & Airing Schedule -->
           <section class="pre-shelf-section">
             <div class="pre-shelf-header">
               <h3>⭐ Watching Now &amp; Airing Schedule</h3>
@@ -476,11 +504,53 @@
             </div>
           </section>
 
-          <!-- Pre-hydration Footer with Policies -->
+          <!-- Pre-Rendered Editorial Guides (Establishes Substantial Publisher Content) -->
+          <section class="pre-shelf-section" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 24px;">
+            <div class="pre-shelf-header" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; margin-bottom: 20px;">
+              <div>
+                <h3 style="font-size: 18px; margin: 0 0 4px; color: #FFFFFF;">📚 ShowFlix Entertainment Guides &amp; Industry Analysis</h3>
+                <span style="font-size: 12px; color: #A1A1AA;">Independent streaming advice, season radars, and tracking methodologies</span>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px;">
+              <article style="background: rgba(20,20,20,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 16px;">
+                <span style="font-size: 10px; font-weight: 800; color: #E50914; text-transform: uppercase;">Guide</span>
+                <h4 style="font-size: 14px; font-weight: 700; color: #FFF; margin: 6px 0;"><a href="/guides/tv-series-tracking-guide.html" style="color: #FFF; text-decoration: none;">The Ultimate TV Series &amp; Episode Tracking Guide</a></h4>
+                <p style="font-size: 11px; color: #A1A1AA; line-height: 1.5; margin: 0 0 10px;">Learn how to navigate split-season drops, prevent hiatus fatigue, and track episode progress mathematically.</p>
+                <a href="/guides/tv-series-tracking-guide.html" style="font-size: 11px; font-weight: 700; color: #E50914; text-decoration: none;">Read Guide &rarr;</a>
+              </article>
+
+              <article style="background: rgba(20,20,20,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 16px;">
+                <span style="font-size: 10px; font-weight: 800; color: #F59E0B; text-transform: uppercase;">Analysis</span>
+                <h4 style="font-size: 14px; font-weight: 700; color: #FFF; margin: 6px 0;"><a href="/guides/streaming-guide-2025.html" style="color: #FFF; text-decoration: none;">Streaming Platforms 2025: Netflix, Apple TV+, Max Compared</a></h4>
+                <p style="font-size: 11px; color: #A1A1AA; line-height: 1.5; margin: 0 0 10px;">Compare 4K HDR bitrates, prestige drama consistency, ad tiers, and smart churn strategies to save money.</p>
+                <a href="/guides/streaming-guide-2025.html" style="font-size: 11px; font-weight: 700; color: #F59E0B; text-decoration: none;">Read Analysis &rarr;</a>
+              </article>
+
+              <article style="background: rgba(20,20,20,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 16px;">
+                <span style="font-size: 10px; font-weight: 800; color: #10B981; text-transform: uppercase;">Release Calendar</span>
+                <h4 style="font-size: 14px; font-weight: 700; color: #FFF; margin: 6px 0;"><a href="/guides/upcoming-releases-radar.html" style="color: #FFF; text-decoration: none;">ShowFlix Release Radar: Most Anticipated 2025 Premieres</a></h4>
+                <p style="font-size: 11px; color: #A1A1AA; line-height: 1.5; margin: 0 0 10px;">Countdown calendars and production intel for Stranger Things S5, Severance S2, The Last of Us S2, and blockbusters.</p>
+                <a href="/guides/upcoming-releases-radar.html" style="font-size: 11px; font-weight: 700; color: #10B981; text-decoration: none;">View Calendar &rarr;</a>
+              </article>
+
+              <article style="background: rgba(20,20,20,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 16px;">
+                <span style="font-size: 10px; font-weight: 800; color: #06B6D4; text-transform: uppercase;">Curation</span>
+                <h4 style="font-size: 14px; font-weight: 700; color: #FFF; margin: 6px 0;"><a href="/guides/watchlist-organization.html" style="color: #FFF; text-decoration: none;">How to Build the Perfect Watchlist &amp; Beat Fatigue</a></h4>
+                <p style="font-size: 11px; color: #A1A1AA; line-height: 1.5; margin: 0 0 10px;">The 3-tier backlog framework for eliminating infinite streaming scrolling and curating your personal film diary.</p>
+                <a href="/guides/watchlist-organization.html" style="font-size: 11px; font-weight: 700; color: #06B6D4; text-decoration: none;">Read Strategy &rarr;</a>
+              </article>
+            </div>
+          </section>
+
+          <!-- Pre-hydration Footer with Policies & Guides -->
           <footer style="border-top: 1px solid rgba(255, 255, 255, 0.08); padding: 24px 16px; text-align: center; font-size: 11px; color: #71717a; margin-top: 32px;">
             <p>ShowFlix — Track movies, series, watchlists, and release countdowns with Google Sheets sync.</p>
             <p style="margin-top: 8px;">
-              <a href="/welcome.html" style="color: #a1a1aa; text-decoration: none;">Welcome</a> • 
+              <a href="/welcome.html" style="color: #a1a1aa; text-decoration: none;">Welcome | Contact</a> • 
+              <a href="/guides/tv-series-tracking-guide.html" style="color: #a1a1aa; text-decoration: none;">Guides &amp; Articles</a> • 
+              <a href="/about.html" style="color: #a1a1aa; text-decoration: none;">About</a> • 
               <a href="/privacy.html" style="color: #a1a1aa; text-decoration: none;">Privacy Policy</a> • 
               <a href="/terms.html" style="color: #a1a1aa; text-decoration: none;">Terms of Service</a>
             </p>

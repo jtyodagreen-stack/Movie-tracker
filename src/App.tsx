@@ -110,6 +110,7 @@ import {
   BarChart3,
   ArrowUp,
   ArrowUpDown,
+  BookOpen,
 } from 'lucide-react';
 
 function haveShowsChanged(oldShows: ShowItem[], newShows: ShowItem[]): boolean {
@@ -3450,7 +3451,7 @@ export default function App() {
             </div>
 
             {/* Welcome Screen Instructions */}
-            <div className="p-5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-left space-y-4 relative overflow-hidden shadow-2xl">
+            <div className="p-5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-left space-y-4 relative overflow-hidden shadow-2xl google-anno-skip">
               <div className="absolute top-0 right-0 p-4 opacity-10">
                 <Sparkles className="w-20 h-20 text-amber-500" />
               </div>
@@ -3751,6 +3752,104 @@ export default function App() {
                     Yes. ShowFlix has dedicated tracking flows for episodic series (with seasons and episode counts) as well as feature films and movies.
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* 4. ShowFlix Editorial Guides & In-Depth Articles */}
+            <div className="space-y-6 pt-4 border-t border-zinc-800/60">
+              <div className="text-center max-w-xl mx-auto space-y-2">
+                <span className="text-xs font-bold text-amber-500 uppercase tracking-wider flex items-center justify-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5" />
+                  ShowFlix Editorial &amp; Publications
+                </span>
+                <h3 className="text-xl sm:text-2xl font-black text-white">
+                  Guides, Platform Comparisons &amp; Release Radars
+                </h3>
+                <p className="text-xs sm:text-sm text-zinc-400">
+                  Read our independent articles on streaming strategy, episode math, and upcoming entertainment premieres.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <a
+                  href="/guides/tv-series-tracking-guide.html"
+                  className="p-5 rounded-xl bg-zinc-900/60 border border-zinc-800/80 hover:border-red-600/40 transition-all group flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-red-600/20 text-red-400 border border-red-600/30">
+                      Editorial Guide
+                    </span>
+                    <h4 className="text-base font-bold text-white group-hover:text-red-400 transition-colors">
+                      The Ultimate TV Series &amp; Episode Tracking Guide
+                    </h4>
+                    <p className="text-xs text-zinc-400 leading-relaxed">
+                      Master season progression, avoid split-season hiatus confusion, and learn why open spreadsheet sync outperforms closed proprietary apps.
+                    </p>
+                  </div>
+                  <span className="text-xs text-red-500 font-bold mt-4 inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                    Read Complete Guide &rarr;
+                  </span>
+                </a>
+
+                <a
+                  href="/guides/streaming-guide-2025.html"
+                  className="p-5 rounded-xl bg-zinc-900/60 border border-zinc-800/80 hover:border-amber-500/40 transition-all group flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                      Platform Analysis
+                    </span>
+                    <h4 className="text-base font-bold text-white group-hover:text-amber-400 transition-colors">
+                      Streaming Platforms Compared (2025 Breakdown)
+                    </h4>
+                    <p className="text-xs text-zinc-400 leading-relaxed">
+                      Compare 4K HDR bitrates, prestige drama catalogues, and monthly subscription tiers across Netflix, Apple TV+, Max, Disney+, and Prime Video.
+                    </p>
+                  </div>
+                  <span className="text-xs text-amber-400 font-bold mt-4 inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                    Read Comparison &rarr;
+                  </span>
+                </a>
+
+                <a
+                  href="/guides/upcoming-releases-radar.html"
+                  className="p-5 rounded-xl bg-zinc-900/60 border border-zinc-800/80 hover:border-emerald-500/40 transition-all group flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      Release Calendar
+                    </span>
+                    <h4 className="text-base font-bold text-white group-hover:text-emerald-400 transition-colors">
+                      ShowFlix Release Radar: Most Anticipated Premieres
+                    </h4>
+                    <p className="text-xs text-zinc-400 leading-relaxed">
+                      Countdown dates and production intel for Stranger Things S5, Severance S2, The Last of Us S2, and major theatrical franchise releases.
+                    </p>
+                  </div>
+                  <span className="text-xs text-emerald-400 font-bold mt-4 inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                    View Release Calendar &rarr;
+                  </span>
+                </a>
+
+                <a
+                  href="/guides/watchlist-organization.html"
+                  className="p-5 rounded-xl bg-zinc-900/60 border border-zinc-800/80 hover:border-cyan-500/40 transition-all group flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                      Curation Strategy
+                    </span>
+                    <h4 className="text-base font-bold text-white group-hover:text-cyan-400 transition-colors">
+                      How to Build the Perfect Watchlist &amp; Beat Fatigue
+                    </h4>
+                    <p className="text-xs text-zinc-400 leading-relaxed">
+                      Overcome the Paradox of Choice with our 3-Tier Watchlist methodology, household profiles, and intentional personal movie archives.
+                    </p>
+                  </div>
+                  <span className="text-xs text-cyan-400 font-bold mt-4 inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                    Read Curation Guide &rarr;
+                  </span>
+                </a>
               </div>
             </div>
           </section>
@@ -5038,12 +5137,26 @@ export default function App() {
             </div>
           </div>
 
-          <div className="w-full text-center pt-2 flex items-center justify-center gap-3 text-[11px] text-zinc-600">
+          <div className="w-full text-center pt-2 flex flex-wrap items-center justify-center gap-3 text-[11px] text-zinc-600">
             <a
               href="/welcome.html"
               className="hover:text-zinc-400 transition-colors"
             >
               Welcome | Contact
+            </a>
+            <span>•</span>
+            <a
+              href="/guides/tv-series-tracking-guide.html"
+              className="hover:text-zinc-400 transition-colors"
+            >
+              Guides &amp; Articles
+            </a>
+            <span>•</span>
+            <a
+              href="/about.html"
+              className="hover:text-zinc-400 transition-colors"
+            >
+              About
             </a>
             <span>•</span>
             <a
