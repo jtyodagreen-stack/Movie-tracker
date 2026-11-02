@@ -589,10 +589,9 @@ export default function Navbar({
             </div>
           </button>
 
-          {/* DESKTOP Navigation Links (lg: >= 1024px) */}
-          {sheetConnected && (
-            <nav className="hidden lg:flex items-center gap-1 text-sm font-medium shrink-0">
-              {/* ALL PLATFORMS DROPDOWN MENU */}
+          {/* DESKTOP Navigation Links (lg: >= 1024px) - Always visible for crawlers and visitors */}
+          <nav className="hidden lg:flex items-center gap-1 text-sm font-medium shrink-0">
+            {/* ALL PLATFORMS DROPDOWN MENU */}
             <div
               className="relative"
               ref={platformDropdownRef}
@@ -747,20 +746,62 @@ export default function Navbar({
                 </span>
               )}
             </button>
+
+            {/* Guides Dropdown Menu */}
+            <div className="relative group">
+              <a
+                href="/guides/tv-series-tracking-guide.html"
+                className="px-3 py-1.5 rounded-md transition-colors flex items-center gap-1 text-zinc-400 hover:text-white no-underline cursor-pointer"
+              >
+                <span>Guides</span>
+                <ChevronDown className="w-3 h-3 opacity-60 group-hover:rotate-180 transition-transform" />
+              </a>
+              <div className="hidden group-hover:block absolute left-0 mt-1 w-64 bg-[#181818] border border-zinc-700 rounded-lg shadow-2xl py-2 text-xs z-50">
+                <a href="/guides/tv-series-tracking-guide.html" className="block px-3 py-2 text-zinc-300 hover:text-white hover:bg-zinc-800 no-underline">
+                  📺 TV Series Tracking Guide
+                </a>
+                <a href="/guides/streaming-guide-2025.html" className="block px-3 py-2 text-zinc-300 hover:text-white hover:bg-zinc-800 no-underline">
+                  ⚡ Streaming Platforms 2025
+                </a>
+                <a href="/guides/upcoming-releases-radar.html" className="block px-3 py-2 text-zinc-300 hover:text-white hover:bg-zinc-800 no-underline">
+                  ⏰ 2025-2026 Release Radar
+                </a>
+                <a href="/guides/watchlist-organization.html" className="block px-3 py-2 text-zinc-300 hover:text-white hover:bg-zinc-800 no-underline">
+                  📋 Watchlist Curation Strategy
+                </a>
+                <a href="/guides/offline-media-tracking-guide.html" className="block px-3 py-2 text-zinc-300 hover:text-white hover:bg-zinc-800 no-underline">
+                  💾 Open Spreadsheet Architecture
+                </a>
+                <a href="/guides/binge-watching-psychology-guide.html" className="block px-3 py-2 text-zinc-300 hover:text-white hover:bg-zinc-800 no-underline">
+                  🧠 Binge Psychology &amp; Pacing
+                </a>
+              </div>
+            </div>
+
+            <a
+              href="/about.html"
+              className="px-2.5 py-1.5 rounded-md transition-colors text-zinc-400 hover:text-white no-underline text-xs"
+            >
+              About
+            </a>
+            <a
+              href="/contact.html"
+              className="px-2.5 py-1.5 rounded-md transition-colors text-zinc-400 hover:text-white no-underline text-xs"
+            >
+              Contact
+            </a>
           </nav>
-          )}
         </div>
 
         {/* Right Tools (Search, Google Sheets Sync, Add Show, Profile / Mobile Toggle) */}
         <div className="flex items-center gap-3 shrink-0">
           {/* Search Toggle / Input */}
-          {sheetConnected && (
-            <div
-              ref={searchContainerRef}
-              className="relative flex items-center"
-              onMouseEnter={handleSearchMouseEnter}
-              onMouseLeave={handleSearchMouseLeave}
-            >
+          <div
+            ref={searchContainerRef}
+            className="relative flex items-center"
+            onMouseEnter={handleSearchMouseEnter}
+            onMouseLeave={handleSearchMouseLeave}
+          >
               {showSearch ? (
                 <div className="relative">
                   <div className="flex items-center bg-[#202020] border border-zinc-700 hover:border-red-500 focus-within:border-red-500 rounded-full px-3 py-1.5 transition-all w-52 sm:w-64 shadow-lg focus-within:ring-1 focus-within:ring-red-500/50">
@@ -1048,7 +1089,6 @@ export default function Navbar({
                 </button>
               )}
             </div>
-          )}
 
           {/* DESKTOP-ONLY BUTTONS (xl: >= 1280px) */}
           <div className="hidden xl:flex items-center gap-2.5 2xl:gap-3">
@@ -1070,45 +1110,43 @@ export default function Navbar({
               </button>
             )}
 
-            {/* Sync Status Badge (Syncing / Connected / Error) */}
-            {sheetConnected && (
-              <button
-                id="nav-sheets-status-badge"
-                onClick={onOpenSync}
-                type="button"
-                className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md border transition-all cursor-pointer shrink-0 ${
-                  isSyncing
-                    ? 'bg-amber-950/80 border-amber-500/60 text-amber-300 shadow-md'
-                    : sheetConnected
-                    ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300 shadow-sm hover:bg-emerald-900/60'
-                    : 'bg-red-950/80 border-red-500/50 text-red-300 shadow-sm hover:bg-red-900/60'
-                }`}
-                title={
-                  isSyncing
-                    ? 'Syncing with Google Sheets...'
-                    : sheetConnected
-                    ? `Connected to Google Sheets${lastSyncedAt ? ` (Last synced: ${lastSyncedAt})` : ''}`
-                    : 'Google Sheet Not Connected. Click to connect.'
-                }
-              >
-                {isSyncing ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
-                    <span className="text-[11px] font-bold">Syncing...</span>
-                  </>
-                ) : sheetConnected ? (
-                  <>
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                    <span className="text-[11px] font-bold">Connected</span>
-                  </>
-                ) : (
-                  <>
-                    <Table className="w-3.5 h-3.5 text-red-400" />
-                    <span className="text-[11px] font-bold">Connect Sheet</span>
-                  </>
-                )}
-              </button>
-            )}
+            {/* Sync Status Badge (Syncing / Connected / Connect Sheet) */}
+            <button
+              id="nav-sheets-status-badge"
+              onClick={onOpenSync}
+              type="button"
+              className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md border transition-all cursor-pointer shrink-0 ${
+                isSyncing
+                  ? 'bg-amber-950/80 border-amber-500/60 text-amber-300 shadow-md'
+                  : sheetConnected
+                  ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300 shadow-sm hover:bg-emerald-900/60'
+                  : 'bg-amber-950/80 border-amber-500/50 text-amber-300 shadow-sm hover:bg-amber-900/60'
+              }`}
+              title={
+                isSyncing
+                  ? 'Syncing with Google Sheets...'
+                  : sheetConnected
+                  ? `Connected to Google Sheets${lastSyncedAt ? ` (Last synced: ${lastSyncedAt})` : ''}`
+                  : 'Google Sheet Not Connected. Click to connect your personal spreadsheet.'
+              }
+            >
+              {isSyncing ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                  <span className="text-[11px] font-bold">Syncing...</span>
+                </>
+              ) : sheetConnected ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  <span className="text-[11px] font-bold">Connected</span>
+                </>
+              ) : (
+                <>
+                  <Table className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-[11px] font-bold">Connect Sheet</span>
+                </>
+              )}
+            </button>
 
             {/* Add Title Button */}
             {sheetConnected && shows.length > 0 && (
@@ -1714,42 +1752,40 @@ export default function Navbar({
             )}
 
             {/* Hamburger Button for Mobile & Tablet */}
-            {sheetConnected && (
-              <button
-                id="mobile-menu-toggle-btn"
-                type="button"
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className={`p-2 rounded-md transition-colors border ${
-                  isMobileMenuOpen
-                    ? 'bg-zinc-800 text-white border-red-500'
-                    : 'bg-zinc-900/90 text-zinc-300 hover:text-white border-zinc-700 hover:bg-zinc-800'
-                }`}
-                aria-label="Toggle navigation menu"
-                title="Menu"
-              >
-                {isMobileMenuOpen ? (
-                  <X className="w-5 h-5 text-red-500" />
-                ) : (
-                  <div className="relative">
-                    <Menu className="w-5 h-5" />
-                    {sheetConnected && (
-                      <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                        <span
-                          className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                            online ? 'bg-emerald-400' : 'bg-amber-400'
-                          }`}
-                        ></span>
-                        <span
-                          className={`relative inline-flex rounded-full h-2 w-2 ${
-                            online ? 'bg-emerald-500' : 'bg-amber-500'
-                          }`}
-                        ></span>
-                      </span>
-                    )}
-                  </div>
-                )}
-              </button>
-            )}
+            <button
+              id="mobile-menu-toggle-btn"
+              type="button"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className={`p-2 rounded-md transition-colors border ${
+                isMobileMenuOpen
+                  ? 'bg-zinc-800 text-white border-red-500'
+                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white border-zinc-700 hover:bg-zinc-800'
+              }`}
+              aria-label="Toggle navigation menu"
+              title="Menu"
+            >
+              {isMobileMenuOpen ? (
+                <X className="w-5 h-5 text-red-500" />
+              ) : (
+                <div className="relative">
+                  <Menu className="w-5 h-5" />
+                  {sheetConnected && (
+                    <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                      <span
+                        className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                          online ? 'bg-emerald-400' : 'bg-amber-400'
+                        }`}
+                      ></span>
+                      <span
+                        className={`relative inline-flex rounded-full h-2 w-2 ${
+                          online ? 'bg-emerald-500' : 'bg-amber-500'
+                        }`}
+                      ></span>
+                    </span>
+                  )}
+                </div>
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -1784,8 +1820,7 @@ export default function Navbar({
           )}
 
           {/* Mobile Search Bar & Recent Search Tags */}
-          {sheetConnected && (
-            <div className="space-y-2 pb-1 border-b border-zinc-800/80">
+          <div className="space-y-2 pb-1 border-b border-zinc-800/80">
               <div className="flex items-center bg-[#202020] border border-zinc-700 rounded-lg px-3 py-2">
                 <Search className="w-4 h-4 text-red-500 mr-2 shrink-0" />
                 <input
@@ -1909,7 +1944,6 @@ export default function Navbar({
                 </div>
               )}
             </div>
-          )}
 
           {/* 1. Category Navigation Links */}
           <div className="space-y-1">
@@ -2197,6 +2231,50 @@ export default function Navbar({
                 <LogOut className="w-4 h-4 shrink-0 preserve-theme-color" />
                 <span>Sign Out</span>
               </button>
+
+              {/* Editorial Guides & Publisher Links in Mobile Drawer */}
+              <div className="pt-3 border-t border-zinc-800 space-y-2">
+                <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider px-1">
+                  📚 Guides &amp; Industry Publications
+                </p>
+                <div className="grid grid-cols-1 gap-1 text-xs">
+                  <a href="/guides/tv-series-tracking-guide.html" className="p-2 rounded-lg bg-zinc-900/80 text-zinc-300 hover:text-white flex items-center justify-between no-underline">
+                    <span>📺 The Ultimate TV Tracking Guide</span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                  </a>
+                  <a href="/guides/streaming-guide-2025.html" className="p-2 rounded-lg bg-zinc-900/80 text-zinc-300 hover:text-white flex items-center justify-between no-underline">
+                    <span>⚡ Streaming Platforms Compared</span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                  </a>
+                  <a href="/guides/upcoming-releases-radar.html" className="p-2 rounded-lg bg-zinc-900/80 text-zinc-300 hover:text-white flex items-center justify-between no-underline">
+                    <span>⏰ 2025-2026 Release Radar</span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                  </a>
+                  <a href="/guides/watchlist-organization.html" className="p-2 rounded-lg bg-zinc-900/80 text-zinc-300 hover:text-white flex items-center justify-between no-underline">
+                    <span>📋 Watchlist Curation Strategy</span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                  </a>
+                  <a href="/guides/offline-media-tracking-guide.html" className="p-2 rounded-lg bg-zinc-900/80 text-zinc-300 hover:text-white flex items-center justify-between no-underline">
+                    <span>💾 Open Spreadsheet Architecture</span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                  </a>
+                  <a href="/guides/binge-watching-psychology-guide.html" className="p-2 rounded-lg bg-zinc-900/80 text-zinc-300 hover:text-white flex items-center justify-between no-underline">
+                    <span>🧠 Binge Psychology &amp; Pacing</span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                  </a>
+                </div>
+                <div className="flex items-center gap-2.5 pt-2 text-[11px] text-zinc-400 px-1 flex-wrap">
+                  <a href="/welcome.html" className="hover:text-white no-underline">Welcome</a>
+                  <span>•</span>
+                  <a href="/about.html" className="hover:text-white no-underline">About</a>
+                  <span>•</span>
+                  <a href="/contact.html" className="hover:text-white no-underline">Contact</a>
+                  <span>•</span>
+                  <a href="/privacy.html" className="hover:text-white no-underline">Privacy</a>
+                  <span>•</span>
+                  <a href="/terms.html" className="hover:text-white no-underline">Terms</a>
+                </div>
+              </div>
 
               {/* Mobile Drawer Version Footer */}
               <div className="pt-2 flex items-center justify-between text-[11px] text-zinc-500 font-medium select-none border-t border-zinc-800/60 mt-1">

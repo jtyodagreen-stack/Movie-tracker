@@ -189,7 +189,8 @@ export default function App() {
         return deduplicateShowsByTitle(rebuildSheetAddedRanks(aliveShows)).sort(compareByAddedRank);
       }
     } catch {}
-    return [];
+    const hasStoredId = typeof window !== 'undefined' && Boolean(localStorage.getItem('showflix_spreadsheet_id') || localStorage.getItem('bingebox_spreadsheet_id'));
+    return hasStoredId ? [] : FEATURED_SHOWCASE_SHOWS;
   });
 
   // Persist shows and active spreadsheet context to local cache whenever they update (do not overwrite with empty array)
@@ -3396,8 +3397,8 @@ export default function App() {
   );
 
   const renderMainContent = () => {
-    // State A: Welcome Page (No Spreadsheet ID configured yet)
-    if (!spreadsheetId) {
+    // State A: Welcome Page (No Spreadsheet ID configured yet and on default view)
+    if (!spreadsheetId && !isAnyFilterActive && !searchQuery.trim()) {
       const handleSaveSheetUrl = async () => {
         setWelcomeError('');
         const trimmed = welcomeSheetUrl.trim();
@@ -3848,6 +3849,46 @@ export default function App() {
                   </div>
                   <span className="text-xs text-cyan-400 font-bold mt-4 inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform">
                     Read Curation Guide &rarr;
+                  </span>
+                </a>
+
+                <a
+                  href="/guides/offline-media-tracking-guide.html"
+                  className="p-5 rounded-xl bg-zinc-900/60 border border-zinc-800/80 hover:border-pink-500/40 transition-all group flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-pink-500/20 text-pink-400 border border-pink-500/30">
+                      Architecture &amp; Privacy
+                    </span>
+                    <h4 className="text-base font-bold text-white group-hover:text-pink-400 transition-colors">
+                      Data Ownership vs Cloud Lock-in: Open Spreadsheets Compared
+                    </h4>
+                    <p className="text-xs text-zinc-400 leading-relaxed">
+                      Why user-owned Google Sheets outlast closed tracking startups and protect decades of personal entertainment records.
+                    </p>
+                  </div>
+                  <span className="text-xs text-pink-400 font-bold mt-4 inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                    Read Architecture Guide &rarr;
+                  </span>
+                </a>
+
+                <a
+                  href="/guides/binge-watching-psychology-guide.html"
+                  className="p-5 rounded-xl bg-zinc-900/60 border border-zinc-800/80 hover:border-purple-500/40 transition-all group flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                      Psychology
+                    </span>
+                    <h4 className="text-base font-bold text-white group-hover:text-purple-400 transition-colors">
+                      The Psychology of Binge-Watching &amp; Episode Pacing
+                    </h4>
+                    <p className="text-xs text-zinc-400 leading-relaxed">
+                      How all-at-once drops impact narrative retention and how mindful episode tracking restores true viewing satisfaction.
+                    </p>
+                  </div>
+                  <span className="text-xs text-purple-400 font-bold mt-4 inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                    Read Psychology Guide &rarr;
                   </span>
                 </a>
               </div>

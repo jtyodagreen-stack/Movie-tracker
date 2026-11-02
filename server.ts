@@ -378,6 +378,8 @@ async function createServer() {
   <url><loc>https://show-flix.co.uk/guides/streaming-guide-2025.html</loc><priority>0.9</priority></url>
   <url><loc>https://show-flix.co.uk/guides/upcoming-releases-radar.html</loc><priority>0.9</priority></url>
   <url><loc>https://show-flix.co.uk/guides/watchlist-organization.html</loc><priority>0.9</priority></url>
+  <url><loc>https://show-flix.co.uk/guides/offline-media-tracking-guide.html</loc><priority>0.9</priority></url>
+  <url><loc>https://show-flix.co.uk/guides/binge-watching-psychology-guide.html</loc><priority>0.9</priority></url>
   <url><loc>https://show-flix.co.uk/about.html</loc><priority>0.8</priority></url>
   <url><loc>https://show-flix.co.uk/contact.html</loc><priority>0.8</priority></url>
   <url><loc>https://show-flix.co.uk/privacy.html</loc><priority>0.7</priority></url>

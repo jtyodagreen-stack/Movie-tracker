@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Ownership vs Cloud Lock-in: The Future of Media Tracking — ShowFlix</title>
+  <meta name="description" content="Explore why open spreadsheets and decentralized personal databases outperform proprietary streaming trackers. Learn how to protect your viewing history against platform shutdowns and paywalls.">
+  <link rel="canonical" href="https://show-flix.co.uk/guides/offline-media-tracking-guide.html">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23E50914'/><text x='50%' y='68%' font-size='60' font-weight='900' fill='white' font-family='sans-serif' text-anchor='middle'>N</text></svg>">
+  
+  <!-- Open Graph -->
+  <meta property="og:title" content="Data Ownership vs Cloud Lock-in: The Future of Media Tracking — ShowFlix">
+  <meta property="og:description" content="Why open spreadsheets and user-owned data outlast closed proprietary media trackers.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://show-flix.co.uk/guides/offline-media-tracking-guide.html">
+  
+  <!-- Google AdSense Official Script -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5087450059107666" crossorigin="anonymous"></script>
+
+  <!-- Structured Data: Article Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Data Ownership vs Cloud Lock-in: The Future of Media Tracking",
+    "description": "Explore why open spreadsheets and decentralized personal databases outperform proprietary streaming trackers. Learn how to protect your viewing history against platform shutdowns and paywalls.",
+    "author": {
+      "@type": "Organization",
+      "name": "ShowFlix Editorial Team"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "ShowFlix",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://show-flix.co.uk/icon-512.png"
+      }
+    },
+    "datePublished": "2025-02-10T10:00:00+00:00",
+    "dateModified": "2025-02-15T14:00:00+00:00",
+    "mainEntityOfPage": "https://show-flix.co.uk/guides/offline-media-tracking-guide.html"
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #141414;
+      color: #E4E4E7;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.7;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background-color: rgba(20, 20, 20, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(10px);
+    }
+    .header-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      text-decoration: none;
+      color: #FFFFFF;
+    }
+    .logo-badge {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background-color: #E50914;
+      color: #FFFFFF;
+      font-weight: 900;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(229, 9, 20, 0.4);
+    }
+    .logo-text {
+      font-size: 1.25rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+    }
+    .logo-text span { color: #E50914; }
+    .header-nav {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      list-style: none;
+    }
+    .header-nav a {
+      color: #A1A1AA;
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .header-nav a:hover { color: #FFFFFF; }
+    main {
+      flex: 1;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem 5rem;
+      width: 100%;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background-color: rgba(229, 9, 20, 0.15);
+      border: 1px solid rgba(229, 9, 20, 0.3);
+      border-radius: 9999px;
+      color: #EF4444;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 1.25rem;
+    }
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 900;
+      color: #FFFFFF;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+      letter-spacing: -0.02em;
+    }
+    .meta {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.875rem;
+      color: #71717A;
+      margin-bottom: 2.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 1.5rem;
+    }
+    .content h2 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #FFFFFF;
+      margin: 2.5rem 0 1rem;
+      letter-spacing: -0.01em;
+    }
+    .content h3 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #F43F5E;
+      margin: 1.75rem 0 0.75rem;
+    }
+    .content p {
+      margin-bottom: 1.25rem;
+      color: #D4D4D8;
+      font-size: 1.05rem;
+    }
+    .content ul, .content ol {
+      margin: 1rem 0 1.5rem 1.5rem;
+      color: #D4D4D8;
+    }
+    .content li { margin-bottom: 0.5rem; }
+    .callout {
+      background: rgba(255, 255, 255, 0.03);
+      border-left: 4px solid #E50914;
+      padding: 1.25rem 1.5rem;
+      border-radius: 0 8px 8px 0;
+      margin: 2rem 0;
+    }
+    .callout p { margin: 0; color: #FFFFFF; font-weight: 500; font-size: 1rem; }
+    .table-container {
+      overflow-x: auto;
+      margin: 2rem 0;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    th {
+      background: rgba(255, 255, 255, 0.05);
+      color: #FFFFFF;
+      font-weight: 700;
+    }
+    footer {
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 2.5rem 1.5rem;
+      background-color: #0F0F0F;
+      text-align: center;
+      font-size: 0.875rem;
+      color: #71717A;
+    }
+    footer a { color: #A1A1AA; text-decoration: none; margin: 0 0.5rem; }
+    footer a:hover { color: #FFFFFF; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo-container">
+        <div class="logo-badge">N</div>
+        <div class="logo-text">SHOW<span>FLIX</span></div>
+      </a>
+      <nav class="header-nav">
+        <a href="/">Home</a>
+        <a href="/guides/tv-series-tracking-guide.html">Guides</a>
+        <a href="/welcome.html">Welcome</a>
+        <a href="/about.html">About</a>
+        <a href="/contact.html">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <span class="badge">Architecture &amp; Data Privacy</span>
+    <h1>Data Ownership vs Cloud Lock-in: Why Open Spreadsheets Beat Closed Streaming Apps</h1>
+    <div class="meta">
+      <span>By ShowFlix Systems Architecture</span>
+      <span>•</span>
+      <span>Published February 2025</span>
+      <span>•</span>
+      <span>7 Min Read</span>
+    </div>
+
+    <div class="content">
+      <p>Over the last decade, film and television lovers have witnessed the rise and sudden sunset of countless tracking applications. From shut-down startup apps to algorithmic services that suddenly introduce paywalls or delete users' historical review notes, proprietary platforms continually put user data at risk.</p>
+      
+      <p>At ShowFlix, we formulated a counter-philosophy: <strong>Data Sovereignty</strong>. Instead of holding your movie ratings and episode progress hostage on private, proprietary cloud servers, ShowFlix interfaces directly with your personal Google Drive spreadsheet.</p>
+
+      <h2>The Fragility of Proprietary Media Trackers</h2>
+      <p>When you use a standard commercial media tracker, your viewing habits, ratings, and custom lists live in a vendor database. This creates three critical vulnerabilities:</p>
+      
+      <ul>
+        <li><strong>Vendor Shutdowns:</strong> When an independent tracking app runs out of venture funding or changes business models, users frequently receive 30 days to export a fragmented CSV—or lose their decades-long viewing journal entirely.</li>
+        <li><strong>Monetization Degradation:</strong> Free features like unlimited watchlist items or offline export are frequently moved behind expensive monthly subscriptions.</li>
+        <li><strong>Privacy &amp; Targeted Advertising:</strong> Closed tracking applications routinely monetize user psychological profiles—selling granular data on viewing velocity and nighttime binge patterns to ad brokers.</li>
+      </ul>
+
+      <div class="callout">
+        <p><strong>Core ShowFlix Rule:</strong> Your entertainment history is an intellectual asset. If you cannot open your records in Microsoft Excel or Google Sheets without an active app installed, you do not truly own your data.</p>
+      </div>
+
+      <h2>How Two-Way Spreadsheet Sync Guarantees Longevity</h2>
+      <p>ShowFlix was architected around open spreadsheet standards. By using Google Sheets as the authoritative cloud persistence layer, users gain several game-changing benefits:</p>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>Closed Proprietary Trackers</th>
+              <th>ShowFlix Open Sheets Architecture</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Data Ownership</strong></td>
+              <td>Owned by vendor database</td>
+              <td>100% Owned by you in your Google Drive</td>
+            </tr>
+            <tr>
+              <td><strong>Offline Redundancy</strong></td>
+              <td>Requires vendor server online</td>
+              <td>Cached in IndexedDB + LocalStorage</td>
+            </tr>
+            <tr>
+              <td><strong>Interoperability</strong></td>
+              <td>Proprietary closed APIs</td>
+              <td>Standard rows, columns, and formulas</td>
+            </tr>
+            <tr>
+              <td><strong>Export Freedom</strong></td>
+              <td>Restricted or rate-limited</td>
+              <td>Native XLSX, CSV, TSV, or PDF export</td>
+            </tr>
+            <tr>
+              <td><strong>Custom Scripting</strong></td>
+              <td>Not supported</td>
+              <td>Full Google Apps Script automation</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Advanced Spreadsheet Workflows for Power Users</h2>
+      <p>Because ShowFlix stores your titles in standard spreadsheet rows, power users can unleash custom analytical formulas:</p>
+      
+      <h3>1. Automated Statistics &amp; Pivot Tables</h3>
+      <p>You can create a separate tab in your Google Sheet with a Pivot Table calculating your average rating per streaming platform (e.g., comparing HBO Max vs Apple TV+), or tallying how many total hours of sci-fi you consumed in 2024.</p>
+
+      <h3>2. Shared Family Worksheets</h3>
+      <p>By leveraging Google Drive's native sharing permissions, multiple members of a household can collaborate on the same Master Sheet while maintaining independent viewer profiles inside the ShowFlix interface.</p>
+
+      <h3>3. Webhook Automations with Apps Script</h3>
+      <p>Whenever you log a newly finished movie, Google Apps Script can trigger a webhook notification to Discord, post to a personal blog, or cross-reference release calendars automatically.</p>
+
+      <h2>Conclusion: Building an Eternal Personal Library</h2>
+      <p>Media consumption is deeply personal. Your ratings reflect how your tastes have evolved over years of cinema and television. By decoupling the beautiful user interface from the underlying data storage, ShowFlix guarantees that your entertainment history will remain accessible, editable, and completely yours for decades to come.</p>
+    </div>
+  </main>
+
+  <footer>
+    <p>ShowFlix — Open-Source Architecture &amp; Entertainment Tracking.</p>
+    <p style="margin-top: 0.5rem;">
+      <a href="/">Home</a> •
+      <a href="/welcome.html">Welcome | Contact</a> •
+      <a href="/guides/tv-series-tracking-guide.html">All Guides</a> •
+      <a href="/about.html">About</a> •
+      <a href="/privacy.html">Privacy</a> •
+      <a href="/terms.html">Terms</a>
+    </p>
+  </footer>
+</body>
+</html>
