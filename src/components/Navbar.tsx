@@ -747,6 +747,40 @@ export default function Navbar({
               )}
             </button>
 
+            {/* Reviews Dropdown Menu */}
+            <div className="relative group">
+              <a
+                href="/reviews/"
+                className="px-3 py-1.5 rounded-md transition-colors flex items-center gap-1 text-zinc-400 hover:text-white no-underline cursor-pointer"
+              >
+                <span>Reviews</span>
+                <ChevronDown className="w-3 h-3 opacity-60 group-hover:rotate-180 transition-transform" />
+              </a>
+              <div className="hidden group-hover:block absolute left-0 mt-1 w-64 bg-[#181818] border border-zinc-700 rounded-lg shadow-2xl py-2 text-xs z-50">
+                <a href="/reviews/" className="block px-3 py-2 text-red-400 font-semibold hover:text-red-300 hover:bg-zinc-800 no-underline border-b border-zinc-800">
+                  ★ All Critical Reviews Hub
+                </a>
+                <a href="/reviews/severance-season-2-analysis.html" className="block px-3 py-1.5 text-zinc-300 hover:text-white hover:bg-zinc-800 no-underline">
+                  Severance Season 2 Review
+                </a>
+                <a href="/reviews/the-bear-season-3-breakdown.html" className="block px-3 py-1.5 text-zinc-300 hover:text-white hover:bg-zinc-800 no-underline">
+                  The Bear Season 3 Breakdown
+                </a>
+                <a href="/reviews/fallout-season-1-adaptation-review.html" className="block px-3 py-1.5 text-zinc-300 hover:text-white hover:bg-zinc-800 no-underline">
+                  Fallout Season 1 Review
+                </a>
+                <a href="/reviews/shogun-masterpiece-review.html" className="block px-3 py-1.5 text-zinc-300 hover:text-white hover:bg-zinc-800 no-underline">
+                  Shōgun Masterpiece Analysis
+                </a>
+                <a href="/reviews/arcane-act-breakdown.html" className="block px-3 py-1.5 text-zinc-300 hover:text-white hover:bg-zinc-800 no-underline">
+                  Arcane: League of Legends
+                </a>
+                <a href="/reviews/dune-part-two-cinematic-review.html" className="block px-3 py-1.5 text-zinc-300 hover:text-white hover:bg-zinc-800 no-underline">
+                  Dune: Part Two Epic Review
+                </a>
+              </div>
+            </div>
+
             {/* Guides Dropdown Menu */}
             <div className="relative group">
               <a
@@ -2232,9 +2266,34 @@ export default function Navbar({
                 <span>Sign Out</span>
               </button>
 
-              {/* Editorial Guides & Publisher Links in Mobile Drawer */}
+              {/* Editorial Reviews & Guides in Mobile Drawer */}
               <div className="pt-3 border-t border-zinc-800 space-y-2">
-                <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider px-1">
+                <div className="flex items-center justify-between px-1">
+                  <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+                    ★ Critical Reviews &amp; Analysis
+                  </p>
+                  <a href="/reviews/" className="text-[11px] text-red-400 hover:text-red-300 no-underline">View All &rarr;</a>
+                </div>
+                <div className="grid grid-cols-1 gap-1 text-xs">
+                  <a href="/reviews/" className="p-2 rounded-lg bg-zinc-900/80 text-zinc-300 hover:text-white flex items-center justify-between no-underline border border-red-900/30">
+                    <span className="font-semibold text-red-400">★ ShowFlix Critical Reviews Hub</span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60 text-red-400" />
+                  </a>
+                  <a href="/reviews/severance-season-2-analysis.html" className="p-2 rounded-lg bg-zinc-900/80 text-zinc-300 hover:text-white flex items-center justify-between no-underline">
+                    <span>Severance Season 2 Review</span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                  </a>
+                  <a href="/reviews/the-bear-season-3-breakdown.html" className="p-2 rounded-lg bg-zinc-900/80 text-zinc-300 hover:text-white flex items-center justify-between no-underline">
+                    <span>The Bear Season 3 Breakdown</span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                  </a>
+                  <a href="/reviews/shogun-masterpiece-review.html" className="p-2 rounded-lg bg-zinc-900/80 text-zinc-300 hover:text-white flex items-center justify-between no-underline">
+                    <span>Shōgun Masterpiece Analysis</span>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                  </a>
+                </div>
+
+                <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider px-1 pt-2">
                   📚 Guides &amp; Industry Publications
                 </p>
                 <div className="grid grid-cols-1 gap-1 text-xs">

@@ -6,9 +6,49 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://show-flix.co.uk/welcome.html</loc>
+    <loc>https://show-flix.co.uk/reviews/</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+  </url>
+  <url>
+    <loc>https://show-flix.co.uk/reviews/severance-season-2-analysis.html</loc>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://show-flix.co.uk/reviews/the-bear-season-3-breakdown.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://show-flix.co.uk/reviews/stranger-things-5-anticipation-review.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://show-flix.co.uk/reviews/the-last-of-us-season-2-expectations.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://show-flix.co.uk/reviews/fallout-season-1-adaptation-review.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://show-flix.co.uk/reviews/shogun-masterpiece-review.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://show-flix.co.uk/reviews/arcane-act-breakdown.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://show-flix.co.uk/reviews/dune-part-two-cinematic-review.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
   </url>
   <url>
     <loc>https://show-flix.co.uk/guides/tv-series-tracking-guide.html</loc>
@@ -39,6 +79,11 @@
     <loc>https://show-flix.co.uk/guides/binge-watching-psychology-guide.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://show-flix.co.uk/welcome.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://show-flix.co.uk/about.html</loc>

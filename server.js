@@ -317,13 +317,22 @@ async function createServer() {
     res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://show-flix.co.uk/</loc><priority>1.0</priority></url>
-  <url><loc>https://show-flix.co.uk/welcome.html</loc><priority>0.8</priority></url>
+  <url><loc>https://show-flix.co.uk/reviews/</loc><priority>0.95</priority></url>
+  <url><loc>https://show-flix.co.uk/reviews/severance-season-2-analysis.html</loc><priority>0.9</priority></url>
+  <url><loc>https://show-flix.co.uk/reviews/the-bear-season-3-breakdown.html</loc><priority>0.9</priority></url>
+  <url><loc>https://show-flix.co.uk/reviews/stranger-things-5-anticipation-review.html</loc><priority>0.9</priority></url>
+  <url><loc>https://show-flix.co.uk/reviews/the-last-of-us-season-2-expectations.html</loc><priority>0.9</priority></url>
+  <url><loc>https://show-flix.co.uk/reviews/fallout-season-1-adaptation-review.html</loc><priority>0.9</priority></url>
+  <url><loc>https://show-flix.co.uk/reviews/shogun-masterpiece-review.html</loc><priority>0.9</priority></url>
+  <url><loc>https://show-flix.co.uk/reviews/arcane-act-breakdown.html</loc><priority>0.9</priority></url>
+  <url><loc>https://show-flix.co.uk/reviews/dune-part-two-cinematic-review.html</loc><priority>0.9</priority></url>
   <url><loc>https://show-flix.co.uk/guides/tv-series-tracking-guide.html</loc><priority>0.9</priority></url>
   <url><loc>https://show-flix.co.uk/guides/streaming-guide-2025.html</loc><priority>0.9</priority></url>
   <url><loc>https://show-flix.co.uk/guides/upcoming-releases-radar.html</loc><priority>0.9</priority></url>
   <url><loc>https://show-flix.co.uk/guides/watchlist-organization.html</loc><priority>0.9</priority></url>
   <url><loc>https://show-flix.co.uk/guides/offline-media-tracking-guide.html</loc><priority>0.9</priority></url>
   <url><loc>https://show-flix.co.uk/guides/binge-watching-psychology-guide.html</loc><priority>0.9</priority></url>
+  <url><loc>https://show-flix.co.uk/welcome.html</loc><priority>0.8</priority></url>
   <url><loc>https://show-flix.co.uk/about.html</loc><priority>0.8</priority></url>
   <url><loc>https://show-flix.co.uk/contact.html</loc><priority>0.8</priority></url>
   <url><loc>https://show-flix.co.uk/privacy.html</loc><priority>0.7</priority></url>
@@ -335,6 +344,22 @@ async function createServer() {
   app.get(["/contact", "/contact.html"], serveStaticHtml("contact.html"));
   app.get(["/privacy", "/privacy.html"], serveStaticHtml("privacy.html"));
   app.get(["/terms", "/terms.html"], serveStaticHtml("terms.html"));
+  app.get(["/reviews", "/reviews/", "/reviews/index.html"], (_req, res) => {
+    const pubHub = path.join(publicDir, "reviews", "index.html");
+    const distHub = path.join(distPath, "reviews", "index.html");
+    if (fs.existsSync(distHub)) return res.sendFile(distHub);
+    if (fs.existsSync(pubHub)) return res.sendFile(pubHub);
+    return res.status(404).send("Reviews Hub Not Found");
+  });
+  app.get(["/reviews/:slug", "/reviews/:slug.html"], (req, res) => {
+    const rawSlug = req.params.slug.replace(/\.html$/, "");
+    const candidateFile = `${rawSlug}.html`;
+    const pubReview = path.join(publicDir, "reviews", candidateFile);
+    const distReview = path.join(distPath, "reviews", candidateFile);
+    if (fs.existsSync(distReview)) return res.sendFile(distReview);
+    if (fs.existsSync(pubReview)) return res.sendFile(pubReview);
+    return res.status(404).send("Review Not Found");
+  });
   app.get(["/guides/:slug", "/guides/:slug.html"], (req, res) => {
     const rawSlug = req.params.slug.replace(/\.html$/, "");
     const candidateFile = `${rawSlug}.html`;

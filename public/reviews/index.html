@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Critical Reviews &amp; Cultural Analysis — ShowFlix</title>
+  <meta name="description" content="Explore ShowFlix's comprehensive critical reviews, narrative breakdowns, and cultural analysis of premier television series and cinematic milestones across Netflix, Apple TV+, Prime Video, Disney+, and HBO Max.">
+  <link rel="canonical" href="https://show-flix.co.uk/reviews/">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23E50914'/><text x='50%' y='68%' font-size='60' font-weight='900' fill='white' font-family='sans-serif' text-anchor='middle'>N</text></svg>">
+  
+  <!-- Open Graph -->
+  <meta property="og:title" content="Critical Reviews &amp; Cultural Analysis — ShowFlix">
+  <meta property="og:description" content="Original long-form reviews and deep-dive critical analysis of premier streaming shows and movies.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://show-flix.co.uk/reviews/">
+  
+  <!-- Google AdSense Official Script -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5087450059107666" crossorigin="anonymous"></script>
+
+  <!-- Schema.org CollectionPage -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "name": "ShowFlix Critical Reviews & Analysis",
+    "description": "Critical reviews and cultural commentary on television series and cinematic releases.",
+    "url": "https://show-flix.co.uk/reviews/",
+    "publisher": {
+      "@type": "Organization",
+      "name": "ShowFlix",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://show-flix.co.uk/icon-512.png"
+      }
+    }
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #141414;
+      color: #E4E4E7;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background-color: rgba(20, 20, 20, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(10px);
+    }
+    .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      text-decoration: none;
+      color: #FFFFFF;
+    }
+    .logo-badge {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background-color: #E50914;
+      color: #FFFFFF;
+      font-weight: 900;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(229, 9, 20, 0.4);
+    }
+    .logo-text {
+      font-size: 1.25rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+    }
+    .logo-text span { color: #E50914; }
+    .header-nav {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      list-style: none;
+    }
+    .header-nav a {
+      color: #A1A1AA;
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .header-nav a:hover, .header-nav a.active { color: #FFFFFF; }
+    .header-nav a.active { border-bottom: 2px solid #E50914; padding-bottom: 2px; }
+    main {
+      flex: 1;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 3rem 1.5rem 5rem;
+    }
+    .hero {
+      text-align: center;
+      max-width: 760px;
+      margin: 0 auto 3.5rem;
+    }
+    .hero-badge {
+      display: inline-block;
+      padding: 0.35rem 1rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      background: rgba(229, 9, 20, 0.15);
+      color: #EF4444;
+      border: 1px solid rgba(229, 9, 20, 0.3);
+      margin-bottom: 1.25rem;
+    }
+    h1 {
+      font-size: 2.75rem;
+      font-weight: 900;
+      color: #FFFFFF;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+    .hero-p {
+      font-size: 1.15rem;
+      color: #A1A1AA;
+      line-height: 1.6;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 1.75rem;
+    }
+    @media (max-width: 640px) {
+      .grid { grid-template-columns: 1fr; }
+      h1 { font-size: 2rem; }
+    }
+    .card {
+      background: #1C1C1E;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+      text-decoration: none;
+      color: inherit;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(229, 9, 20, 0.4);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+    }
+    .card-header {
+      padding: 1.5rem 1.5rem 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-platform {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #D4D4D8;
+    }
+    .card-rating {
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: #EAB308;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+    .card-body {
+      padding: 0.75rem 1.5rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    .card-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #FFFFFF;
+      line-height: 1.35;
+      margin-bottom: 0.75rem;
+    }
+    .card:hover .card-title {
+      color: #EF4444;
+    }
+    .card-snippet {
+      font-size: 0.925rem;
+      color: #A1A1AA;
+      line-height: 1.6;
+      margin-bottom: 1.25rem;
+      flex: 1;
+    }
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 1rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 0.8rem;
+      color: #71717A;
+    }
+    .read-more {
+      color: #EF4444;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .guides-banner {
+      margin-top: 4.5rem;
+      background: linear-gradient(135deg, rgba(229, 9, 20, 0.1), rgba(20, 20, 20, 0.9));
+      border: 1px solid rgba(229, 9, 20, 0.25);
+      border-radius: 14px;
+      padding: 2.5rem 2rem;
+      text-align: center;
+    }
+    .guides-banner h3 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: #FFFFFF;
+      margin-bottom: 0.5rem;
+    }
+    .guides-banner p {
+      color: #A1A1AA;
+      max-width: 600px;
+      margin: 0 auto 1.5rem;
+      font-size: 0.95rem;
+    }
+    .banner-cta {
+      display: inline-block;
+      background: #E50914;
+      color: #FFFFFF;
+      padding: 0.75rem 1.75rem;
+      border-radius: 8px;
+      font-weight: 700;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.2s;
+    }
+    .banner-cta:hover {
+      background: #B80710;
+      transform: translateY(-2px);
+    }
+    footer {
+      background-color: #0A0A0A;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      color: #71717A;
+      font-size: 0.875rem;
+      margin-top: auto;
+    }
+    footer a { color: #A1A1AA; text-decoration: none; margin: 0 0.5rem; }
+    footer a:hover { color: #FFFFFF; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo-container">
+        <div class="logo-badge">N</div>
+        <div class="logo-text">SHOW<span>FLIX</span></div>
+      </a>
+      <nav class="header-nav">
+        <a href="/">Home</a>
+        <a href="/reviews/" class="active">Reviews</a>
+        <a href="/guides/tv-series-tracking-guide.html">Guides</a>
+        <a href="/welcome.html">Welcome</a>
+        <a href="/about.html">About</a>
+        <a href="/contact.html">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="hero">
+      <span class="hero-badge">ShowFlix Critical Desk</span>
+      <h1>Original Reviews &amp; Narrative Analysis</h1>
+      <p class="hero-p">
+        In-depth cultural commentary, narrative breakdowns, and editorial scores for premier television dramas, animated triumphs, and cinematic releases.
+      </p>
+    </div>
+
+    <div class="grid">
+      <!-- Review 1: Severance Season 2 -->
+      <a href="/reviews/severance-season-2-analysis.html" class="card">
+        <div class="card-header">
+          <span class="card-platform" style="background: rgba(2, 168, 226, 0.15); color: #38BDF8;">Apple TV+</span>
+          <span class="card-rating">★ 5.0 / 5</span>
+        </div>
+        <div class="card-body">
+          <h2 class="card-title">Severance Season 2: Anatomy of a Corporate Thriller Masterpiece</h2>
+          <p class="card-snippet">A deep-dive investigation into Lumon Industries' psychological horror, Dan Erickson's labyrinthine Macrodata mysteries, and Adam Scott's dual performance.</p>
+          <div class="card-footer">
+            <span>8 Min Read • Feb 2025</span>
+            <span class="read-more">Read Review &rarr;</span>
+          </div>
+        </div>
+      </a>
+
+      <!-- Review 2: The Bear Season 3 -->
+      <a href="/reviews/the-bear-season-3-breakdown.html" class="card">
+        <div class="card-header">
+          <span class="card-platform" style="background: rgba(234, 179, 8, 0.15); color: #FACC15;">Disney+ / FX</span>
+          <span class="card-rating">★ 4.8 / 5</span>
+        </div>
+        <div class="card-body">
+          <h2 class="card-title">The Bear Season 3: The Agony and Architecture of Perfectionism</h2>
+          <p class="card-snippet">Christopher Storer's sensory chef drama returns with impressionistic montages, Michelin-star grief, and Carmy Berzatto's tragic pursuit of culinary immortality.</p>
+          <div class="card-footer">
+            <span>9 Min Read • Jul 2024</span>
+            <span class="read-more">Read Review &rarr;</span>
+          </div>
+        </div>
+      </a>
+
+      <!-- Review 3: Stranger Things 5 -->
+      <a href="/reviews/stranger-things-5-anticipation-review.html" class="card">
+        <div class="card-header">
+          <span class="card-platform" style="background: rgba(229, 9, 20, 0.15); color: #EF4444;">Netflix</span>
+          <span class="card-rating">★ 4.9 / 5</span>
+        </div>
+        <div class="card-body">
+          <h2 class="card-title">Stranger Things Season 5: Farewell to Hawkins &amp; The Endgame</h2>
+          <p class="card-snippet">The Duffer Brothers' grand finale analysis: Hawkins under military quarantine, Vecna's Upside Down origin, and the emotional culmination of 1980s nostalgia.</p>
+          <div class="card-footer">
+            <span>9 Min Read • Jan 2025</span>
+            <span class="read-more">Read Review &rarr;</span>
+          </div>
+        </div>
+      </a>
+
+      <!-- Review 4: The Last of Us Season 2 -->
+      <a href="/reviews/the-last-of-us-season-2-expectations.html" class="card">
+        <div class="card-header">
+          <span class="card-platform" style="background: rgba(168, 85, 247, 0.15); color: #C084FC;">HBO / Max</span>
+          <span class="card-rating">★ 4.9 / 5</span>
+        </div>
+        <div class="card-body">
+          <h2 class="card-title">The Last of Us Season 2: The Brutal Cost of Unforgiven Vengeance</h2>
+          <p class="card-snippet">Craig Mazin and Neil Druckmann adapt the polarizing cycle of violence. Exploring Pedro Pascal's Joel, Bella Ramsey's Ellie, and Kaitlyn Dever's Abby.</p>
+          <div class="card-footer">
+            <span>8 Min Read • Mar 2025</span>
+            <span class="read-more">Read Review &rarr;</span>
+          </div>
+        </div>
+      </a>
+
+      <!-- Review 5: Fallout Season 1 -->
+      <a href="/reviews/fallout-season-1-adaptation-review.html" class="card">
+        <div class="card-header">
+          <span class="card-platform" style="background: rgba(2, 168, 226, 0.15); color: #38BDF8;">Prime Video</span>
+          <span class="card-rating">★ 4.8 / 5</span>
+        </div>
+        <div class="card-body">
+          <h2 class="card-title">Fallout Season 1: Setting the Gold Standard for Adaptations</h2>
+          <p class="card-snippet">How Jonathan Nolan and Lisa Joy cracked the post-nuclear code with Walton Goggins' Ghoul, Ella Purnell's Lucy, and vicious atomic capitalism satire.</p>
+          <div class="card-footer">
+            <span>9 Min Read • Nov 2024</span>
+            <span class="read-more">Read Review &rarr;</span>
+          </div>
+        </div>
+      </a>
+
+      <!-- Review 6: Shōgun -->
+      <a href="/reviews/shogun-masterpiece-review.html" class="card">
+        <div class="card-header">
+          <span class="card-platform" style="background: rgba(234, 179, 8, 0.15); color: #FACC15;">FX / Disney+</span>
+          <span class="card-rating">★ 5.0 / 5</span>
+        </div>
+        <div class="card-body">
+          <h2 class="card-title">Shōgun Season 1: The Triumphant Rebirth of Prestige Epic Drama</h2>
+          <p class="card-snippet">With 18 Primetime Emmy Awards, Shōgun rewrites television history through Hiroyuki Sanada's stoic Toranaga and Anna Sawai's luminous, tragic Mariko.</p>
+          <div class="card-footer">
+            <span>10 Min Read • Oct 2024</span>
+            <span class="read-more">Read Review &rarr;</span>
+          </div>
+        </div>
+      </a>
+
+      <!-- Review 7: Arcane -->
+      <a href="/reviews/arcane-act-breakdown.html" class="card">
+        <div class="card-header">
+          <span class="card-platform" style="background: rgba(229, 9, 20, 0.15); color: #EF4444;">Netflix</span>
+          <span class="card-rating">★ 5.0 / 5</span>
+        </div>
+        <div class="card-body">
+          <h2 class="card-title">Arcane: The Visual &amp; Tragic Apex of Animated Storytelling</h2>
+          <p class="card-snippet">Fortiche and Riot Games dismantle the boundaries between animated visual art and high Greek tragedy through the agonizing sisterhood of Jinx and Vi.</p>
+          <div class="card-footer">
+            <span>11 Min Read • Nov 2024</span>
+            <span class="read-more">Read Review &rarr;</span>
+          </div>
+        </div>
+      </a>
+
+      <!-- Review 8: Dune: Part Two -->
+      <a href="/reviews/dune-part-two-cinematic-review.html" class="card">
+        <div class="card-header">
+          <span class="card-platform" style="background: rgba(245, 158, 11, 0.15); color: #F59E0B;">Warner Bros. / Max</span>
+          <span class="card-rating">★ 5.0 / 5</span>
+        </div>
+        <div class="card-body">
+          <h2 class="card-title">Dune: Part Two: Denis Villeneuve's Monumental Sci-Fi Triumph</h2>
+          <p class="card-snippet">A mythic, earth-shaking cinematic milestone dissecting holy wars, messianic warnings, infrared monochrome arenas, and Hans Zimmer's desert acoustics.</p>
+          <div class="card-footer">
+            <span>10 Min Read • Oct 2024</span>
+            <span class="read-more">Read Review &rarr;</span>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- Companion Guides Banner -->
+    <div class="guides-banner">
+      <h3>Looking for Media Management Strategies?</h3>
+      <p>Discover our in-depth guides covering digital watchlist hygiene, cross-platform streaming optimization, binge-watching psychology, and offline spreadsheet tracking.</p>
+      <a href="/guides/tv-series-tracking-guide.html" class="banner-cta">Explore Editorial Guides &rarr;</a>
+    </div>
+  </main>
+
+  <footer>
+    <p>ShowFlix — Track movies, series, watchlists, and release countdowns with Google Sheets sync.</p>
+    <p style="margin-top: 0.5rem;">
+      <a href="/">Home</a> •
+      <a href="/reviews/">Reviews &amp; Analysis</a> •
+      <a href="/guides/tv-series-tracking-guide.html">Guides &amp; Articles</a> •
+      <a href="/welcome.html">Welcome</a> •
+      <a href="/about.html">About</a> •
+      <a href="/contact.html">Contact</a> •
+      <a href="/privacy.html">Privacy Policy</a> •
+      <a href="/terms.html">Terms</a>
+    </p>
+  </footer>
+</body>
+</html>
